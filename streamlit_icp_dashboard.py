@@ -166,11 +166,18 @@ def calculate_scores(df, weights, pain_config, size_config):
         df['cad_tier'] = 'Bronze'
         df['cad_tier'] = pd.Categorical(df['cad_tier'], categories=["Bronze", "Silver", "Gold", "Platinum"])
     
+    # 5. Pain Score (configurable - now requires both industry AND printer count)
     if 'Industry' in df.columns:
         v_lower_pain = df['Industry'].astype(str).str.lower()
         high_pain_list = [ind.lower() for ind in pain_config['high_pain_verticals']]
+        min_printer_threshold = pain_config['min_printer_count_for_pain']
+        
+        # Pain score requires BOTH high-pain industry AND minimum printer count
+        is_high_pain_industry = v_lower_pain.isin(high_pain_list)
+        has_enough_printers = df['printer_count'] >= min_printer_threshold
+        
         df['pain_score'] = np.where(
-            v_lower_pain.isin(high_pain_list),
+            is_high_pain_industry & has_enough_printers,
             pain_config['score_is_high_pain'],
             pain_config['score_is_not_high_pain']
         )
@@ -366,6 +373,7 @@ def main():
     # === Sidebar for Advanced Scoring Logic ===
     with st.sidebar.expander("🔧 Customize Criterion Scoring Logic", expanded=False):
         st.markdown("#### Pain Score Configuration")
+        st.markdown("*Pain Score is now a 'kicker' - requires BOTH high-pain industry AND minimum printer count*")
         # Initialize pain_config in session state
         if 'pain_config' not in st.session_state:
             # Find matching industries from the actual data that correspond to HIGH_PAIN_VERTICALS
@@ -380,6 +388,7 @@ def main():
             
             st.session_state.pain_config = {
                 'high_pain_verticals': default_high_pain,
+                'min_printer_count_for_pain': 4,
                 'score_is_high_pain': 1.0,
                 'score_is_not_high_pain': 0.0
             }
@@ -396,10 +405,21 @@ def main():
             default=valid_current_selection,
             key="hpv_ms"
         )
+        
+        min_printer_pain = st.number_input(
+            "Min Printer Count for Pain Score", 
+            min_value=0, 
+            value=st.session_state.pain_config['min_printer_count_for_pain'], 
+            step=1, 
+            key="min_printer_pain_ni",
+            help="Minimum number of printers required to trigger pain score (makes it a 'kicker' for scaling companies)"
+        )
+        
         sihp_val = st.slider("Score if High Pain", 0.0, 1.0, st.session_state.pain_config['score_is_high_pain'], 0.05, key="sihp_s")
         sinhp_val = st.slider("Score if Not High Pain", 0.0, 1.0, st.session_state.pain_config['score_is_not_high_pain'], 0.05, key="sinhp_s")
 
         st.session_state.pain_config['high_pain_verticals'] = hpv_selection
+        st.session_state.pain_config['min_printer_count_for_pain'] = min_printer_pain
         st.session_state.pain_config['score_is_high_pain'] = sihp_val
         st.session_state.pain_config['score_is_not_high_pain'] = sinhp_val
         current_pain_config = st.session_state.pain_config.copy()
@@ -440,6 +460,7 @@ def main():
             
             st.session_state.pain_config = {
                 'high_pain_verticals': default_high_pain,
+                'min_printer_count_for_pain': 4,
                 'score_is_high_pain': 1.0,
                 'score_is_not_high_pain': 0.0
             }
