@@ -69,6 +69,166 @@ HIGH_PAIN_VERTICALS = {
 
 LICENSE_COL = "Total Software License Revenue"
 
+# === CUSTOMER SEGMENTATION CONFIGURATION ===
+DEFAULT_SEGMENT_THRESHOLDS = {
+    'small_business_max': 1,      # 0-1 printers = Small Business
+    'mid_market_max': 4,          # 2-4 printers = Mid-Market  
+    # 5+ printers = Large Enterprise
+}
+
+def determine_customer_segment(printer_count, thresholds):
+    """Determine customer segment based on printer count and configurable thresholds"""
+    if printer_count <= thresholds['small_business_max']:
+        return 'Small Business'
+    elif printer_count <= thresholds['mid_market_max']:
+        return 'Mid-Market'
+    else:
+        return 'Large Enterprise'
+
+def get_segment_metrics(df, segment_name, segment_thresholds):
+    """Calculate metrics for a specific customer segment"""
+    # Add segment column if not exists
+    if 'customer_segment' not in df.columns:
+        df['customer_segment'] = df['printer_count'].apply(
+            lambda x: determine_customer_segment(x, segment_thresholds)
+        )
+    
+    segment_df = df[df['customer_segment'] == segment_name]
+    
+    metrics = {
+        'count': len(segment_df),
+        'avg_score': segment_df['ICP_score_new'].mean() if len(segment_df) > 0 else 0,
+        'high_value_count': len(segment_df[segment_df['ICP_score_new'] >= 70]),
+        'total_gp': segment_df['GP24'].sum() if 'GP24' in segment_df.columns else 0,
+        'high_value_gp': segment_df[segment_df['ICP_score_new'] >= 70]['GP24'].sum() if 'GP24' in segment_df.columns else 0,
+        'avg_printer_count': segment_df['printer_count'].mean() if len(segment_df) > 0 else 0
+    }
+    
+    return metrics, segment_df
+
+def create_segment_comparison_chart(df, segment_thresholds):
+    """Create a comparison chart across customer segments"""
+    # Ensure a fresh copy of the DataFrame for this chart to avoid side effects
+    df_chart = df.copy()
+
+    # Add segment column
+    df_chart['customer_segment'] = df_chart['printer_count'].apply(
+        lambda x: determine_customer_segment(x, segment_thresholds)
+    )
+    
+    # Calculate metrics by segment
+    agg_funcs = {
+        'ICP_score_new': ['mean', 'count'],
+        'printer_count': 'mean'
+    }
+    if 'GP24' in df_chart.columns:
+        agg_funcs['GP24'] = 'sum'
+    else: # Create a dummy GP24 column if it doesn't exist to prevent key errors
+        df_chart['GP24'] = 0 
+        agg_funcs['GP24'] = 'sum'
+        
+    segment_summary = df_chart.groupby('customer_segment').agg(agg_funcs).round(2)
+    
+    # Flatten column names
+    segment_summary.columns = ['_'.join(col).strip() for col in segment_summary.columns.values]
+    segment_summary = segment_summary.reset_index()
+    segment_summary = segment_summary.rename(columns={
+        'ICP_score_new_mean': 'Avg_ICP_Score',
+        'ICP_score_new_count': 'Customer_Count',
+        'printer_count_mean': 'Avg_Printer_Count',
+        'GP24_sum': 'Total_GP24'
+    })
+
+    # Calculate total customer count and total GP for percentage calculations
+    total_customers = segment_summary['Customer_Count'].sum()
+    total_gp_all = segment_summary['Total_GP24'].sum()
+
+    # Calculate percentages
+    segment_summary['Customer_Count_Pct'] = (segment_summary['Customer_Count'] / total_customers * 100) if total_customers > 0 else 0
+    segment_summary['Total_GP24_Pct'] = (segment_summary['Total_GP24'] / total_gp_all * 100) if total_gp_all > 0 else 0
+    
+    # Create comparison chart
+    fig = make_subplots(
+        rows=2, cols=2,
+        subplot_titles=('Avg ICP Score by Segment', '% Customer Count by Segment', 
+                       'Avg Printer Count by Segment', '% Total 24mo GP by Segment'),
+        specs=[[{"secondary_y": False}, {"secondary_y": False}],
+               [{"secondary_y": False}, {"secondary_y": False}]]
+    )
+    
+    colors = {'Small Business': '#FF6B6B', 'Mid-Market': '#4ECDC4', 'Large Enterprise': '#45B7D1'}
+    segment_order = ['Small Business', 'Mid-Market', 'Large Enterprise']
+    segment_summary['customer_segment'] = pd.Categorical(segment_summary['customer_segment'], categories=segment_order, ordered=True)
+    segment_summary = segment_summary.sort_values('customer_segment')
+
+    fig.add_trace(
+        go.Bar(x=segment_summary['customer_segment'], y=segment_summary['Avg_ICP_Score'],
+               name='Avg ICP Score', marker_color=[colors.get(seg, '#999') for seg in segment_summary['customer_segment']],
+               text=segment_summary['Avg_ICP_Score'].apply(lambda x: f'{x:.1f}'), textposition='auto'),
+        row=1, col=1
+    )
+    
+    fig.add_trace(
+        go.Bar(x=segment_summary['customer_segment'], y=segment_summary['Customer_Count_Pct'],
+               name='% Customer Count', marker_color=[colors.get(seg, '#999') for seg in segment_summary['customer_segment']],
+               text=segment_summary.apply(lambda row: f"{row['Customer_Count_Pct']:.1f}% ({row['Customer_Count']:,})", axis=1), 
+               textposition='auto', hovertemplate='% Customer Count: %{y:.1f}%<br>Absolute Count: %{customdata[0]:,}<extra></extra>',
+               customdata=segment_summary[['Customer_Count']]),
+        row=1, col=2
+    )
+    
+    fig.add_trace(
+        go.Bar(x=segment_summary['customer_segment'], y=segment_summary['Avg_Printer_Count'],
+               name='Avg Printer Count', marker_color=[colors.get(seg, '#999') for seg in segment_summary['customer_segment']],
+               text=segment_summary['Avg_Printer_Count'].apply(lambda x: f'{x:.1f}'), textposition='auto'),
+        row=2, col=1
+    )
+    
+    if 'GP24' in df.columns: # Check original df, not df_chart which might have dummy GP24
+        fig.add_trace(
+            go.Bar(x=segment_summary['customer_segment'], y=segment_summary['Total_GP24_Pct'],
+                   name='% Total 24mo GP', marker_color=[colors.get(seg, '#999') for seg in segment_summary['customer_segment']],
+                   text=segment_summary.apply(lambda row: f"{row['Total_GP24_Pct']:.1f}% (${row['Total_GP24']:,.0f})", axis=1), 
+                   textposition='auto', hovertemplate='% Total 24mo GP: %{y:.1f}%<br>Absolute GP: $%{customdata[0]:,.0f}<extra></extra>',
+                   customdata=segment_summary[['Total_GP24']]),
+            row=2, col=2
+        )
+    else:
+        fig.add_trace(go.Bar(x=[],y=[]), row=2, col=2) # Empty trace if no GP24 data
+        fig.layout.annotations[3].update(text="Total 24mo GP by Segment (No Data)")
+
+    fig.update_yaxes(ticksuffix="%", row=1, col=2)
+    fig.update_yaxes(ticksuffix="%", row=2, col=2)
+    
+    fig.update_layout(
+        title_text="Customer Segment Comparison (Metrics by Segment)",
+        showlegend=False,
+        height=700, # Increased height for better text visibility
+        bargap=0.2
+    )
+    
+    return fig
+
+def create_segment_distribution_chart(df, segment_thresholds):
+    """Create a distribution chart showing ICP scores within each segment"""
+    # Add segment column
+    df['customer_segment'] = df['printer_count'].apply(
+        lambda x: determine_customer_segment(x, segment_thresholds)
+    )
+    
+    fig = px.box(
+        df, 
+        x='customer_segment', 
+        y='ICP_score_new',
+        color='customer_segment',
+        title="ICP Score Distribution by Customer Segment",
+        labels={'customer_segment': 'Customer Segment', 'ICP_score_new': 'ICP Score'},
+        color_discrete_map={'Small Business': '#FF6B6B', 'Mid-Market': '#4ECDC4', 'Large Enterprise': '#45B7D1'}
+    )
+    
+    fig.update_layout(showlegend=False)
+    return fig
+
 @st.cache_data
 def load_data():
     """Load the scored accounts data"""
@@ -215,56 +375,86 @@ def create_score_distribution(df):
         df, 
         x='ICP_score_new', 
         nbins=30,
-        title="Distribution of ICP Scores",
+        title="Distribution of ICP Scores with High-Value Threshold",
         labels={'ICP_score_new': 'ICP Score', 'count': 'Number of Customers'},
-        color_discrete_sequence=['#1f77b4']
+        color_discrete_sequence=['#1f77b4'],
+        histnorm='probability density' # To better overlay KDE
     )
+
+    # Add a vertical line for the high-value threshold
+    fig.add_vline(x=70, line_dash="dash", line_color="red", 
+                  annotation_text="High-Value (70+)", 
+                  annotation_position="top right")
+    
     fig.update_layout(
         xaxis_title="ICP Score",
-        yaxis_title="Number of Customers",
-        showlegend=False
+        yaxis_title="Density / Number of Customers", # Adjusted Y-axis title
+        showlegend=False,
+        bargap=0.1 # Add some gap between bars
     )
     return fig
 
 def create_score_by_vertical(df):
     """Create average score by vertical chart"""
+    if df.empty or 'Industry' not in df.columns or 'ICP_score_new' not in df.columns:
+        return go.Figure().update_layout(title_text="No data available for Industry Score Analysis")
+        
     vertical_scores = df.groupby('Industry')['ICP_score_new'].agg(['mean', 'count']).reset_index()
-    vertical_scores = vertical_scores[vertical_scores['count'] >= 3].nlargest(10, 'mean')
+    vertical_scores = vertical_scores[vertical_scores['count'] >= 1].nlargest(15, 'mean') # Show top 15, min 1 customer
+    vertical_scores = vertical_scores.sort_values(by='mean', ascending=True) # For horizontal bar chart
     
     fig = px.bar(
         vertical_scores, 
         x='mean', 
         y='Industry',
-        title="Average ICP Score by Industry (Top 10)",
+        text=vertical_scores['count'].apply(lambda x: f" ({x} cust.)"), # Add count text
+        title="Average ICP Score by Industry (Top 15)",
         labels={'mean': 'Average ICP Score', 'Industry': 'Industry'},
         color='mean',
-        color_continuous_scale='viridis'
+        color_continuous_scale=px.colors.sequential.Viridis_r, # Reversed Viridis for better high-score emphasis
+        height=max(400, len(vertical_scores) * 35) # Dynamic height
     )
-    fig.update_layout(yaxis={'categoryorder': 'total ascending'})
+    fig.update_traces(texttemplate='%{x:.1f}%{text}', textposition='outside')
+    fig.update_layout(
+        yaxis={'categoryorder': 'total ascending'}, # This will be overridden by sort_values typically
+        xaxis_title="Average ICP Score (Customer Count in Parentheses)",
+        yaxis_title="Industry",
+        coloraxis_colorbar_title='Avg. Score'
+    )
     return fig
 
-def create_score_components_radar(weights):
+def create_score_components_radar(weights, segment_name="Overall"):
     """Create radar chart showing weight distribution"""
     categories = list(weights.keys())
+    # Capitalize categories for better display
+    theta_labels = [cat.replace('_', ' ').capitalize() for cat in categories]
     values = list(weights.values())
     
     fig = go.Figure()
     fig.add_trace(go.Scatterpolar(
-        r=values,
-        theta=categories,
+        r=values + [values[0]], # Close the loop
+        theta=theta_labels + [theta_labels[0]], # Close the loop
         fill='toself',
         name='Current Weights',
-        line_color='#1f77b4'
+        line_color='#1f77b4',
+        marker=dict(color='#1f77b4', size=8) # Add markers
     ))
+    
+    chart_title = f"ICP Scoring Weight Distribution" # Weights are global, not segment-specific
     
     fig.update_layout(
         polar=dict(
             radialaxis=dict(
                 visible=True,
-                range=[0, 0.5]
-            )),
-        title="ICP Scoring Weight Distribution",
-        showlegend=False
+                range=[0, max(0.5, max(values) + 0.05)] # Dynamic range based on max weight, at least 0.5
+            ),
+            angularaxis=dict(
+                tickfont_size=10 # Adjust tick font size if labels are too long
+            )
+        ),
+        title=chart_title,
+        showlegend=False,
+        height=500 # Adjust height as needed
     )
     return fig
 
@@ -294,13 +484,101 @@ def main():
     
     all_industries = sorted(df_loaded['Industry'].astype(str).str.lower().unique().tolist())
 
+    # === CUSTOMER SEGMENT CONFIGURATION ===
+    st.markdown("## 🏢 Customer Segmentation")
+    
+    # Initialize segment configuration in session state
+    if 'segment_config' not in st.session_state:
+        st.session_state.segment_config = DEFAULT_SEGMENT_THRESHOLDS.copy()
+    
+    # Segment configuration in expandable section
+    with st.expander("⚙️ Configure Customer Segments", expanded=False):
+        st.markdown("**Define customer segments based on printer count thresholds:**")
+        
+        col_seg1, col_seg2 = st.columns(2)
+        with col_seg1:
+            small_max = st.number_input(
+                "Small Business Max Printers", 
+                min_value=0, 
+                value=st.session_state.segment_config['small_business_max'], 
+                step=1,
+                help="Maximum printer count for Small Business segment"
+            )
+        with col_seg2:
+            mid_max = st.number_input(
+                "Mid-Market Max Printers", 
+                min_value=small_max + 1, 
+                value=max(st.session_state.segment_config['mid_market_max'], small_max + 1), 
+                step=1,
+                help="Maximum printer count for Mid-Market segment (Large Enterprise is above this)"
+            )
+        
+        st.session_state.segment_config['small_business_max'] = small_max
+        st.session_state.segment_config['mid_market_max'] = mid_max
+        
+        st.markdown(f"""
+        **Current Segmentation:**
+        - 🏪 **Small Business**: 0 - {small_max} printers
+        - 🏢 **Mid-Market**: {small_max + 1} - {mid_max} printers  
+        - 🏭 **Large Enterprise**: {mid_max + 1}+ printers
+        """)
+        
+        if st.button("🔄 Reset Segment Thresholds", key="reset_segments"):
+            st.session_state.segment_config = DEFAULT_SEGMENT_THRESHOLDS.copy()
+            st.rerun()
+    
+    current_segment_config = st.session_state.segment_config.copy()
+    
+    # Add segment column to data
+    df_loaded['customer_segment'] = df_loaded['printer_count'].apply(
+        lambda x: determine_customer_segment(x, current_segment_config)
+    )
+    
+    # Update selected segment from session state if it exists
+    segment_options = ['All Segments', 'Small Business', 'Mid-Market', 'Large Enterprise']
+    if 'selected_segment' in st.session_state:
+        segment_index = segment_options.index(st.session_state.selected_segment) if st.session_state.selected_segment in segment_options else 0
+    else:
+        segment_index = 0
+    
+    # Segment selector
+    st.markdown("### 📊 View by Customer Segment")
+    selected_segment = st.selectbox(
+        "Select Customer Segment to Analyze:",
+        segment_options,
+        index=segment_index,
+        help="Filter dashboard view by customer segment"
+    )
+    
+    # Update session state
+    st.session_state.selected_segment = selected_segment
+    
+    # Filter data based on segment selection
+    if selected_segment == 'All Segments':
+        df_filtered = df_loaded.copy()
+        dashboard_title_suffix = "All Customer Segments"
+    else:
+        df_filtered = df_loaded[df_loaded['customer_segment'] == selected_segment].copy()
+        dashboard_title_suffix = f"{selected_segment} Customers"
+    
+    st.markdown(f"**Currently viewing: {dashboard_title_suffix}** ({len(df_filtered):,} customers)")
+
     # Show data info in an expander for debugging
     with st.expander("📋 Data Information", expanded=False):
-        st.write(f"**Loaded {len(df_loaded):,} customers**")
+        st.write(f"**Loaded {len(df_loaded):,} total customers, viewing {len(df_filtered):,} in current segment**")
+        
+        # Show segment breakdown
+        if selected_segment == 'All Segments':
+            segment_counts = df_loaded['customer_segment'].value_counts()
+            st.write("**Customer Segment Breakdown:**")
+            for segment, count in segment_counts.items():
+                percentage = (count / len(df_loaded)) * 100
+                st.write(f"  - {segment}: {count:,} customers ({percentage:.1f}%)")
+        
         st.write("**Available columns:**")
-        st.write(df_loaded.columns.tolist())
+        st.write(df_filtered.columns.tolist())
         st.write("**Sample data:**")
-        st.dataframe(df_loaded.head(3))
+        st.dataframe(df_filtered.head(3))
         
         st.write("**Industry Analysis:**")
         st.write(f"**Unique Industries Found ({len(all_industries)}):**")
@@ -384,6 +662,27 @@ def main():
         }
         st.rerun()
 
+    # === QUICK SEGMENT SWITCHER ===
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("## 🏢 Quick Segment Switch")
+    
+    col_sb1, col_sb2 = st.sidebar.columns(2)
+    with col_sb1:
+        if st.button("🏪 Small Business", key="switch_small", use_container_width=True):
+            st.session_state.selected_segment = 'Small Business'
+            st.rerun()
+        if st.button("🏢 Mid-Market", key="switch_mid", use_container_width=True):
+            st.session_state.selected_segment = 'Mid-Market'
+            st.rerun()
+    
+    with col_sb2:
+        if st.button("🏭 Large Enterprise", key="switch_large", use_container_width=True):
+            st.session_state.selected_segment = 'Large Enterprise'
+            st.rerun()
+        if st.button("🌐 All Segments", key="switch_all", use_container_width=True):
+            st.session_state.selected_segment = 'All Segments'
+            st.rerun()
+    
     # === Sidebar for Advanced Scoring Logic ===
     with st.sidebar.expander("🔧 Customize Criterion Scoring Logic", expanded=False):
         st.markdown("#### Pain Score Configuration")
@@ -539,17 +838,19 @@ def main():
             st.rerun()
     
     # Recalculate scores with current configurations
-    df_scored = calculate_scores(df_loaded.copy(), current_main_weights, current_pain_config, current_size_config, current_cad_config)
+    df_scored = calculate_scores(df_filtered.copy(), current_main_weights, current_pain_config, current_size_config, current_cad_config)
     
     # Main dashboard
+    st.markdown(f"## 📈 Key Metrics - {dashboard_title_suffix}")
     col1, col2, col3, col4, col5, col6 = st.columns(6)
     
     with col1:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+        metric_title = "Total Customers" if selected_segment == 'All Segments' else f"{selected_segment} Customers"
         st.metric(
-            "Total Customers", 
+            metric_title, 
             f"{len(df_scored):,}",
-            help="Total number of customers in dataset"
+            help=f"Number of customers in {dashboard_title_suffix.lower()}"
         )
         st.markdown('</div>', unsafe_allow_html=True)
     
@@ -559,7 +860,7 @@ def main():
         st.metric(
             "Average ICP Score", 
             f"{avg_score:.1f}",
-            help="Average ICP score with current weights"
+            help=f"Average ICP score for {dashboard_title_suffix.lower()}"
         )
         st.markdown('</div>', unsafe_allow_html=True)
     
@@ -569,7 +870,7 @@ def main():
         st.metric(
             "High-Value Customers", 
             f"{high_score_count:,}",
-            help="Customers with ICP score ≥ 70"
+            help=f"Customers with ICP score ≥ 70 in {dashboard_title_suffix.lower()}"
         )
         st.markdown('</div>', unsafe_allow_html=True)
     
@@ -632,8 +933,128 @@ def main():
             )
             st.markdown('</div>', unsafe_allow_html=True)
     
+    # === SEGMENT COMPARISON SECTION (only when viewing all segments) ===
+    if selected_segment == 'All Segments':
+        st.markdown("## 🏢 Customer Segment Analysis")
+        st.markdown("*Compare performance across Small Business, Mid-Market, and Large Enterprise segments*")
+        
+        # Recalculate scores for all data to show segment comparison
+        df_all_scored = calculate_scores(df_loaded.copy(), current_main_weights, current_pain_config, current_size_config, current_cad_config)
+        
+        # Segment comparison charts
+        col_seg1, col_seg2 = st.columns(2)
+        
+        with col_seg1:
+            fig_segment_comparison = create_segment_comparison_chart(df_all_scored, current_segment_config)
+            st.plotly_chart(fig_segment_comparison, use_container_width=True)
+        
+        with col_seg2:
+            fig_segment_distribution = create_segment_distribution_chart(df_all_scored, current_segment_config)
+            st.plotly_chart(fig_segment_distribution, use_container_width=True)
+        
+        # Segment summary table
+        st.markdown("### 📊 Segment Summary Table")
+        segment_summary_data = []
+        
+        for segment in ['Small Business', 'Mid-Market', 'Large Enterprise']:
+            metrics, _ = get_segment_metrics(df_all_scored, segment, current_segment_config)
+            
+            hv_percentage = (metrics['high_value_gp'] / metrics['total_gp'] * 100) if metrics['total_gp'] > 0 else 0
+            
+            segment_summary_data.append({
+                'Customer Segment': segment,
+                'Customer Count': f"{metrics['count']:,}",
+                'Avg ICP Score': f"{metrics['avg_score']:.1f}",
+                'High-Value Customers': f"{metrics['high_value_count']:,}",
+                'Avg Printer Count': f"{metrics['avg_printer_count']:.1f}",
+                'Total 24mo GP': f"${metrics['total_gp']:,.0f}" if 'GP24' in df_all_scored.columns else "N/A",
+                'High-Value 24mo GP': f"${metrics['high_value_gp']:,.0f}" if 'GP24' in df_all_scored.columns else "N/A",
+                'High-Value GP %': f"{hv_percentage:.1f}%" if 'GP24' in df_all_scored.columns else "N/A"
+            })
+        
+        segment_summary_df = pd.DataFrame(segment_summary_data)
+        st.dataframe(segment_summary_df, use_container_width=True)
+    
+    # === SEGMENT-SPECIFIC INSIGHTS (when viewing individual segments) ===
+    elif selected_segment != 'All Segments':
+        st.markdown(f"## 🔍 {selected_segment} Insights")
+        
+        # Calculate segment-specific metrics
+        segment_metrics, _ = get_segment_metrics(df_scored, selected_segment, current_segment_config)
+        
+        # Show segment insights
+        col_insight1, col_insight2, col_insight3 = st.columns(3)
+        
+        with col_insight1:
+            st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+            st.metric(
+                "Avg Printer Count", 
+                f"{segment_metrics['avg_printer_count']:.1f}",
+                help=f"Average number of printers for {selected_segment} customers"
+            )
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        with col_insight2:
+            if segment_metrics['count'] > 0:
+                hv_percentage = (segment_metrics['high_value_count'] / segment_metrics['count']) * 100
+                st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+                st.metric(
+                    "High-Value Rate", 
+                    f"{hv_percentage:.1f}%",
+                    help=f"Percentage of {selected_segment} customers with ICP score ≥ 70"
+                )
+                st.markdown('</div>', unsafe_allow_html=True)
+            else:
+                st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+                st.metric("High-Value Rate", "0.0%")
+                st.markdown('</div>', unsafe_allow_html=True)
+        
+        with col_insight3:
+            if 'GP24' in df_scored.columns and segment_metrics['total_gp'] > 0:
+                avg_gp_per_customer = segment_metrics['total_gp'] / segment_metrics['count']
+                st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+                st.metric(
+                    "Avg 24mo GP/Customer", 
+                    f"${avg_gp_per_customer:,.0f}",
+                    help=f"Average 24-month gross profit per {selected_segment} customer"
+                )
+                st.markdown('</div>', unsafe_allow_html=True)
+            else:
+                st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+                st.metric("Avg 24mo GP/Customer", "N/A")
+                st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Segment-specific recommendations
+        st.markdown(f"### 💡 {selected_segment} Recommendations")
+        
+        if selected_segment == 'Small Business':
+            st.info("""
+            **Small Business Focus Areas:**
+            - 🎯 Target customers with 0-1 printers who show growth potential
+            - 📈 Focus on adoption and scaling opportunities  
+            - 💼 Emphasize cost-effective solutions and ROI
+            - 🤝 Build strong relationships for future expansion
+            """)
+        elif selected_segment == 'Mid-Market':
+            st.info("""
+            **Mid-Market Focus Areas:**
+            - 🏢 Target customers with 2-10 printers showing scaling patterns
+            - ⚡ Leverage pain points in high-pain industries
+            - 🔄 Focus on workflow optimization and efficiency gains
+            - 📊 Provide data-driven ROI demonstrations
+            """)
+        else:  # Large Enterprise
+            st.info("""
+            **Large Enterprise Focus Areas:**
+            - 🏭 Target customers with 11+ printers for enterprise solutions
+            - 🎯 Focus on strategic partnerships and long-term contracts
+            - 🔧 Emphasize advanced features and customization
+            - 💰 Highlight enterprise-level support and services
+            """)
+    
     # Charts
-    st.markdown("## 📊 Real-time Analytics")
+    chart_title = f"Real-time Analytics - {dashboard_title_suffix}" if selected_segment != 'All Segments' else "Real-time Analytics"
+    st.markdown(f"## 📊 {chart_title}")
     
     # First row of charts
     col1, col2 = st.columns(2)
@@ -643,7 +1064,7 @@ def main():
         st.plotly_chart(fig_dist, use_container_width=True)
     
     with col2:
-        fig_radar = create_score_components_radar(current_main_weights)
+        fig_radar = create_score_components_radar(current_main_weights, dashboard_title_suffix)
         st.plotly_chart(fig_radar, use_container_width=True)
     
     # Second row of charts
@@ -654,26 +1075,43 @@ def main():
         st.plotly_chart(fig_vertical, use_container_width=True)
     
     with col2:
-        if 'printer_count' in df_scored.columns:
+        if 'printer_count' in df_scored.columns and not df_scored.empty:
+            # Ensure 'Industry' column exists, provide a default if not
+            df_scatter = df_scored.copy()
+            if 'Industry' not in df_scatter.columns:
+                df_scatter['Industry'] = 'N/A'
+            else:
+                df_scatter['Industry'] = df_scatter['Industry'].fillna('N/A')
+
             fig_scatter_printers = px.scatter(
-                df_scored.sample(min(500, len(df_scored))),
+                df_scatter.sample(min(500, len(df_scatter))),
                 x='printer_count',
                 y='ICP_score_new',
-                color='Industry',
-                title="Printer Count vs ICP Score",
-                labels={'printer_count': 'Printer Count', 'ICP_score_new': 'ICP Score'}
+                color='Industry', # Color by Industry if available and diverse enough
+                title=f"Printer Count vs ICP Score - {dashboard_title_suffix}",
+                labels={'printer_count': 'Printer Count', 'ICP_score_new': 'ICP Score'},
+                hover_data=['Company Name'] # Add company name to tooltip
+            )
+            fig_scatter_printers.update_layout(
+                height=500, # Standard height
+                coloraxis_showscale=False if len(df_scatter['Industry'].unique()) > 20 else True # Hide color scale if too many industries
             )
             st.plotly_chart(fig_scatter_printers, use_container_width=True)
+        elif df_scored.empty:
+            st.info(f"No customers in {dashboard_title_suffix} to display Printer Count vs ICP Score chart.")
         else:
-            st.write("Printer count data not available for scatter plot.")
+            st.warning("Printer count data not available for scatter plot.")
     
     # Data table
-    st.markdown("## 📋 Top Scoring Customers")
+    table_title = f"Top Scoring Customers - {dashboard_title_suffix}" if selected_segment != 'All Segments' else "Top Scoring Customers"
+    st.markdown(f"## 📋 {table_title}")
     
     # Select columns to display (removed Customer ID, renamed columns)
     display_cols = ['Company Name', 'Industry', 'ICP_score_new', 'printer_count', 'cad_tier']
     if 'GP24' in df_scored.columns:
         display_cols.append('GP24')
+    if 'customer_segment' in df_scored.columns and selected_segment == 'All Segments':
+        display_cols.insert(2, 'customer_segment')  # Add segment column when viewing all segments
     
     available_cols = [col for col in display_cols if col in df_scored.columns]
     
@@ -685,7 +1123,8 @@ def main():
         'ICP_score_new': 'ICP Score',
         'printer_count': 'Printer Count',
         'cad_tier': 'CAD Tier',
-        'GP24': '24mo GP'
+        'GP24': '24mo GP',
+        'customer_segment': 'Customer Segment'
     }
     top_customers = top_customers.rename(columns=column_renames)
     
@@ -693,11 +1132,21 @@ def main():
     
     # Download button
     csv = df_scored.to_csv(index=False)
+    
+    # Create segment-specific filename
+    if selected_segment == 'All Segments':
+        filename_segment = "all_segments"
+    else:
+        filename_segment = selected_segment.lower().replace(' ', '_').replace('-', '_')
+    
+    download_filename = f"icp_scores_{filename_segment}_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    
     st.download_button(
-        label="📥 Download Updated Scores (CSV)",
+        label=f"📥 Download {dashboard_title_suffix} Scores (CSV)",
         data=csv,
-        file_name=f"icp_scores_interactive_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.csv",
-        mime="text/csv"
+        file_name=download_filename,
+        mime="text/csv",
+        help=f"Download ICP scores for {dashboard_title_suffix.lower()}"
     )
     
     # Footer
