@@ -114,7 +114,7 @@ def load_data():
         st.error(f"❌ Error loading data: {str(e)}")
         st.stop()
 
-def calculate_scores(df, weights, pain_config, size_config):
+def calculate_scores(df, weights, pain_config, size_config, cad_config):
     """Recalculate ICP scores with new weights and configurable logic"""
     df = df.copy()
     
@@ -125,15 +125,18 @@ def calculate_scores(df, weights, pain_config, size_config):
         df['printer_count'] = pd.to_numeric(big_box, errors='coerce').fillna(0) + pd.to_numeric(small_box, errors='coerce').fillna(0)
     
     if 'scaling_flag' not in df.columns:
-        df['scaling_flag'] = (df['printer_count'] >= 4).astype(int)
+        df['scaling_flag'] = (df['printer_count'] >= 4).astype(int) # Default, can be made configurable later
     
-    # Calculate individual scores
+    # --- Calculate individual scores --- 
+
+    # 1. Vertical Score (using existing global VERTICAL_WEIGHTS for now)
     if 'Industry' in df.columns:
         v_lower = df['Industry'].astype(str).str.lower()
-        df['vertical_score'] = v_lower.map(VERTICAL_WEIGHTS).fillna(0.5)
+        df['vertical_score'] = v_lower.map(VERTICAL_WEIGHTS).fillna(0.5) # Default for unknown
     else:
         df['vertical_score'] = 0.5
-    
+
+    # 2. Size Score (configurable)
     min_printers = size_config['min_printers_sweet_spot']
     max_printers = size_config['max_printers_sweet_spot']
     score_in_sweet_spot = size_config['score_in_sweet_spot']
@@ -143,26 +146,37 @@ def calculate_scores(df, weights, pain_config, size_config):
         score_in_sweet_spot, 
         score_outside_sweet_spot
     )
-    
+
+    # 3. Adoption Score (using existing logic for now)
     df['adoption_score'] = df['scaling_flag'].astype(float)
-    
+
+    # 4. Relationship Score (configurable CAD tiers)
     if LICENSE_COL in df.columns:
         license_revenue = pd.to_numeric(df[LICENSE_COL], errors='coerce').fillna(0)
-        bins = [-1, 5000, 25000, 100000, np.inf]
+        
+        # Use configurable thresholds
+        bins = [-1, cad_config['bronze_max'], cad_config['silver_max'], cad_config['gold_max'], np.inf]
         labels = ["Bronze", "Silver", "Gold", "Platinum"]
         cad_tier_series = pd.cut(license_revenue, bins=bins, labels=labels)
-        tier_map_local = {"Bronze": 0.5, "Silver": 0.7, "Gold": 0.9, "Platinum": 1.0}
+        
+        # Use configurable scores
+        tier_map_local = {
+            "Bronze": cad_config['bronze_score'], 
+            "Silver": cad_config['silver_score'], 
+            "Gold": cad_config['gold_score'], 
+            "Platinum": cad_config['platinum_score']
+        }
         
         relationship_scores_list = []
         for tier_val in cad_tier_series:
             if pd.isna(tier_val):
-                relationship_scores_list.append(0.2)
+                relationship_scores_list.append(cad_config['missing_data_score'])
             else:
-                relationship_scores_list.append(tier_map_local.get(str(tier_val), 0.2))
+                relationship_scores_list.append(tier_map_local.get(str(tier_val), cad_config['missing_data_score']))
         df['relationship_score'] = relationship_scores_list
         df['cad_tier'] = cad_tier_series
     else:
-        df['relationship_score'] = 0.5
+        df['relationship_score'] = cad_config['bronze_score']  # Default to bronze score
         df['cad_tier'] = 'Bronze'
         df['cad_tier'] = pd.Categorical(df['cad_tier'], categories=["Bronze", "Silver", "Gold", "Platinum"])
     
@@ -447,6 +461,48 @@ def main():
         st.session_state.size_config['score_outside_sweet_spot'] = soss_val
         current_size_config = st.session_state.size_config.copy()
 
+        st.markdown("---#### CAD Tier Configuration")
+        st.markdown("*Configure revenue thresholds and scores for relationship tiers*")
+        # Initialize cad_config in session state
+        if 'cad_config' not in st.session_state:
+            st.session_state.cad_config = {
+                'bronze_max': 5000,
+                'silver_max': 25000,
+                'gold_max': 100000,
+                'bronze_score': 0.5,
+                'silver_score': 0.7,
+                'gold_score': 0.9,
+                'platinum_score': 1.0,
+                'missing_data_score': 0.2
+            }
+
+        bronze_max_val = st.number_input("Bronze Tier Max ($)", 
+                                        min_value=0, value=st.session_state.cad_config['bronze_max'], step=1000, key="bronze_max_ni")
+        silver_max_val = st.number_input("Silver Tier Max ($)", 
+                                        min_value=0, value=st.session_state.cad_config['silver_max'], step=1000, key="silver_max_ni")
+        gold_max_val = st.number_input("Gold Tier Max ($)", 
+                                      min_value=0, value=st.session_state.cad_config['gold_max'], step=1000, key="gold_max_ni")
+        
+        col_cad1, col_cad2 = st.columns(2)
+        with col_cad1:
+            bronze_score_val = st.slider("Bronze Score", 0.0, 1.0, st.session_state.cad_config['bronze_score'], 0.05, key="bronze_score_s")
+            silver_score_val = st.slider("Silver Score", 0.0, 1.0, st.session_state.cad_config['silver_score'], 0.05, key="silver_score_s")
+        with col_cad2:
+            gold_score_val = st.slider("Gold Score", 0.0, 1.0, st.session_state.cad_config['gold_score'], 0.05, key="gold_score_s")
+            platinum_score_val = st.slider("Platinum Score", 0.0, 1.0, st.session_state.cad_config['platinum_score'], 0.05, key="platinum_score_s")
+        
+        missing_data_score_val = st.slider("Missing Data Score", 0.0, 1.0, st.session_state.cad_config['missing_data_score'], 0.05, key="missing_data_score_s")
+        
+        st.session_state.cad_config['bronze_max'] = bronze_max_val
+        st.session_state.cad_config['silver_max'] = silver_max_val
+        st.session_state.cad_config['gold_max'] = gold_max_val
+        st.session_state.cad_config['bronze_score'] = bronze_score_val
+        st.session_state.cad_config['silver_score'] = silver_score_val
+        st.session_state.cad_config['gold_score'] = gold_score_val
+        st.session_state.cad_config['platinum_score'] = platinum_score_val
+        st.session_state.cad_config['missing_data_score'] = missing_data_score_val
+        current_cad_config = st.session_state.cad_config.copy()
+
         if st.button("🔄 Reset Scoring Logic to Defaults", key="reset_logic_defaults"):
             # Find matching industries from the actual data that correspond to HIGH_PAIN_VERTICALS
             default_high_pain = []
@@ -470,13 +526,23 @@ def main():
                 'score_in_sweet_spot': 1.0,
                 'score_outside_sweet_spot': 0.5
             }
+            st.session_state.cad_config = {
+                'bronze_max': 5000,
+                'silver_max': 25000,
+                'gold_max': 100000,
+                'bronze_score': 0.5,
+                'silver_score': 0.7,
+                'gold_score': 0.9,
+                'platinum_score': 1.0,
+                'missing_data_score': 0.2
+            }
             st.rerun()
     
     # Recalculate scores with current configurations
-    df_scored = calculate_scores(df_loaded.copy(), current_main_weights, current_pain_config, current_size_config)
+    df_scored = calculate_scores(df_loaded.copy(), current_main_weights, current_pain_config, current_size_config, current_cad_config)
     
     # Main dashboard
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
     
     with col1:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
@@ -512,7 +578,7 @@ def main():
             total_gp = df_scored['GP24'].sum()
             st.markdown('<div class="metric-card">', unsafe_allow_html=True)
             st.metric(
-                "Total GP24", 
+                "Total 24mo GP", 
                 f"${total_gp:,.0f}",
                 help="Total gross profit (24 months)"
             )
@@ -520,9 +586,49 @@ def main():
         else:
             st.markdown('<div class="metric-card">', unsafe_allow_html=True)
             st.metric(
-                "Total GP24", 
+                "Total 24mo GP", 
                 "N/A",
-                help="Total GP24 not available"
+                help="Total 24mo GP not available"
+            )
+            st.markdown('</div>', unsafe_allow_html=True)
+    
+    with col5:
+        if 'GP24' in df_scored.columns:
+            high_value_gp = df_scored[df_scored['ICP_score_new'] >= 70]['GP24'].sum()
+            st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+            st.metric(
+                "High-Value 24mo GP", 
+                f"${high_value_gp:,.0f}",
+                help="24mo GP from customers with ICP score ≥ 70"
+            )
+            st.markdown('</div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+            st.metric(
+                "High-Value 24mo GP", 
+                "N/A",
+                help="High-Value 24mo GP not available"
+            )
+            st.markdown('</div>', unsafe_allow_html=True)
+    
+    with col6:
+        if 'GP24' in df_scored.columns:
+            total_gp = df_scored['GP24'].sum()
+            high_value_gp = df_scored[df_scored['ICP_score_new'] >= 70]['GP24'].sum()
+            hv_percentage = (high_value_gp / total_gp * 100) if total_gp > 0 else 0
+            st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+            st.metric(
+                "High-Value GP %", 
+                f"{hv_percentage:.1f}%",
+                help="Percentage of total 24mo GP from high-value customers"
+            )
+            st.markdown('</div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+            st.metric(
+                "High-Value GP %", 
+                "N/A",
+                help="High-Value GP percentage not available"
             )
             st.markdown('</div>', unsafe_allow_html=True)
     
@@ -564,14 +670,25 @@ def main():
     # Data table
     st.markdown("## 📋 Top Scoring Customers")
     
-    # Select columns to display
-    display_cols = ['Customer ID', 'Company Name', 'Industry', 'ICP_score_new', 'printer_count', 'cad_tier']
+    # Select columns to display (removed Customer ID, renamed columns)
+    display_cols = ['Company Name', 'Industry', 'ICP_score_new', 'printer_count', 'cad_tier']
     if 'GP24' in df_scored.columns:
         display_cols.append('GP24')
     
     available_cols = [col for col in display_cols if col in df_scored.columns]
     
-    top_customers = df_scored.nlargest(20, 'ICP_score_new')[available_cols]
+    # Get top 100 customers and rename columns for display
+    top_customers = df_scored.nlargest(100, 'ICP_score_new')[available_cols].copy()
+    
+    # Rename columns for better display
+    column_renames = {
+        'ICP_score_new': 'ICP Score',
+        'printer_count': 'Printer Count',
+        'cad_tier': 'CAD Tier',
+        'GP24': '24mo GP'
+    }
+    top_customers = top_customers.rename(columns=column_renames)
+    
     st.dataframe(top_customers, use_container_width=True)
     
     # Download button
