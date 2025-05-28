@@ -1,7 +1,7 @@
 """
 Interactive ICP Scoring Dashboard
 =================================
-Real-time customer segmentation with adjustable weights for GoEngineer Digital Manufacturing accounts.
+Real-time customer segmentation with adjustable weights for customer account analysis.
 """
 
 import streamlit as st
@@ -29,17 +29,216 @@ st.markdown("""
         text-align: center;
         margin-bottom: 2rem;
     }
-    .metric-card {
-        background-color: #f0f2f6;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        border-left: 4px solid #1f77b4;
+    
+    /* Hide default Streamlit metric containers completely */
+    div[data-testid="metric-container"] {
+        display: none !important;
     }
+    
+    /* Custom Metric Display */
+    .custom-metric {
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+        padding: 1.5rem;
+        border-radius: 16px;
+        border: 1px solid #e9ecef;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        margin: 0.5rem 0;
+        position: relative;
+        overflow: hidden;
+        text-align: center;
+        height: 140px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        cursor: pointer;
+        animation: fadeInUp 0.6s ease-out;
+        animation-fill-mode: both;
+    }
+    
+    /* Stagger animation for each card */
+    .custom-metric:nth-child(1) { animation-delay: 0.1s; }
+    .custom-metric:nth-child(2) { animation-delay: 0.2s; }
+    .custom-metric:nth-child(3) { animation-delay: 0.3s; }
+    .custom-metric:nth-child(4) { animation-delay: 0.4s; }
+    .custom-metric:nth-child(5) { animation-delay: 0.5s; }
+    .custom-metric:nth-child(6) { animation-delay: 0.6s; }
+    
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translate3d(0, 30px, 0);
+        }
+        to {
+            opacity: 1;
+            transform: translate3d(0, 0, 0);
+        }
+    }
+    
+    .custom-metric:hover {
+        transform: translateY(-4px) scale(1.02);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        border-color: rgba(31, 119, 180, 0.3);
+    }
+    
+    .custom-metric::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 5px;
+        border-radius: 16px 16px 0 0;
+    }
+    
+    .custom-metric::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(45deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%);
+        pointer-events: none;
+    }
+    
+    .metric-customers::before {
+        background: linear-gradient(90deg, #28a745, #20c997);
+    }
+    
+    .metric-score::before {
+        background: linear-gradient(90deg, #1f77b4, #4dabf7);
+    }
+    
+    .metric-high-value::before {
+        background: linear-gradient(90deg, #ffc107, #fd7e14);
+    }
+    
+    .metric-gp::before {
+        background: linear-gradient(90deg, #6f42c1, #e83e8c);
+    }
+    
+    .metric-hv-gp::before {
+        background: linear-gradient(90deg, #dc3545, #fd7e14);
+    }
+    
+    .metric-percentage::before {
+        background: linear-gradient(90deg, #17a2b8, #6610f2);
+    }
+    
+    .metric-title {
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: #6c757d;
+        margin-bottom: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        line-height: 1.2;
+    }
+    
+    .metric-value {
+        font-size: 2rem;
+        font-weight: 800;
+        color: #212529;
+        margin-bottom: 0.5rem;
+        line-height: 1;
+        font-family: 'Segoe UI', 'Inter', sans-serif;
+    }
+    
+    .metric-subtitle {
+        font-size: 0.7rem;
+        color: #8e9196;
+        font-weight: 500;
+        line-height: 1.3;
+    }
+    
+    .metric-icon {
+        font-size: 1.1rem;
+        margin-right: 0.4rem;
+        opacity: 0.9;
+    }
+    
+    /* Enhanced metric card variants for better visual distinction */
+    .metric-customers {
+        background: linear-gradient(135deg, #f8fff9 0%, #e8f5e8 100%);
+        border-color: #c3e6cb;
+    }
+    
+    .metric-score {
+        background: linear-gradient(135deg, #f8fbff 0%, #e3f2fd 100%);
+        border-color: #b3d9ff;
+    }
+    
+    .metric-high-value {
+        background: linear-gradient(135deg, #fffdf8 0%, #fff3cd 100%);
+        border-color: #ffeaa7;
+    }
+    
+    .metric-gp {
+        background: linear-gradient(135deg, #fdf8ff 0%, #f3e5f5 100%);
+        border-color: #e1bee7;
+    }
+    
+    .metric-hv-gp {
+        background: linear-gradient(135deg, #fff8f8 0%, #ffebee 100%);
+        border-color: #ffcdd2;
+    }
+    
+    .metric-percentage {
+        background: linear-gradient(135deg, #f8fcff 0%, #e0f2f1 100%);
+        border-color: #b2dfdb;
+    }
+    
+    /* Old metric card styling - keep for other sections */
+    .metric-card {
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+        padding: 1.5rem;
+        border-radius: 12px;
+        border: 1px solid #e3e6ea;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        transition: all 0.3s ease;
+        margin-bottom: 1rem;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .metric-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+        border-color: #1f77b4;
+    }
+    
+    .metric-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, #1f77b4, #4dabf7);
+    }
+    
     .weight-section {
         background-color: #fafafa;
         padding: 1rem;
         border-radius: 0.5rem;
         margin-bottom: 1rem;
+    }
+    
+    /* Additional responsive adjustments */
+    @media (max-width: 768px) {
+        .custom-metric {
+            height: 120px;
+            padding: 1rem;
+        }
+        
+        .metric-value {
+            font-size: 1.6rem;
+        }
+        
+        .metric-title {
+            font-size: 0.7rem;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -477,7 +676,7 @@ def create_scatter_matrix(df):
 def main():
     # Header
     st.markdown('<h1 class="main-header">🎯 ICP Scoring Dashboard</h1>', unsafe_allow_html=True)
-    st.markdown("**GoEngineer Digital Manufacturing Customer Segmentation**")
+    st.markdown("**Customer Segmentation & Analysis**")
     
     # Load data
     df_loaded = load_data()
@@ -842,96 +1041,118 @@ def main():
     
     # Main dashboard
     st.markdown(f"## 📈 Key Metrics - {dashboard_title_suffix}")
+    
+    # Calculate metrics
+    avg_score = df_scored['ICP_score_new'].mean()
+    high_score_count = len(df_scored[df_scored['ICP_score_new'] >= 70])
+    total_gp = df_scored['GP24'].sum() if 'GP24' in df_scored.columns else 0
+    high_value_gp = df_scored[df_scored['ICP_score_new'] >= 70]['GP24'].sum() if 'GP24' in df_scored.columns else 0
+    hv_percentage = (high_value_gp / total_gp * 100) if total_gp > 0 else 0
+    
     col1, col2, col3, col4, col5, col6 = st.columns(6)
     
     with col1:
-        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
         metric_title = "Total Customers" if selected_segment == 'All Segments' else f"{selected_segment} Customers"
-        st.metric(
-            metric_title, 
-            f"{len(df_scored):,}",
-            help=f"Number of customers in {dashboard_title_suffix.lower()}"
-        )
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown(f"""
+        <div class="custom-metric metric-customers">
+            <div class="metric-title">
+                <span class="metric-icon">👥</span>{metric_title}
+            </div>
+            <div class="metric-value">{len(df_scored):,}</div>
+            <div class="metric-subtitle">Active customer accounts</div>
+        </div>
+        """, unsafe_allow_html=True)
     
     with col2:
-        avg_score = df_scored['ICP_score_new'].mean()
-        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.metric(
-            "Average ICP Score", 
-            f"{avg_score:.1f}",
-            help=f"Average ICP score for {dashboard_title_suffix.lower()}"
-        )
-        st.markdown('</div>', unsafe_allow_html=True)
+        score_color = "#28a745" if avg_score >= 70 else "#ffc107" if avg_score >= 50 else "#dc3545"
+        st.markdown(f"""
+        <div class="custom-metric metric-score">
+            <div class="metric-title">
+                <span class="metric-icon">🎯</span>Average ICP Score
+            </div>
+            <div class="metric-value" style="color: {score_color};">{avg_score:.1f}</div>
+            <div class="metric-subtitle">Out of 100 points</div>
+        </div>
+        """, unsafe_allow_html=True)
     
     with col3:
-        high_score_count = len(df_scored[df_scored['ICP_score_new'] >= 70])
-        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.metric(
-            "High-Value Customers", 
-            f"{high_score_count:,}",
-            help=f"Customers with ICP score ≥ 70 in {dashboard_title_suffix.lower()}"
-        )
-        st.markdown('</div>', unsafe_allow_html=True)
+        hv_rate = (high_score_count / len(df_scored) * 100) if len(df_scored) > 0 else 0
+        st.markdown(f"""
+        <div class="custom-metric metric-high-value">
+            <div class="metric-title">
+                <span class="metric-icon">⭐</span>High-Value Customers
+            </div>
+            <div class="metric-value">{high_score_count:,}</div>
+            <div class="metric-subtitle">{hv_rate:.1f}% of total (≥70 score)</div>
+        </div>
+        """, unsafe_allow_html=True)
     
     with col4:
         if 'GP24' in df_scored.columns:
-            total_gp = df_scored['GP24'].sum()
-            st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-            st.metric(
-                "Total 24mo GP", 
-                f"${total_gp:,.0f}",
-                help="Total gross profit (24 months)"
-            )
-            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown(f"""
+            <div class="custom-metric metric-gp">
+                <div class="metric-title">
+                    <span class="metric-icon">💰</span>Total 24mo GP (HW)
+                </div>
+                <div class="metric-value">${total_gp:,.0f}</div>
+                <div class="metric-subtitle">Hardware division revenue</div>
+            </div>
+            """, unsafe_allow_html=True)
         else:
-            st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-            st.metric(
-                "Total 24mo GP", 
-                "N/A",
-                help="Total 24mo GP not available"
-            )
-            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown(f"""
+            <div class="custom-metric metric-gp">
+                <div class="metric-title">
+                    <span class="metric-icon">💰</span>Total 24mo GP (HW)
+                </div>
+                <div class="metric-value">N/A</div>
+                <div class="metric-subtitle">Data not available</div>
+            </div>
+            """, unsafe_allow_html=True)
     
     with col5:
         if 'GP24' in df_scored.columns:
-            high_value_gp = df_scored[df_scored['ICP_score_new'] >= 70]['GP24'].sum()
-            st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-            st.metric(
-                "High-Value 24mo GP", 
-                f"${high_value_gp:,.0f}",
-                help="24mo GP from customers with ICP score ≥ 70"
-            )
-            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown(f"""
+            <div class="custom-metric metric-hv-gp">
+                <div class="metric-title">
+                    <span class="metric-icon">🚀</span>High-Value 24mo GP (HW)
+                </div>
+                <div class="metric-value">${high_value_gp:,.0f}</div>
+                <div class="metric-subtitle">From top-tier customers</div>
+            </div>
+            """, unsafe_allow_html=True)
         else:
-            st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-            st.metric(
-                "High-Value 24mo GP", 
-                "N/A",
-                help="High-Value 24mo GP not available"
-            )
-            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown(f"""
+            <div class="custom-metric metric-hv-gp">
+                <div class="metric-title">
+                    <span class="metric-icon">🚀</span>High-Value 24mo GP (HW)
+                </div>
+                <div class="metric-value">N/A</div>
+                <div class="metric-subtitle">Data not available</div>
+            </div>
+            """, unsafe_allow_html=True)
     
     with col6:
         if 'GP24' in df_scored.columns:
-            total_gp = df_scored['GP24'].sum()
-            high_value_gp = df_scored[df_scored['ICP_score_new'] >= 70]['GP24'].sum()
-            hv_percentage = (high_value_gp / total_gp * 100) if total_gp > 0 else 0
-            st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-            st.metric(
-                "High-Value GP %", 
-                f"{hv_percentage:.1f}%",
-                help="Percentage of total 24mo GP from high-value customers"
-            )
-            st.markdown('</div>', unsafe_allow_html=True)
+            percentage_color = "#28a745" if hv_percentage >= 50 else "#ffc107" if hv_percentage >= 25 else "#dc3545"
+            st.markdown(f"""
+            <div class="custom-metric metric-percentage">
+                <div class="metric-title">
+                    <span class="metric-icon">📊</span>High-Value GP % (HW)
+                </div>
+                <div class="metric-value" style="color: {percentage_color};">{hv_percentage:.1f}%</div>
+                <div class="metric-subtitle">Revenue concentration</div>
+            </div>
+            """, unsafe_allow_html=True)
         else:
-            st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-            st.metric(
-                "High-Value GP %", 
-                "N/A",
-                help="High-Value GP percentage not available"
-            )
-            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown(f"""
+            <div class="custom-metric metric-percentage">
+                <div class="metric-title">
+                    <span class="metric-icon">📊</span>High-Value GP % (HW)
+                </div>
+                <div class="metric-value">N/A</div>
+                <div class="metric-subtitle">Data not available</div>
+            </div>
+            """, unsafe_allow_html=True)
     
     # === SEGMENT COMPARISON SECTION (only when viewing all segments) ===
     if selected_segment == 'All Segments':
@@ -1151,7 +1372,7 @@ def main():
     
     # Footer
     st.markdown("---")
-    st.markdown("*Dashboard built for GoEngineer Digital Manufacturing Customer Segmentation*")
+    st.markdown("*Customer Segmentation Dashboard*")
 
 if __name__ == "__main__":
     main() 
