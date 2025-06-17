@@ -30,6 +30,7 @@ import matplotlib.pyplot as plt
 ASSET_FILE   = "TR - All SSYS Customer Assets - Customer Segmentation.xlsx"
 CUSTOMER_FILE = "JY - Customer Analysis - Customer Segmentation.xlsx"
 SALES_FILE   = "TR - Master Sales Log - Customer Segementation.xlsx"
+REVENUE_FILE = "customer_revenue_analysis.xlsx"  # New revenue data file
 
 # Business weights (sum = 1.0)
 WEIGHTS = dict(vertical=0.30,
@@ -76,9 +77,27 @@ def clean_name(x: str) -> str:
     return " ".join(x.split())
 
 def check_files_exist():
-    for f in (ASSET_FILE, CUSTOMER_FILE, SALES_FILE):
+    required_files = (ASSET_FILE, CUSTOMER_FILE, SALES_FILE)
+    for f in required_files:
         if not os.path.exists(f):
             sys.exit(f"[ERROR] Cannot find '{f}' in current directory.")
+    
+    # Revenue file is optional
+    if not os.path.exists(REVENUE_FILE):
+        print(f"[INFO] Revenue file '{REVENUE_FILE}' not found. Will use printer-count-based size scoring.")
+
+def load_revenue() -> pd.DataFrame:
+    """Load revenue data if available"""
+    if not os.path.exists(REVENUE_FILE):
+        return pd.DataFrame()  # Return empty dataframe if file doesn't exist
+    
+    try:
+        df = pd.read_excel(REVENUE_FILE)
+        df["key"] = df["Compnay Name"].map(clean_name)  # Note: typo in source column name
+        return df[["key", "revenue_exact"]]
+    except Exception as e:
+        print(f"[WARN] Error loading revenue file: {e}")
+        return pd.DataFrame()
 
 # --------------------------- #
 # 2.  Load & clean data sets
@@ -134,7 +153,7 @@ def aggregate_gp24(sales: pd.DataFrame) -> pd.DataFrame:
     )
     return gp24
 
-def merge_master(assets, customers, gp24) -> pd.DataFrame:
+def merge_master(assets, customers, gp24, revenue=None) -> pd.DataFrame:
     # Join on Customer ID (preferred) then key
     cust = customers.copy()
     master = cust.merge(
@@ -146,6 +165,15 @@ def merge_master(assets, customers, gp24) -> pd.DataFrame:
     )
     master["Industry"].fillna(master["Industry (New)"], inplace=True)
     master.drop(columns=["Industry (New)"], inplace=True, errors="ignore")
+    
+    # Merge revenue data if available
+    if revenue is not None and len(revenue) > 0:
+        master = master.merge(revenue, on="key", how="left", suffixes=("",""))
+        master["revenue_exact"] = master["revenue_exact"].fillna(0)
+        print(f"[INFO] Merged revenue data for {len(master[master['revenue_exact'] > 0])} customers")
+    else:
+        master["revenue_exact"] = 0  # Default to 0 if no revenue data
+        
     return master
 
 # --------------------------- #
@@ -166,8 +194,20 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     v_lower = df["Industry"].astype(str).str.lower()
     df["vertical_score"] = v_lower.map(VERTICAL_WEIGHTS).fillna(0.5)
 
-    df["size_score"] = np.where(df["printer_count"].between(2, 3), 1.0, 0.5)
-    df["adoption_score"] = df["scaling_flag"].astype(float)
+    # Size score - use revenue if available, otherwise printer count
+    if "revenue_exact" in df.columns and df["revenue_exact"].sum() > 0:
+        # Revenue-based scoring ($50M-$500M sweet spot)
+        revenue_values = df["revenue_exact"].fillna(0)
+        df["size_score"] = np.where(
+            revenue_values.between(50000000, 500000000),  # $50M-$500M sweet spot
+            1.0,  # Score in sweet spot
+            0.6   # Score outside sweet spot
+        )
+        print("[INFO] Using revenue-based size scoring")
+    else:
+        # Fallback to printer-count-based scoring
+        df["size_score"] = np.where(df["printer_count"].between(2, 3), 1.0, 0.5)
+        print("[INFO] Using printer-count-based size scoring")
 
     tier_map = {"Platinum": 1.0, "Gold": 0.9, "Silver": 0.7, "Bronze": 0.5}
     df["relationship_score"] = df["cad_tier"].map(tier_map).fillna(0.2)
@@ -293,7 +333,8 @@ def main():
     gp24 = aggregate_gp24(sales)
 
     print("Merging data sets…")
-    master = merge_master(assets, customers, gp24)
+    revenue = load_revenue()
+    master = merge_master(assets, customers, gp24, revenue)
 
     print("Engineering features & scores…")
     scored = engineer_features(master)
