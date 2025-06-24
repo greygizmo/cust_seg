@@ -32,12 +32,11 @@ CUSTOMER_FILE = "JY - Customer Analysis - Customer Segmentation.xlsx"
 SALES_FILE   = "TR - Master Sales Log - Customer Segementation.xlsx"
 REVENUE_FILE = "customer_revenue_analysis.xlsx"  # New revenue data file
 
-# Business weights (sum = 1.0)
-WEIGHTS = dict(vertical=0.30,
-               size=0.20,
-               adoption=0.25,
-               relationship=0.15,
-               pain=0.10)
+# Business weights (sum = 1.0) - Pain criteria removed
+WEIGHTS = dict(vertical=0.333,  # 0.30 / 0.90 = 0.333
+               size=0.222,      # 0.20 / 0.90 = 0.222  
+               adoption=0.278,  # 0.25 / 0.90 = 0.278
+               relationship=0.167)  # 0.15 / 0.90 = 0.167
 
 VERTICAL_WEIGHTS = {
     "aerospace & defense": 1.00,
@@ -53,13 +52,7 @@ VERTICAL_WEIGHTS = {
     "government": 0.75,
 }
 
-HIGH_PAIN_VERTICALS = {
-    "aerospace & defense",
-    "aerospace",
-    "automotive & transportation",
-    "automotive",
-    "industrial machinery",
-}
+
 
 LICENSE_COL = "Total Software License Revenue"
 
@@ -212,17 +205,15 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     tier_map = {"Platinum": 1.0, "Gold": 0.9, "Silver": 0.7, "Bronze": 0.5}
     df["relationship_score"] = df["cad_tier"].map(tier_map).fillna(0.2)
 
-    df["pain_score"] = (
-        v_lower.isin(HIGH_PAIN_VERTICALS) & (df["printer_count"] >= 4)
-    ).astype(float)
+    # Adoption score based on scaling flag
+    df["adoption_score"] = df["scaling_flag"].astype(float)
 
-    # Final ICP weighted score 0-100
+    # Final ICP weighted score 0-100 (pain criteria removed)
     df["ICP_score"] = (
         df["vertical_score"] * WEIGHTS["vertical"]
         + df["size_score"] * WEIGHTS["size"]
         + df["adoption_score"] * WEIGHTS["adoption"]
         + df["relationship_score"] * WEIGHTS["relationship"]
-        + df["pain_score"] * WEIGHTS["pain"]
     ) * 100
 
     return df

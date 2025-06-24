@@ -259,13 +259,7 @@ VERTICAL_WEIGHTS = {
     "government": 0.75,
 }
 
-HIGH_PAIN_VERTICALS = {
-    "aerospace & defense",
-    "aerospace",
-    "automotive & transportation",
-    "automotive",
-    "industrial machinery",
-}
+
 
 LICENSE_COL = "Total Software License Revenue"
 
@@ -534,7 +528,7 @@ def load_data():
         st.error(f"❌ Error loading data: {str(e)}")
         st.stop()
 
-def calculate_scores(df, weights, pain_config, size_config, cad_config):
+def calculate_scores(df, weights, size_config, cad_config):
     """Recalculate ICP scores with new weights and configurable logic"""
     df = df.copy()
     
@@ -603,31 +597,12 @@ def calculate_scores(df, weights, pain_config, size_config, cad_config):
         df['cad_tier'] = 'Bronze'
         df['cad_tier'] = pd.Categorical(df['cad_tier'], categories=["Bronze", "Silver", "Gold", "Platinum"])
     
-    # 5. Pain Score (configurable - now requires both industry AND printer count)
-    if 'Industry' in df.columns:
-        v_lower_pain = df['Industry'].astype(str).str.lower()
-        high_pain_list = [ind.lower() for ind in pain_config['high_pain_verticals']]
-        min_printer_threshold = pain_config['min_printer_count_for_pain']
-        
-        # Pain score requires BOTH high-pain industry AND minimum printer count
-        is_high_pain_industry = v_lower_pain.isin(high_pain_list)
-        has_enough_printers = df['printer_count'] >= min_printer_threshold
-        
-        df['pain_score'] = np.where(
-            is_high_pain_industry & has_enough_printers,
-            pain_config['score_is_high_pain'],
-            pain_config['score_is_not_high_pain']
-        )
-    else:
-        df['pain_score'] = pain_config['score_is_not_high_pain']
-    
-    # Calculate new ICP score with current weights
+    # Calculate new ICP score with current weights (pain criteria removed)
     df['ICP_score_new'] = (
         df['vertical_score'] * weights['vertical'] +
         df['size_score'] * weights['size'] +
         df['adoption_score'] * weights['adoption'] +
-        df['relationship_score'] * weights['relationship'] +
-        df['pain_score'] * weights['pain']
+        df['relationship_score'] * weights['relationship']
     ) * 100
     
     return df
@@ -882,7 +857,7 @@ def create_score_components_radar(weights, segment_name="Overall"):
 
 def create_scatter_matrix(df):
     """Create scatter plot matrix of key metrics"""
-    numeric_cols = ['vertical_score', 'size_score', 'adoption_score', 'relationship_score', 'pain_score']
+    numeric_cols = ['vertical_score', 'size_score', 'adoption_score', 'relationship_score']
     available_cols = [col for col in numeric_cols if col in df.columns]
     
     if len(available_cols) >= 2:
@@ -1007,27 +982,7 @@ def main():
         st.write(f"**Unique Industries Found ({len(all_industries)}):**")
         st.write(all_industries)
         
-        # Show the mapping between HIGH_PAIN_VERTICALS and actual data
-        st.write("**High Pain Verticals Mapping:**")
-        st.write("*Original HIGH_PAIN_VERTICALS constants:*")
-        st.write(list(HIGH_PAIN_VERTICALS))
-        
-        # Find matches
-        default_high_pain_debug = []
-        for hpv in HIGH_PAIN_VERTICALS:
-            hpv_lower = hpv.lower()
-            matches = []
-            for industry in all_industries:
-                if hpv_lower == industry or hpv_lower in industry or industry in hpv_lower:
-                    matches.append(industry)
-            if matches:
-                default_high_pain_debug.extend(matches)
-                st.write(f"  - '{hpv}' → {matches}")
-            else:
-                st.write(f"  - '{hpv}' → ❌ No matches found")
-        
-        st.write("*Mapped high pain industries from your data:*")
-        st.write(list(set(default_high_pain_debug)))
+
     
     # === Sidebar for weight controls ===
     st.sidebar.markdown("## 📊 Adjust Scoring Weights")
@@ -1036,14 +991,13 @@ def main():
     # Main Weight sliders
     with st.sidebar.container():
         st.markdown('<div class="weight-section">', unsafe_allow_html=True)
-        # Initialize main weights in session state if not present
+        # Initialize main weights in session state if not present (pain criteria removed)
         if 'main_weights' not in st.session_state:
             st.session_state.main_weights = {
-                'vertical': 0.30,
-                'size': 0.20,
-                'adoption': 0.25,
-                'relationship': 0.15,
-                'pain': 0.10
+                'vertical': 0.333,
+                'size': 0.222,
+                'adoption': 0.278,
+                'relationship': 0.167
             }
 
         vertical_weight = st.slider(
@@ -1058,9 +1012,6 @@ def main():
         relationship_weight = st.slider(
             "🤝 Relationship Weight", 0.0, 1.0, st.session_state.main_weights['relationship'], 0.05, key="r_w"
         )
-        pain_weight = st.slider(
-            "⚡ Pain Weight", 0.0, 1.0, st.session_state.main_weights['pain'], 0.05, key="p_w"
-        )
         st.markdown('</div>', unsafe_allow_html=True)
 
     # Update session state on change (necessary for reset)
@@ -1068,7 +1019,6 @@ def main():
     st.session_state.main_weights['size'] = size_weight
     st.session_state.main_weights['adoption'] = adoption_weight
     st.session_state.main_weights['relationship'] = relationship_weight
-    st.session_state.main_weights['pain'] = pain_weight
     
     current_main_weights = st.session_state.main_weights.copy()
 
@@ -1081,7 +1031,7 @@ def main():
     
     if st.sidebar.button("🔄 Reset Main Weights to Defaults", key="reset_main_weights"):
         st.session_state.main_weights = {
-            'vertical': 0.30, 'size': 0.20, 'adoption': 0.25, 'relationship': 0.15, 'pain': 0.10
+            'vertical': 0.333, 'size': 0.222, 'adoption': 0.278, 'relationship': 0.167
         }
         st.rerun()
 
@@ -1108,59 +1058,7 @@ def main():
     
     # === Sidebar for Advanced Scoring Logic ===
     with st.sidebar.expander("🔧 Customize Criterion Scoring Logic", expanded=False):
-        st.markdown("#### Pain Score Configuration")
-        st.markdown("*Pain Score is now a 'kicker' - requires BOTH high-pain industry AND minimum printer count*")
-        # Initialize pain_config in session state
-        if 'pain_config' not in st.session_state:
-            # Find matching industries from the actual data that correspond to HIGH_PAIN_VERTICALS
-            default_high_pain = []
-            for hpv in HIGH_PAIN_VERTICALS:
-                hpv_lower = hpv.lower()
-                # Find exact matches or close matches in the actual data
-                for industry in all_industries:
-                    if hpv_lower == industry or hpv_lower in industry or industry in hpv_lower:
-                        if industry not in default_high_pain:
-                            default_high_pain.append(industry)
-            
-            st.session_state.pain_config = {
-                'high_pain_verticals': default_high_pain,
-                'min_printer_count_for_pain': 4,
-                'score_is_high_pain': 1.0,
-                'score_is_not_high_pain': 0.0
-            }
-
-        # Ensure the current selection is valid (only includes industries that exist in options)
-        valid_current_selection = [
-            industry for industry in st.session_state.pain_config['high_pain_verticals'] 
-            if industry in all_industries
-        ]
-
-        hpv_selection = st.multiselect(
-            "High Pain Verticals", 
-            options=all_industries, 
-            default=valid_current_selection,
-            key="hpv_ms"
-        )
-        
-        min_printer_pain = st.number_input(
-            "Min Printer Count for Pain Score", 
-            min_value=0, 
-            value=st.session_state.pain_config['min_printer_count_for_pain'], 
-            step=1, 
-            key="min_printer_pain_ni",
-            help="Minimum number of printers required to trigger pain score (makes it a 'kicker' for scaling companies)"
-        )
-        
-        sihp_val = st.slider("Score if High Pain", 0.0, 1.0, st.session_state.pain_config['score_is_high_pain'], 0.05, key="sihp_s")
-        sinhp_val = st.slider("Score if Not High Pain", 0.0, 1.0, st.session_state.pain_config['score_is_not_high_pain'], 0.05, key="sinhp_s")
-
-        st.session_state.pain_config['high_pain_verticals'] = hpv_selection
-        st.session_state.pain_config['min_printer_count_for_pain'] = min_printer_pain
-        st.session_state.pain_config['score_is_high_pain'] = sihp_val
-        st.session_state.pain_config['score_is_not_high_pain'] = sinhp_val
-        current_pain_config = st.session_state.pain_config.copy()
-
-        st.markdown("---#### Size Score Configuration")
+        st.markdown("#### Size Score Configuration")
         st.markdown("*Configure revenue thresholds for optimal customer size scoring*")
         # Initialize size_config in session state
         if 'size_config' not in st.session_state:
@@ -1227,22 +1125,6 @@ def main():
         current_cad_config = st.session_state.cad_config.copy()
 
         if st.button("🔄 Reset Scoring Logic to Defaults", key="reset_logic_defaults"):
-            # Find matching industries from the actual data that correspond to HIGH_PAIN_VERTICALS
-            default_high_pain = []
-            for hpv in HIGH_PAIN_VERTICALS:
-                hpv_lower = hpv.lower()
-                # Find exact matches or close matches in the actual data
-                for industry in all_industries:
-                    if hpv_lower == industry or hpv_lower in industry or industry in hpv_lower:
-                        if industry not in default_high_pain:
-                            default_high_pain.append(industry)
-            
-            st.session_state.pain_config = {
-                'high_pain_verticals': default_high_pain,
-                'min_printer_count_for_pain': 4,
-                'score_is_high_pain': 1.0,
-                'score_is_not_high_pain': 0.0
-            }
             st.session_state.size_config = {
                 'min_revenue_sweet_spot': 50000000,    # $50M
                 'max_revenue_sweet_spot': 500000000,   # $500M
@@ -1262,7 +1144,7 @@ def main():
             st.rerun()
     
     # Recalculate scores with current configurations
-    df_scored = calculate_scores(df_filtered.copy(), current_main_weights, current_pain_config, current_size_config, current_cad_config)
+    df_scored = calculate_scores(df_filtered.copy(), current_main_weights, current_size_config, current_cad_config)
     
     # Main dashboard
     st.markdown(f"## 📈 Key Metrics - {dashboard_title_suffix}")
@@ -1385,7 +1267,7 @@ def main():
         st.markdown("*Compare performance across Small Business, Mid-Market, and Large Enterprise segments*")
         
         # Recalculate scores for all data to show segment comparison
-        df_all_scored = calculate_scores(df_loaded.copy(), current_main_weights, current_pain_config, current_size_config, current_cad_config)
+        df_all_scored = calculate_scores(df_loaded.copy(), current_main_weights, current_size_config, current_cad_config)
         
         # Segment comparison charts
         col_seg1, col_seg2 = st.columns(2)
@@ -1485,9 +1367,9 @@ def main():
             st.info("""
             **Mid-Market Focus Areas:**
             - 🏢 Target customers with 2-10 printers showing scaling patterns
-            - ⚡ Leverage pain points in high-pain industries
             - 🔄 Focus on workflow optimization and efficiency gains
             - 📊 Provide data-driven ROI demonstrations
+            - ⚡ Emphasize value proposition in growing companies
             """)
         else:  # Large Enterprise
             st.info("""
