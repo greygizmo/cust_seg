@@ -1,0 +1,11 @@
+{
+    "weights": {
+        "vertical_score": 0.30,
+        "size_score": 0.30,
+        "adoption_score": 0.20,
+        "relationship_score": 0.20
+    },
+    "n_trials": "N/A (Manual Override)",
+    "lambda_param": "N/A",
+    "best_objective_value": "N/A"
+}

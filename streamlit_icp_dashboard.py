@@ -1,3 +1,4 @@
+# Test comment
 """
 Interactive ICP Scoring Dashboard
 =================================
@@ -12,13 +13,44 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import os
 import re
+import json
+from scipy.stats import norm
+
+# Default weights (fallback if optimized weights file doesn't exist)
+DEFAULT_WEIGHTS = {
+    "vertical_score": 0.25,
+    "size_score": 0.25,
+    "adoption_score": 0.25,
+    "relationship_score": 0.25,
+}
+
+def load_optimized_weights():
+    """Load optimized weights from JSON file, or use defaults if not available."""
+    try:
+        with open('optimized_weights.json', 'r') as f:
+            data = json.load(f)
+            weights = data.get('weights', {})
+            
+            # Convert to the format expected by the dashboard
+            dashboard_weights = {
+                "vertical_score": weights.get('vertical_score', 0.25),
+                "size_score": weights.get('size_score', 0.25),
+                "adoption_score": weights.get('adoption_score', 0.25),
+                "relationship_score": weights.get('relationship_score', 0.25),
+            }
+            
+            return dashboard_weights, data
+    except (FileNotFoundError, json.JSONDecodeError):
+        return DEFAULT_WEIGHTS, None
+
+# Load optimized weights and metadata
+optimized_weights, optimization_data = load_optimized_weights()
 
 # Page configuration
 st.set_page_config(
-    page_title="ICP Scoring Dashboard",
-    page_icon="📊",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    page_title="ICP Dashboard - GoEngineer",
+    page_icon="🎯",
+    layout="wide"
 )
 
 # Custom CSS for better styling
@@ -244,26 +276,35 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Constants from original script
-VERTICAL_WEIGHTS = {
-    "aerospace & defense": 1.00,
-    "aerospace": 1.00,
-    "automotive & transportation": 0.90,
-    "automotive": 0.90,
-    "medical devices & life sci.": 0.85,
-    "medical devices": 0.85,
-    "high tech": 0.80,
-    "consumer / cpg": 0.80,
-    "consumer goods": 0.80,
-    "industrial machinery": 0.70,
-    "government": 0.75,
-}
-
-
-
+# --- Constants and Configurations ---
 LICENSE_COL = "Total Software License Revenue"
 
-# === CUSTOMER SEGMENTATION CONFIGURATION ===
+# Data-driven vertical weights based on actual Total Hardware + Consumable Revenue performance from JY spreadsheet
+# Analysis shows these industries generate the highest combined hardware and consumable revenue
+PERFORMANCE_VERTICAL_WEIGHTS = {
+    "aerospace & defense": 1.0,
+    "automotive & transportation": 1.0,
+    "consumer goods": 1.0,
+    "high tech": 1.0,
+    "medical devices & life sciences": 1.0,
+    "engineering services": 0.8,
+    "heavy equip & ind. components": 0.8,
+    "industrial machinery": 0.8,
+    "mold, tool & die": 0.8,
+    "other": 0.8,
+    "building & construction": 0.6,
+    "chemicals & related products": 0.6,
+    "dental": 0.6,
+    "manufactured products": 0.6,
+    "services": 0.6,
+    "education & research": 0.4,
+    "electromagnetic": 0.4,
+    "energy": 0.4,
+    "packaging": 0.4,
+    "plant & process": 0.4,
+    "shipbuilding": 0.4,
+}
+
 DEFAULT_SEGMENT_THRESHOLDS = {
     'small_business_max': 100000000,      # 0-$100M = Small Business (SMB)
     'mid_market_max': 1000000000,         # $100M-$1B = Mid-Market  
@@ -489,11 +530,10 @@ def load_data():
             st.error(f"❌ Error loading revenue data: {str(e)}. Using fallback segmentation.")
             df['revenue_exact'] = df['printer_count'] * 10000000
         
-        # Handle different column name variations
-        if 'vertical' in df.columns and 'Industry' not in df.columns:
-            df['Industry'] = df['vertical']
-        elif 'Industry' not in df.columns:
-            # If neither exists, create a default Industry column
+        # Handle different column name variations for industry data
+        # The Industry column from JY file already contains the correct industry categories
+        if 'Industry' not in df.columns:
+            # If Industry column is missing, create a default one
             df['Industry'] = 'Unknown'
             
         # Ensure numeric columns are properly typed
@@ -528,82 +568,107 @@ def load_data():
         st.error(f"❌ Error loading data: {str(e)}")
         st.stop()
 
-def calculate_scores(df, weights, size_config, cad_config):
-    """Recalculate ICP scores with new weights and configurable logic"""
+def calculate_scores(df, weights, size_config):
+    """Calculate all scores based on weights and configurations."""
     df = df.copy()
-    
-    # Ensure we have the necessary columns
-    if 'printer_count' not in df.columns:
-        big_box = df.get('Big Box Count', 0)
-        small_box = df.get('Small Box Count', 0)
-        df['printer_count'] = pd.to_numeric(big_box, errors='coerce').fillna(0) + pd.to_numeric(small_box, errors='coerce').fillna(0)
-    
-    if 'scaling_flag' not in df.columns:
-        df['scaling_flag'] = (df['printer_count'] >= 4).astype(int) # Default, can be made configurable later
-    
-    # --- Calculate individual scores --- 
 
-    # 1. Vertical Score (using existing global VERTICAL_WEIGHTS for now)
-    if 'Industry' in df.columns:
-        v_lower = df['Industry'].astype(str).str.lower()
-        df['vertical_score'] = v_lower.map(VERTICAL_WEIGHTS).fillna(0.5) # Default for unknown
-    else:
-        df['vertical_score'] = 0.5
+    # 1. New Data-Driven Vertical Score
+    v_lower = df["Industry"].astype(str).str.lower().str.strip()
+    df["vertical_score"] = v_lower.map(PERFORMANCE_VERTICAL_WEIGHTS).fillna(0.3)
 
-    # 2. Size Score (configurable - now based on revenue)
-    min_revenue = size_config['min_revenue_sweet_spot']
-    max_revenue = size_config['max_revenue_sweet_spot']
-    score_in_sweet_spot = size_config['score_in_sweet_spot']
-    score_outside_sweet_spot = size_config['score_outside_sweet_spot']
-    
-    # Handle missing revenue data
+    # 2. Data-Driven Size Score (based on empirical analysis)
+    # Analysis showed $1B+ companies are the sweet spot for hardware/consumable revenue
     revenue_values = df['revenue_exact'].fillna(0)
-    df['size_score'] = np.where(
-        revenue_values.between(min_revenue, max_revenue), 
-        score_in_sweet_spot, 
-        score_outside_sweet_spot
-    )
+    has_reliable_revenue = revenue_values > 0
+    
+    # Initialize with neutral default score for all customers
+    df["size_score"] = 0.5  # Neutral default score
+    
+    # Apply data-driven revenue-based scoring based on engaged customer analysis
+    # Analysis showed $250M-$1B companies have highest performance among engaged customers
+    conditions = [
+        (revenue_values >= 250_000_000) & (revenue_values < 1_000_000_000),  # $250M-$1B (Sweet Spot)
+        (revenue_values >= 1_000_000_000),      # $1B+ (Excellent but harder to penetrate)
+        (revenue_values >= 50_000_000),         # $50M-$250M (Moderate)
+        (revenue_values >= 10_000_000),         # $10M-$50M (Lower)
+        (revenue_values > 0)                    # $0-$10M (Lower)
+    ]
+    
+    scores = [1.0, 0.9, 0.6, 0.4, 0.4]
+    
+    # Apply scoring tiers only to customers with reliable revenue data
+    for condition, score in zip(conditions, scores):
+        mask = has_reliable_revenue & condition
+        df.loc[mask, "size_score"] = score
 
-    # 3. Adoption Score (using existing logic for now)
-    df['adoption_score'] = df['scaling_flag'].astype(float)
+    # 3. New Adoption Score (Printer Count + Consumable Revenue) using log-then-min-max scaling
+    def min_max_scale(series):
+        # Handles edge case where all values are the same, preventing division by zero
+        min_val, max_val = series.min(), series.max()
+        if max_val - min_val == 0:
+            return pd.Series(0.0, index=series.index)
+        return (series - min_val) / (max_val - min_val)
 
-    # 4. Relationship Score (configurable CAD tiers)
+    if 'Total Consumable Revenue' not in df.columns:
+        df['Total Consumable Revenue'] = 0
+
+    # Ensure non-negative values for log transformation to avoid RuntimeWarning
+    printer_count_safe = np.maximum(df['printer_count'].fillna(0), 0)
+    consumable_revenue_safe = np.maximum(df['Total Consumable Revenue'].fillna(0), 0)
+    
+    printer_score = min_max_scale(np.log1p(printer_count_safe))
+    consumable_score = min_max_scale(np.log1p(consumable_revenue_safe))
+    df['adoption_score'] = 0.5 * printer_score + 0.5 * consumable_score
+
+    # 4. New Relationship Score (All Software-related Revenue) using log-then-min-max scaling
+    relationship_cols = ['Total Software License Revenue', 'Total SaaS Revenue', 'Total Maintenance Revenue']
+    for col in relationship_cols:
+        if col not in df.columns:
+            df[col] = 0
+    df['relationship_feature'] = df[relationship_cols].fillna(0).sum(axis=1)
+    # Ensure non-negative values for log transformation to avoid RuntimeWarning
+    relationship_feature_safe = np.maximum(df['relationship_feature'], 0)
+    df['relationship_score'] = min_max_scale(np.log1p(relationship_feature_safe))
+    
+    # The original cad_tier is kept for visuals but is no longer used in scoring
     if LICENSE_COL in df.columns:
         license_revenue = pd.to_numeric(df[LICENSE_COL], errors='coerce').fillna(0)
-        
-        # Use configurable thresholds
-        bins = [-1, cad_config['bronze_max'], cad_config['silver_max'], cad_config['gold_max'], np.inf]
+        bins = [-1, 5000, 25000, 100000, np.inf]
         labels = ["Bronze", "Silver", "Gold", "Platinum"]
-        cad_tier_series = pd.cut(license_revenue, bins=bins, labels=labels)
-        
-        # Use configurable scores
-        tier_map_local = {
-            "Bronze": cad_config['bronze_score'], 
-            "Silver": cad_config['silver_score'], 
-            "Gold": cad_config['gold_score'], 
-            "Platinum": cad_config['platinum_score']
-        }
-        
-        relationship_scores_list = []
-        for tier_val in cad_tier_series:
-            if pd.isna(tier_val):
-                relationship_scores_list.append(cad_config['missing_data_score'])
-            else:
-                relationship_scores_list.append(tier_map_local.get(str(tier_val), cad_config['missing_data_score']))
-        df['relationship_score'] = relationship_scores_list
-        df['cad_tier'] = cad_tier_series
+        df['cad_tier'] = pd.cut(license_revenue, bins=bins, labels=labels)
     else:
-        df['relationship_score'] = cad_config['bronze_score']  # Default to bronze score
         df['cad_tier'] = 'Bronze'
         df['cad_tier'] = pd.Categorical(df['cad_tier'], categories=["Bronze", "Silver", "Gold", "Platinum"])
-    
-    # Calculate new ICP score with current weights (pain criteria removed)
-    df['ICP_score_new'] = (
+
+    # First compute the RAW ICP score (0-100) that preserves the predictive ordering
+    df['ICP_score_raw'] = (
         df['vertical_score'] * weights['vertical'] +
         df['size_score'] * weights['size'] +
         df['adoption_score'] * weights['adoption'] +
         df['relationship_score'] * weights['relationship']
     ) * 100
+
+    # -------------------------------------------------------------
+    # MONOTONIC NORMALISATION → Bell-curve-shaped ICP score
+    # -------------------------------------------------------------
+    #   1. Convert raw scores to percentile ranks.
+    #   2. Map those percentiles to z-scores via the inverse error function.
+    #   3. Linearly rescale so the resulting distribution has mean≈50 and
+    #      covers roughly 0-100 (±~3σ).
+    ranks = df['ICP_score_raw'].rank(method='first')
+    n = len(ranks)
+    # Percentile (0,1) exclusive of 0/1 to avoid ±inf after erfinv
+    p = (ranks - 0.5) / n
+    # Convert percentile → z using inverse normal CDF from scipy
+    z = norm.ppf(p)
+
+    # Scale to 0-100 while preserving the bell shape (mean~50, σ~15)
+    df['ICP_score_new'] = 50 + 15 * z
+    # Clip extremes just in case
+    df['ICP_score_new'] = df['ICP_score_new'].clip(lower=0, upper=100)
+
+    # The predictive ordering is unchanged because the transform is strictly
+    # monotone. All downstream charts can continue to use `ICP_score_new`.
     
     return df
 
@@ -985,42 +1050,71 @@ def main():
 
     
     # === Sidebar for weight controls ===
-    st.sidebar.markdown("## 📊 Adjust Scoring Weights")
-    st.sidebar.markdown("*Main category weights must sum to 1.0*")
-    
-    # Main Weight sliders
-    with st.sidebar.container():
-        st.markdown('<div class="weight-section">', unsafe_allow_html=True)
+    with st.sidebar:
+        st.title("🎯 ICP Scoring Controls")
+        
+        # Display optimization information
+        if optimization_data:
+            st.success("🤖 **Optimized Weights Active**")
+            with st.expander("📊 Optimization Details", expanded=False):
+                n_trials = optimization_data.get('n_trials', 'Unknown')
+                # Handle both numeric and string values for n_trials
+                if isinstance(n_trials, (int, float)):
+                    st.write(f"**Trials:** {n_trials:,}")
+                else:
+                    st.write(f"**Trials:** {n_trials}")
+                
+                st.write(f"**Lambda (λ):** {optimization_data.get('lambda_param', 'Unknown')}")
+                
+                # Handle best_objective_value formatting
+                best_score = optimization_data.get('best_objective_value', 'Unknown')
+                if isinstance(best_score, (int, float)):
+                    st.write(f"**Best Score:** {best_score:.4f}")
+                else:
+                    st.write(f"**Best Score:** {best_score}")
+                st.info("💡 These weights were optimized using historical revenue data to balance predictive accuracy with proper score distribution.")
+        else:
+            st.warning("⚠️ **Using Default Weights**")
+            st.info("💡 Run the optimization script to generate data-driven weights.")
+        
+        st.markdown("---")
+        
+        # Weight Controls Section
+        st.subheader("⚖️ Adjust Scoring Weights")
+        st.markdown("*Main category weights must sum to 1.0*")
+        
         # Initialize main weights in session state if not present (pain criteria removed)
         if 'main_weights' not in st.session_state:
-            st.session_state.main_weights = {
-                'vertical': 0.333,
-                'size': 0.222,
-                'adoption': 0.278,
-                'relationship': 0.167
-            }
+            st.session_state.main_weights = optimized_weights.copy()
 
+        # Business rule: each weight must be ≥0.10 (10%)
         vertical_weight = st.slider(
-            "🏭 Vertical Weight", 0.0, 1.0, st.session_state.main_weights['vertical'], 0.05, key="v_w"
+            "🏭 Vertical Weight", 0.10, 1.0, st.session_state.main_weights['vertical_score'], 0.05, key="v_w"
         )
         size_weight = st.slider(
-            "📏 Size Weight", 0.0, 1.0, st.session_state.main_weights['size'], 0.05, key="s_w"
+            "📏 Size Weight", 0.10, 1.0, st.session_state.main_weights['size_score'], 0.05, key="s_w"
         )
         adoption_weight = st.slider(
-            "📈 Adoption Weight", 0.0, 1.0, st.session_state.main_weights['adoption'], 0.05, key="a_w"
+            "📈 Adoption Weight", 0.10, 1.0, st.session_state.main_weights['adoption_score'], 0.05, key="a_w"
         )
         relationship_weight = st.slider(
-            "🤝 Relationship Weight", 0.0, 1.0, st.session_state.main_weights['relationship'], 0.05, key="r_w"
+            "🤝 Relationship Weight", 0.10, 1.0, st.session_state.main_weights['relationship_score'], 0.05, key="r_w"
         )
         st.markdown('</div>', unsafe_allow_html=True)
 
     # Update session state on change (necessary for reset)
-    st.session_state.main_weights['vertical'] = vertical_weight
-    st.session_state.main_weights['size'] = size_weight
-    st.session_state.main_weights['adoption'] = adoption_weight
-    st.session_state.main_weights['relationship'] = relationship_weight
+    st.session_state.main_weights['vertical_score'] = vertical_weight
+    st.session_state.main_weights['size_score'] = size_weight
+    st.session_state.main_weights['adoption_score'] = adoption_weight
+    st.session_state.main_weights['relationship_score'] = relationship_weight
     
-    current_main_weights = st.session_state.main_weights.copy()
+    # Convert to format expected by calculate_scores function
+    current_main_weights = {
+        'vertical': st.session_state.main_weights['vertical_score'],
+        'size': st.session_state.main_weights['size_score'],
+        'adoption': st.session_state.main_weights['adoption_score'],
+        'relationship': st.session_state.main_weights['relationship_score']
+    }
 
     # Check if main weights sum to 1.0
     main_weight_sum = sum(current_main_weights.values())
@@ -1030,33 +1124,10 @@ def main():
         st.sidebar.success(f"✅ Main weights sum to {main_weight_sum:.2f}")
     
     if st.sidebar.button("🔄 Reset Main Weights to Defaults", key="reset_main_weights"):
-        st.session_state.main_weights = {
-            'vertical': 0.333, 'size': 0.222, 'adoption': 0.278, 'relationship': 0.167
-        }
+        st.session_state.main_weights = optimized_weights.copy()
         st.rerun()
 
-    # === QUICK SEGMENT SWITCHER ===
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("## 🏢 Quick Segment Switch")
-    
-    col_sb1, col_sb2 = st.sidebar.columns(2)
-    with col_sb1:
-        if st.button("🏪 Small Business", key="switch_small", use_container_width=True):
-            st.session_state.selected_segment = 'Small Business'
-            st.rerun()
-        if st.button("🏢 Mid-Market", key="switch_mid", use_container_width=True):
-            st.session_state.selected_segment = 'Mid-Market'
-            st.rerun()
-    
-    with col_sb2:
-        if st.button("🏭 Large Enterprise", key="switch_large", use_container_width=True):
-            st.session_state.selected_segment = 'Large Enterprise'
-            st.rerun()
-        if st.button("🌐 All Segments", key="switch_all", use_container_width=True):
-            st.session_state.selected_segment = 'All Segments'
-            st.rerun()
-    
-    # === Sidebar for Advanced Scoring Logic ===
+    # === Size Score Configuration ===
     with st.sidebar.expander("🔧 Customize Criterion Scoring Logic", expanded=False):
         st.markdown("#### Size Score Configuration")
         st.markdown("*Configure revenue thresholds for optimal customer size scoring*")
@@ -1082,47 +1153,7 @@ def main():
         st.session_state.size_config['score_outside_sweet_spot'] = soss_val
         current_size_config = st.session_state.size_config.copy()
 
-        st.markdown("---#### CAD Tier Configuration")
-        st.markdown("*Configure revenue thresholds and scores for relationship tiers*")
-        # Initialize cad_config in session state
-        if 'cad_config' not in st.session_state:
-            st.session_state.cad_config = {
-                'bronze_max': 5000,
-                'silver_max': 25000,
-                'gold_max': 100000,
-                'bronze_score': 0.5,
-                'silver_score': 0.7,
-                'gold_score': 0.9,
-                'platinum_score': 1.0,
-                'missing_data_score': 0.2
-            }
-
-        bronze_max_val = st.number_input("Bronze Tier Max ($)", 
-                                        min_value=0, value=st.session_state.cad_config['bronze_max'], step=1000, key="bronze_max_ni")
-        silver_max_val = st.number_input("Silver Tier Max ($)", 
-                                        min_value=0, value=st.session_state.cad_config['silver_max'], step=1000, key="silver_max_ni")
-        gold_max_val = st.number_input("Gold Tier Max ($)", 
-                                      min_value=0, value=st.session_state.cad_config['gold_max'], step=1000, key="gold_max_ni")
-        
-        col_cad1, col_cad2 = st.columns(2)
-        with col_cad1:
-            bronze_score_val = st.slider("Bronze Score", 0.0, 1.0, st.session_state.cad_config['bronze_score'], 0.05, key="bronze_score_s")
-            silver_score_val = st.slider("Silver Score", 0.0, 1.0, st.session_state.cad_config['silver_score'], 0.05, key="silver_score_s")
-        with col_cad2:
-            gold_score_val = st.slider("Gold Score", 0.0, 1.0, st.session_state.cad_config['gold_score'], 0.05, key="gold_score_s")
-            platinum_score_val = st.slider("Platinum Score", 0.0, 1.0, st.session_state.cad_config['platinum_score'], 0.05, key="platinum_score_s")
-        
-        missing_data_score_val = st.slider("Missing Data Score", 0.0, 1.0, st.session_state.cad_config['missing_data_score'], 0.05, key="missing_data_score_s")
-        
-        st.session_state.cad_config['bronze_max'] = bronze_max_val
-        st.session_state.cad_config['silver_max'] = silver_max_val
-        st.session_state.cad_config['gold_max'] = gold_max_val
-        st.session_state.cad_config['bronze_score'] = bronze_score_val
-        st.session_state.cad_config['silver_score'] = silver_score_val
-        st.session_state.cad_config['gold_score'] = gold_score_val
-        st.session_state.cad_config['platinum_score'] = platinum_score_val
-        st.session_state.cad_config['missing_data_score'] = missing_data_score_val
-        current_cad_config = st.session_state.cad_config.copy()
+        st.markdown("---") # Visual separator
 
         if st.button("🔄 Reset Scoring Logic to Defaults", key="reset_logic_defaults"):
             st.session_state.size_config = {
@@ -1131,20 +1162,10 @@ def main():
                 'score_in_sweet_spot': 1.0,
                 'score_outside_sweet_spot': 0.6
             }
-            st.session_state.cad_config = {
-                'bronze_max': 5000,
-                'silver_max': 25000,
-                'gold_max': 100000,
-                'bronze_score': 0.5,
-                'silver_score': 0.7,
-                'gold_score': 0.9,
-                'platinum_score': 1.0,
-                'missing_data_score': 0.2
-            }
             st.rerun()
     
     # Recalculate scores with current configurations
-    df_scored = calculate_scores(df_filtered.copy(), current_main_weights, current_size_config, current_cad_config)
+    df_scored = calculate_scores(df_filtered.copy(), current_main_weights, current_size_config)
     
     # Main dashboard
     st.markdown(f"## 📈 Key Metrics - {dashboard_title_suffix}")
@@ -1267,7 +1288,7 @@ def main():
         st.markdown("*Compare performance across Small Business, Mid-Market, and Large Enterprise segments*")
         
         # Recalculate scores for all data to show segment comparison
-        df_all_scored = calculate_scores(df_loaded.copy(), current_main_weights, current_size_config, current_cad_config)
+        df_all_scored = calculate_scores(df_loaded.copy(), current_main_weights, current_size_config)
         
         # Segment comparison charts
         col_seg1, col_seg2 = st.columns(2)
@@ -1427,37 +1448,75 @@ def main():
     st.markdown("### 🎯 ICP Scoring Configuration")
     fig_radar = create_score_components_radar(current_main_weights, dashboard_title_suffix)
     st.plotly_chart(fig_radar, use_container_width=True)
+
+    # --- New Diagnostic Charts Section ---
+    st.markdown("## 🔬 Diagnostic Charts")
+    st.markdown("*Use these charts to verify that the rank-based scores align with the raw data.*")
     
+    col_diag1, col_diag2 = st.columns(2)
+
+    with col_diag1:
+        fig_diag_adopt = px.scatter(
+            df_scored, 
+            x='printer_count', 
+            y='adoption_score', 
+            title='Adoption Score vs. Printer Count',
+            labels={'printer_count': 'Raw Printer Count', 'adoption_score': 'Adoption Score (0-1)'}
+        )
+        st.plotly_chart(fig_diag_adopt, use_container_width=True)
+
+    with col_diag2:
+        # Ensure relationship_feature exists before plotting
+        if 'relationship_feature' in df_scored.columns:
+            fig_diag_rel = px.scatter(
+                df_scored, 
+                x='relationship_feature', 
+                y='relationship_score', 
+                title='Relationship Score vs. Combined SW Revenue',
+                labels={'relationship_feature': 'Combined Software Revenue ($)', 'relationship_score': 'Relationship Score (0-1)'}
+            )
+            st.plotly_chart(fig_diag_rel, use_container_width=True)
+
     # Data table
     table_title = f"Top Scoring Customers - {dashboard_title_suffix}" if selected_segment != 'All Segments' else "Top Scoring Customers"
     st.markdown(f"## 📋 {table_title}")
     
-    # Select columns to display (removed Customer ID, renamed columns)
-    display_cols = ['Company Name', 'Industry', 'ICP_score_new', 'revenue_exact', 'printer_count', 'cad_tier']
-    if 'GP24' in df_scored.columns:
-        display_cols.append('GP24')
+    # Select columns to display
+    display_cols = [
+        'Company Name', 'Industry', 'ICP_score_new', 
+        'adoption_score', 'relationship_score', 
+        'printer_count', 'Total Consumable Revenue', 'relationship_feature',
+        'revenue_exact'
+    ]
     if 'customer_segment' in df_scored.columns and selected_segment == 'All Segments':
-        display_cols.insert(2, 'customer_segment')  # Add segment column when viewing all segments
+        display_cols.insert(2, 'customer_segment')
     
     available_cols = [col for col in display_cols if col in df_scored.columns]
     
-    # Get top 100 customers and rename columns for display
+    # Get top 100 customers and format for display
     top_customers = df_scored.nlargest(100, 'ICP_score_new')[available_cols].copy()
     
-    # Format revenue column for better display
-    if 'revenue_exact' in top_customers.columns:
-        top_customers['revenue_exact'] = top_customers['revenue_exact'].apply(
-            lambda x: f"${x:,.0f}" if pd.notnull(x) and x > 0 else "N/A"
-        )
-    
-    # Rename columns for better display
+    # Format currency and score columns
+    for col in ['revenue_exact', 'Total Consumable Revenue', 'relationship_feature']:
+        if col in top_customers.columns:
+            top_customers[col] = top_customers[col].apply(
+                lambda x: f"${x:,.0f}" if pd.notnull(x) and x > 0 else "$0"
+            )
+            
+    for col in ['adoption_score', 'relationship_score']:
+        if col in top_customers.columns:
+            top_customers[col] = top_customers[col].apply(lambda x: f"{x:.3f}")
+
+    # Rename columns for a clean display
     column_renames = {
         'ICP_score_new': 'ICP Score',
-        'revenue_exact': 'Annual Revenue',
+        'revenue_exact': 'Total Annual Revenue',
         'printer_count': 'Printer Count',
-        'cad_tier': 'CAD Tier',
-        'GP24': '24mo GP',
-        'customer_segment': 'Customer Segment'
+        'customer_segment': 'Customer Segment',
+        'adoption_score': 'Adoption Score',
+        'relationship_score': 'Relationship Score',
+        'Total Consumable Revenue': 'Consumable Revenue',
+        'relationship_feature': 'Combined SW Revenue'
     }
     top_customers = top_customers.rename(columns=column_renames)
     
