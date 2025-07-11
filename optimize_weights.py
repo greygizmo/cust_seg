@@ -36,32 +36,53 @@ def calculate_grades(scores):
     )
     return grades
 
-def objective(trial, X, y, lambda_param, weight_names):
+def objective(trial, X, y, lambda_param, weight_names, include_size=True):
     """
     Objective function for Optuna to minimize.
     It balances two goals:
     1. Maximize Spearman correlation between ICP score and revenue.
     2. Minimize the difference between the resulting score distribution and a target bell curve.
     """
-    # Define constrained search space for weights based on business rules
-    # Minimum weight of 0.10 (10%) for all criteria - no criterion can be ignored
-    w_vertical = trial.suggest_float('vertical_score', 0.10, 0.40)
-    w_size = trial.suggest_float('size_score', 0.10, 0.40)
-    w_adoption = trial.suggest_float('adoption_score', 0.10, 0.40)
-    
-    # The last weight is what's left over to ensure they sum to 1
-    w_relationship = 1.0 - (w_vertical + w_size + w_adoption)
+    # Define constrained search space for weights based on business rules.
+    # If `include_size` is False, we hard-set size weight to 0.0 and re-optimize the
+    # remaining three criteria so that they still sum to 1.0.  Otherwise, we leave
+    # size as a tunable parameter (legacy behaviour).
 
-    # Prune trials that don't satisfy the constraints for the calculated weight
-    # Ensure relationship weight also meets the minimum 0.10 requirement
-    if not (0.10 <= w_relationship <= 0.40):
-        raise optuna.exceptions.TrialPruned()
+    w_vertical = trial.suggest_float('vertical_score', 0.10, 0.40)
+
+    if include_size:
+        w_size = trial.suggest_float('size_score', 0.10, 0.40)
+    else:
+        w_size = 0.0  # Size locked out
+
+    w_adoption = trial.suggest_float('adoption_score', 0.10, 0.40)
+
+    # Sample relationship directly (new rule)
+    w_relationship = trial.suggest_float('relationship_score', 0.15, 0.40)
+
+    total = w_vertical + w_size + w_adoption + w_relationship
+
+    # ----- Feasibility checks -----
+    # All weights must be positive and total exactly 1 (within tolerance)
+    if include_size:
+        # Allow a small tolerance; residual will be absorbed into size later
+        if not 0.95 <= total <= 1.05:
+            raise optuna.exceptions.TrialPruned()
+        # Adjust proportionally so they sum to 1 exactly
+        w_vertical /= total
+        w_size /= total
+        w_adoption /= total
+        w_relationship /= total
+    else:
+        # With size locked to 0, the other three must sum to 1
+        if abs(total - 1.0) > 1e-3:
+            raise optuna.exceptions.TrialPruned()
 
     weights_dict = {
         'vertical_score': w_vertical,
         'size_score': w_size,
         'adoption_score': w_adoption,
-        'relationship_score': w_relationship
+        'relationship_score': w_relationship,
     }
 
     # Ensure the weights are in the same order as the columns in the dataframe

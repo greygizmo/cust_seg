@@ -1,11 +1,12 @@
 {
     "weights": {
-        "vertical_score": 0.30,
-        "size_score": 0.30,
-        "adoption_score": 0.20,
-        "relationship_score": 0.20
+        "vertical_score": 0.2253946393750701,
+        "adoption_score": 0.3893389306437092,
+        "relationship_score": 0.3852664299812207,
+        "size_score": 0.0
     },
-    "n_trials": "N/A (Manual Override)",
-    "lambda_param": "N/A",
-    "best_objective_value": "N/A"
+    "lambda_param": 0.25,
+    "n_trials": 5000,
+    "best_objective_value": -0.31705849062717417,
+    "include_size": false
 }

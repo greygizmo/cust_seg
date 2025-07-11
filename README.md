@@ -14,10 +14,9 @@ This dashboard allows you to:
 
 ### 🎛️ Interactive Weight Controls
 - **Vertical Weight** (30% default): Industry type scoring
-- **Size Weight** (20% default): Company size based on printer count
-- **Adoption Weight** (25% default): Technology adoption/scaling
-- **Relationship Weight** (15% default): CAD tier from software revenue
-- **Pain Weight** (10% default): High-pain verticals
+- **Size Weight** (30% default): Company size based on revenue
+- **Adoption Weight** (20% default): Technology adoption/scaling
+- **Relationship Weight** (20% default): Software revenue tier
 
 ### 📊 Real-time Visualizations
 1. **ICP Score Distribution** - Histogram showing score spread
@@ -74,16 +73,12 @@ This dashboard allows you to:
 - Silver ($5K-$25K): 0.7
 - Bronze (<$5K): 0.5
 
-**Pain Score:**
-- High-pain verticals: 1.0
-- Others: 0.0
-
 ### Final ICP Score Calculation:
 ```
-ICP Score = (Vertical × W1 + Size × W2 + Adoption × W3 + Relationship × W4 + Pain × W5) × 100
+ICP Score = (Vertical × W1 + Size × W2 + Adoption × W3 + Relationship × W4) × 100
 ```
 
-Where W1-W5 are the adjustable weights that must sum to 1.0.
+Where W1-W4 are the adjustable weights that must sum to 1.0.
 
 ## Usage Tips
 

@@ -1,4 +1,3 @@
-# Test comment
 """
 Interactive ICP Scoring Dashboard
 =================================
@@ -16,13 +15,9 @@ import re
 import json
 from scipy.stats import norm
 
-# Default weights (fallback if optimized weights file doesn't exist)
-DEFAULT_WEIGHTS = {
-    "vertical_score": 0.25,
-    "size_score": 0.25,
-    "adoption_score": 0.25,
-    "relationship_score": 0.25,
-}
+# Import the centralized scoring logic
+from scoring_logic import calculate_scores, LICENSE_COL, DEFAULT_WEIGHTS
+from normalize_names import normalize_name_for_matching
 
 def load_optimized_weights():
     """Load optimized weights from JSON file, or use defaults if not available."""
@@ -276,35 +271,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- Constants and Configurations ---
-LICENSE_COL = "Total Software License Revenue"
-
-# Data-driven vertical weights based on actual Total Hardware + Consumable Revenue performance from JY spreadsheet
-# Analysis shows these industries generate the highest combined hardware and consumable revenue
-PERFORMANCE_VERTICAL_WEIGHTS = {
-    "aerospace & defense": 1.0,
-    "automotive & transportation": 1.0,
-    "consumer goods": 1.0,
-    "high tech": 1.0,
-    "medical devices & life sciences": 1.0,
-    "engineering services": 0.8,
-    "heavy equip & ind. components": 0.8,
-    "industrial machinery": 0.8,
-    "mold, tool & die": 0.8,
-    "other": 0.8,
-    "building & construction": 0.6,
-    "chemicals & related products": 0.6,
-    "dental": 0.6,
-    "manufactured products": 0.6,
-    "services": 0.6,
-    "education & research": 0.4,
-    "electromagnetic": 0.4,
-    "energy": 0.4,
-    "packaging": 0.4,
-    "plant & process": 0.4,
-    "shipbuilding": 0.4,
-}
-
 DEFAULT_SEGMENT_THRESHOLDS = {
     'small_business_max': 100000000,      # 0-$100M = Small Business (SMB)
     'mid_market_max': 1000000000,         # $100M-$1B = Mid-Market  
@@ -324,19 +290,23 @@ def get_segment_metrics(df, segment_name, segment_thresholds):
     """Calculate metrics for a specific customer segment"""
     # Add segment column if not exists
     if 'customer_segment' not in df.columns:
-        df['customer_segment'] = df['revenue_exact'].apply(
+        df['customer_segment'] = df['revenue_estimate'].apply(
             lambda x: determine_customer_segment(x, segment_thresholds)
         )
     
     segment_df = df[df['customer_segment'] == segment_name]
     
+    # Find the ICP_score column (in case it was renamed due to duplicates)
+    icp_score_cols = [col for col in segment_df.columns if col.startswith('ICP_score')]
+    icp_score_col = icp_score_cols[0] if icp_score_cols else 'ICP_score'
+    
     metrics = {
         'count': len(segment_df),
-        'avg_score': segment_df['ICP_score_new'].mean() if len(segment_df) > 0 else 0,
-        'high_value_count': len(segment_df[segment_df['ICP_score_new'] >= 70]),
+        'avg_score': segment_df[icp_score_col].mean() if len(segment_df) > 0 else 0,
+        'high_value_count': len(segment_df[segment_df[icp_score_col] >= 70]),
         'total_gp': segment_df['GP24'].sum() if 'GP24' in segment_df.columns else 0,
-        'high_value_gp': segment_df[segment_df['ICP_score_new'] >= 70]['GP24'].sum() if 'GP24' in segment_df.columns else 0,
-        'avg_revenue': segment_df['revenue_exact'].mean() if len(segment_df) > 0 and 'revenue_exact' in segment_df.columns else 0
+        'high_value_gp': segment_df[segment_df[icp_score_col] >= 70]['GP24'].sum() if 'GP24' in segment_df.columns else 0,
+        'avg_revenue': segment_df['revenue_estimate'].mean() if len(segment_df) > 0 and 'revenue_estimate' in segment_df.columns else 0
     }
     
     return metrics, segment_df
@@ -347,32 +317,29 @@ def create_segment_comparison_chart(df, segment_thresholds):
     df_chart = df.copy()
 
     # Add segment column
-    df_chart['customer_segment'] = df_chart['revenue_exact'].apply(
+    df_chart['customer_segment'] = df_chart['revenue_estimate'].apply(
         lambda x: determine_customer_segment(x, segment_thresholds)
     )
     
     # Calculate metrics by segment
-    agg_funcs = {
-        'ICP_score_new': ['mean', 'count'],
-        'revenue_exact': 'mean'
-    }
-    if 'GP24' in df_chart.columns:
-        agg_funcs['GP24'] = 'sum'
-    else: # Create a dummy GP24 column if it doesn't exist to prevent key errors
-        df_chart['GP24'] = 0 
-        agg_funcs['GP24'] = 'sum'
-        
-    segment_summary = df_chart.groupby('customer_segment').agg(agg_funcs).round(2)
+    # Find the ICP_score column (in case it was renamed due to duplicates)
+    icp_score_col = [col for col in df_chart.columns if col.startswith('ICP_score')][0]
     
-    # Flatten column names
-    segment_summary.columns = ['_'.join(col).strip() for col in segment_summary.columns.values]
-    segment_summary = segment_summary.reset_index()
-    segment_summary = segment_summary.rename(columns={
-        'ICP_score_new_mean': 'Avg_ICP_Score',
-        'ICP_score_new_count': 'Customer_Count',
-        'revenue_exact_mean': 'Avg_Revenue',
-        'GP24_sum': 'Total_GP24'
-    })
+    # Use manual aggregation to avoid pandas DataFrame name attribute issues
+    segment_groups = df_chart.groupby('customer_segment')
+    
+    segment_summary_data = []
+    for segment_name, group in segment_groups:
+        summary_row = {
+            'customer_segment': segment_name,
+            'Avg_ICP_Score': group[icp_score_col].mean(),
+            'Customer_Count': len(group),
+            'Avg_Revenue': group['revenue_estimate'].mean(),
+            'Total_GP24': group['GP24'].sum() if 'GP24' in group.columns else 0
+        }
+        segment_summary_data.append(summary_row)
+    
+    segment_summary = pd.DataFrame(segment_summary_data)
 
     # Calculate total customer count and total GP for percentage calculations
     total_customers = segment_summary['Customer_Count'].sum()
@@ -396,10 +363,21 @@ def create_segment_comparison_chart(df, segment_thresholds):
     segment_summary['customer_segment'] = pd.Categorical(segment_summary['customer_segment'], categories=segment_order, ordered=True)
     segment_summary = segment_summary.sort_values('customer_segment')
 
+    # Create text labels safely
+    def safe_format_float(val):
+        try:
+            if pd.isna(val) or val is None:
+                return '0.0'
+            return f'{float(val):.1f}'
+        except (ValueError, TypeError):
+            return '0.0'
+    
+    icp_text = [safe_format_float(val) for val in segment_summary['Avg_ICP_Score'].tolist()]
+    
     fig.add_trace(
         go.Bar(x=segment_summary['customer_segment'], y=segment_summary['Avg_ICP_Score'],
                name='Avg ICP Score', marker_color=[colors.get(seg, '#999') for seg in segment_summary['customer_segment']],
-               text=segment_summary['Avg_ICP_Score'].apply(lambda x: f'{x:.1f}'), textposition='auto'),
+               text=icp_text, textposition='auto'),
         row=1, col=1
     )
     
@@ -412,10 +390,25 @@ def create_segment_comparison_chart(df, segment_thresholds):
         row=1, col=2
     )
     
+    # Create revenue text labels safely
+    def safe_format_revenue(val):
+        try:
+            if pd.isna(val) or val is None:
+                return '$0'
+            val = float(val)
+            if val >= 1e6:
+                return f'${val/1e6:.1f}M'
+            else:
+                return f'${val/1e3:.1f}K'
+        except (ValueError, TypeError):
+            return '$0'
+    
+    revenue_text = [safe_format_revenue(val) for val in segment_summary['Avg_Revenue'].tolist()]
+    
     fig.add_trace(
         go.Bar(x=segment_summary['customer_segment'], y=segment_summary['Avg_Revenue'],
                name='Avg Annual Revenue', marker_color=[colors.get(seg, '#999') for seg in segment_summary['customer_segment']],
-               text=segment_summary['Avg_Revenue'].apply(lambda x: f'${x/1e6:.1f}M' if x >= 1e6 else f'${x/1e3:.1f}K'), textposition='auto'),
+               text=revenue_text, textposition='auto'),
         row=2, col=1
     )
     
@@ -446,18 +439,23 @@ def create_segment_comparison_chart(df, segment_thresholds):
 
 def create_segment_distribution_chart(df, segment_thresholds):
     """Create a distribution chart showing ICP scores within each segment"""
+    # Find the ICP score column
+    icp_score_col = 'ICP_score'
+    if icp_score_col not in df.columns:
+        return go.Figure().update_layout(title_text="No ICP score column found")
+    
     # Add segment column
-    df['customer_segment'] = df['revenue_exact'].apply(
+    df['customer_segment'] = df['revenue_estimate'].apply(
         lambda x: determine_customer_segment(x, segment_thresholds)
     )
     
     fig = px.box(
         df, 
         x='customer_segment', 
-        y='ICP_score_new',
+        y=icp_score_col,
         color='customer_segment',
         title="ICP Score Distribution by Customer Segment",
-        labels={'customer_segment': 'Customer Segment', 'ICP_score_new': 'ICP Score'},
+        labels={'customer_segment': 'Customer Segment', icp_score_col: 'ICP Score'},
         color_discrete_map={'Small Business': '#FF6B6B', 'Mid-Market': '#4ECDC4', 'Large Enterprise': '#45B7D1'}
     )
     
@@ -466,85 +464,122 @@ def create_segment_distribution_chart(df, segment_thresholds):
 
 @st.cache_data
 def load_data():
-    """Load the scored accounts data and merge with revenue data"""
+    """Load the scored accounts data and merge with revenue data using hybrid matching"""
     try:
         # Load main scored accounts data
         df = pd.read_csv('icp_scored_accounts.csv')
         
         # Load revenue data
         try:
-            revenue_df = pd.read_excel('customer_revenue_analysis.xlsx')
-            st.info(f"📊 Loaded revenue file with {len(revenue_df)} companies")
+            revenue_df = pd.read_csv('enrichment_progress.csv')
+            st.sidebar.success(f"✅ Revenue data loaded: {len(revenue_df):,} records")
             
-            # Use Customer ID matching - much faster and more accurate!
-            if 'Customer ID' in revenue_df.columns and 'Customer ID' in df.columns:
-                # Direct Customer ID matching
-                df = df.merge(
-                    revenue_df[['Customer ID', 'revenue_exact']], 
-                    on='Customer ID', 
-                    how='left'
+            # HYBRID MATCHING APPROACH
+            # Step 1: Direct Customer ID matching (primary method)
+            if 'customer_id' in revenue_df.columns and 'Customer ID' in df.columns:
+                # Clean initial merge - check which columns exist
+                merge_cols = ['customer_id']
+                if 'revenue_estimate' in revenue_df.columns:
+                    merge_cols.append('revenue_estimate')
+                if 'company_name' in revenue_df.columns:
+                    merge_cols.append('company_name')
+                if 'source' in revenue_df.columns:
+                    merge_cols.append('source')
+                
+                df_merged = df.merge(
+                    revenue_df[merge_cols], 
+                    left_on='Customer ID',
+                    right_on='customer_id',
+                    how='left',
+                    suffixes=('', '_revenue')
                 )
                 
+                # Track matching success
+                primary_matches = len(df_merged[df_merged['revenue_estimate'].notna()])
+                total_customers = len(df)
+                
+                # Step 2: Fuzzy company name matching for unmatched customers (fallback)
+                unmatched_mask = df_merged['revenue_estimate'].isna()
+                unmatched_count = unmatched_mask.sum()
+                
+                if unmatched_count > 0:
+                    # Create normalized company names using your proven approach
+                    df_merged['normalized_company'] = df_merged['Company Name'].apply(normalize_name_for_matching)
+                    revenue_df['normalized_company'] = revenue_df['company_name'].apply(normalize_name_for_matching)
+                    
+                    # Create lookup dictionary for faster matching
+                    # Group by normalized name and prioritize by revenue source quality
+                    revenue_priority = {'sec_match': 1, 'pdl_estimate': 2, 'fmp_match': 3, 'heuristic_estimate': 4}
+                    revenue_df['source_priority'] = revenue_df['source'].map(revenue_priority).fillna(5)
+                    
+                    # For each normalized company name, get the best revenue match
+                    revenue_lookup = (revenue_df
+                                    .sort_values('source_priority')
+                                    .groupby('normalized_company')
+                                    .first()
+                                    .to_dict('index'))
+                    
+                    # Apply fuzzy matching to unmatched customers
+                    fuzzy_matches = 0
+                    for idx in df_merged[unmatched_mask].index:
+                        company_normalized = df_merged.loc[idx, 'normalized_company']
+                        
+                        if company_normalized and company_normalized in revenue_lookup:
+                            match_data = revenue_lookup[company_normalized]
+                            df_merged.loc[idx, 'revenue_estimate'] = match_data['revenue_estimate']
+                            df_merged.loc[idx, 'company_name_revenue'] = match_data['company_name']
+                            df_merged.loc[idx, 'source'] = match_data['source']
+                            fuzzy_matches += 1
+                    
+                    # Calculate final matching statistics
+                    total_matches = primary_matches + fuzzy_matches
+                    
+                    # Display detailed matching results in sidebar
+                    st.sidebar.markdown("### 🔗 Data Matching Results")
+                    st.sidebar.markdown(f"**Primary (Customer ID):** {primary_matches:,} matches ({primary_matches/total_customers*100:.1f}%)")
+                    st.sidebar.markdown(f"**Fuzzy (Company Name):** {fuzzy_matches:,} matches ({fuzzy_matches/total_customers*100:.1f}%)")
+                    st.sidebar.markdown(f"**Total Matched:** {total_matches:,} / {total_customers:,} ({total_matches/total_customers*100:.1f}%)")
+                    st.sidebar.markdown(f"**Unmatched:** {total_customers - total_matches:,} customers")
+                    
+                    # Show revenue source quality
+                    if 'source' in df_merged.columns:
+                        source_counts = df_merged['source'].value_counts()
+                        st.sidebar.markdown("**Revenue Sources:**")
+                        for source, count in source_counts.items():
+                            st.sidebar.markdown(f"• {source}: {count:,}")
+                
+                # Clean up temporary columns
+                df = df_merged.drop(columns=['normalized_company'], errors='ignore')
+                
                 # Fill missing revenue with 0 for segmentation purposes
-                df['revenue_exact'] = df['revenue_exact'].fillna(0)
-                
-                matched_count = len(df[df['revenue_exact'] > 0])
-                st.success(f"✅ Successfully matched {matched_count} out of {len(df)} customers using Customer ID")
-                
-                # Show matching summary
-                st.info(f"📈 **Matching Results:** {matched_count:,} customers have revenue data ({matched_count/len(df)*100:.1f}%)")
+                if 'revenue_estimate' in df.columns:
+                    df['revenue_estimate'] = df['revenue_estimate'].fillna(0)
+                else:
+                    df['revenue_estimate'] = 0
                 
             else:
-                # Fallback: Try to extract Customer ID from Company Name in revenue file
-                st.info("🔍 Customer ID column not found, trying to extract from Company Name...")
-                
-                def extract_customer_id(company_name):
-                    """Extract Customer ID from the beginning of company name"""
-                    if pd.isna(company_name):
-                        return None
-                    
-                    match = re.match(r'^(\d+)', str(company_name))
-                    return int(match.group(1)) if match else None
-                
-                revenue_df['extracted_customer_id'] = revenue_df['Company Name'].apply(extract_customer_id)
-                
-                # Merge using extracted Customer ID
-                df = df.merge(
-                    revenue_df[['extracted_customer_id', 'revenue_exact']], 
-                    left_on='Customer ID',
-                    right_on='extracted_customer_id', 
-                    how='left'
-                )
-                
-                # Fill missing revenue with 0 for segmentation purposes
-                df['revenue_exact'] = df['revenue_exact'].fillna(0)
-                
-                matched_count = len(df[df['revenue_exact'] > 0])
-                st.success(f"✅ Successfully matched {matched_count} out of {len(df)} customers using extracted Customer ID")
+                st.warning("⚠️ Required columns not found for customer matching. Using fallback segmentation.")
+                df['revenue_estimate'] = df.get('printer_count', 0) * 1000000
             
         except FileNotFoundError:
             st.warning("⚠️ Revenue analysis file not found. Using fallback segmentation based on printer count.")
-            # Create dummy revenue column based on printer count for backward compatibility
-            df['revenue_exact'] = df['printer_count'] * 10000000  # Rough estimate: $10M per printer
+            df['revenue_estimate'] = df['printer_count'] * 10000000
         except Exception as e:
             st.error(f"❌ Error loading revenue data: {str(e)}. Using fallback segmentation.")
-            df['revenue_exact'] = df['printer_count'] * 10000000
+            df['revenue_estimate'] = df['printer_count'] * 10000000
         
         # Handle different column name variations for industry data
-        # The Industry column from JY file already contains the correct industry categories
         if 'Industry' not in df.columns:
-            # If Industry column is missing, create a default one
             df['Industry'] = 'Unknown'
             
         # Ensure numeric columns are properly typed
-        numeric_cols = ['Big Box Count', 'Small Box Count', 'printer_count', 'revenue_exact']
+        numeric_cols = ['Big Box Count', 'Small Box Count', 'printer_count', 'revenue_estimate']
         for col in numeric_cols:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
         
         # Handle the license column if it has a different name
         license_variations = [
-            'Total Software License Revenue',
             'Total Software License Revenue',
             'cad_tier',
             'GP24',
@@ -568,116 +603,14 @@ def load_data():
         st.error(f"❌ Error loading data: {str(e)}")
         st.stop()
 
-def calculate_scores(df, weights, size_config):
-    """Calculate all scores based on weights and configurations."""
-    df = df.copy()
-
-    # 1. New Data-Driven Vertical Score
-    v_lower = df["Industry"].astype(str).str.lower().str.strip()
-    df["vertical_score"] = v_lower.map(PERFORMANCE_VERTICAL_WEIGHTS).fillna(0.3)
-
-    # 2. Data-Driven Size Score (based on empirical analysis)
-    # Analysis showed $1B+ companies are the sweet spot for hardware/consumable revenue
-    revenue_values = df['revenue_exact'].fillna(0)
-    has_reliable_revenue = revenue_values > 0
-    
-    # Initialize with neutral default score for all customers
-    df["size_score"] = 0.5  # Neutral default score
-    
-    # Apply data-driven revenue-based scoring based on engaged customer analysis
-    # Analysis showed $250M-$1B companies have highest performance among engaged customers
-    conditions = [
-        (revenue_values >= 250_000_000) & (revenue_values < 1_000_000_000),  # $250M-$1B (Sweet Spot)
-        (revenue_values >= 1_000_000_000),      # $1B+ (Excellent but harder to penetrate)
-        (revenue_values >= 50_000_000),         # $50M-$250M (Moderate)
-        (revenue_values >= 10_000_000),         # $10M-$50M (Lower)
-        (revenue_values > 0)                    # $0-$10M (Lower)
-    ]
-    
-    scores = [1.0, 0.9, 0.6, 0.4, 0.4]
-    
-    # Apply scoring tiers only to customers with reliable revenue data
-    for condition, score in zip(conditions, scores):
-        mask = has_reliable_revenue & condition
-        df.loc[mask, "size_score"] = score
-
-    # 3. New Adoption Score (Printer Count + Consumable Revenue) using log-then-min-max scaling
-    def min_max_scale(series):
-        # Handles edge case where all values are the same, preventing division by zero
-        min_val, max_val = series.min(), series.max()
-        if max_val - min_val == 0:
-            return pd.Series(0.0, index=series.index)
-        return (series - min_val) / (max_val - min_val)
-
-    if 'Total Consumable Revenue' not in df.columns:
-        df['Total Consumable Revenue'] = 0
-
-    # Ensure non-negative values for log transformation to avoid RuntimeWarning
-    printer_count_safe = np.maximum(df['printer_count'].fillna(0), 0)
-    consumable_revenue_safe = np.maximum(df['Total Consumable Revenue'].fillna(0), 0)
-    
-    printer_score = min_max_scale(np.log1p(printer_count_safe))
-    consumable_score = min_max_scale(np.log1p(consumable_revenue_safe))
-    df['adoption_score'] = 0.5 * printer_score + 0.5 * consumable_score
-
-    # 4. New Relationship Score (All Software-related Revenue) using log-then-min-max scaling
-    relationship_cols = ['Total Software License Revenue', 'Total SaaS Revenue', 'Total Maintenance Revenue']
-    for col in relationship_cols:
-        if col not in df.columns:
-            df[col] = 0
-    df['relationship_feature'] = df[relationship_cols].fillna(0).sum(axis=1)
-    # Ensure non-negative values for log transformation to avoid RuntimeWarning
-    relationship_feature_safe = np.maximum(df['relationship_feature'], 0)
-    df['relationship_score'] = min_max_scale(np.log1p(relationship_feature_safe))
-    
-    # The original cad_tier is kept for visuals but is no longer used in scoring
-    if LICENSE_COL in df.columns:
-        license_revenue = pd.to_numeric(df[LICENSE_COL], errors='coerce').fillna(0)
-        bins = [-1, 5000, 25000, 100000, np.inf]
-        labels = ["Bronze", "Silver", "Gold", "Platinum"]
-        df['cad_tier'] = pd.cut(license_revenue, bins=bins, labels=labels)
-    else:
-        df['cad_tier'] = 'Bronze'
-        df['cad_tier'] = pd.Categorical(df['cad_tier'], categories=["Bronze", "Silver", "Gold", "Platinum"])
-
-    # First compute the RAW ICP score (0-100) that preserves the predictive ordering
-    df['ICP_score_raw'] = (
-        df['vertical_score'] * weights['vertical'] +
-        df['size_score'] * weights['size'] +
-        df['adoption_score'] * weights['adoption'] +
-        df['relationship_score'] * weights['relationship']
-    ) * 100
-
-    # -------------------------------------------------------------
-    # MONOTONIC NORMALISATION → Bell-curve-shaped ICP score
-    # -------------------------------------------------------------
-    #   1. Convert raw scores to percentile ranks.
-    #   2. Map those percentiles to z-scores via the inverse error function.
-    #   3. Linearly rescale so the resulting distribution has mean≈50 and
-    #      covers roughly 0-100 (±~3σ).
-    ranks = df['ICP_score_raw'].rank(method='first')
-    n = len(ranks)
-    # Percentile (0,1) exclusive of 0/1 to avoid ±inf after erfinv
-    p = (ranks - 0.5) / n
-    # Convert percentile → z using inverse normal CDF from scipy
-    z = norm.ppf(p)
-
-    # Scale to 0-100 while preserving the bell shape (mean~50, σ~15)
-    df['ICP_score_new'] = 50 + 15 * z
-    # Clip extremes just in case
-    df['ICP_score_new'] = df['ICP_score_new'].clip(lower=0, upper=100)
-
-    # The predictive ordering is unchanged because the transform is strictly
-    # monotone. All downstream charts can continue to use `ICP_score_new`.
-    
-    return df
-
 def create_score_distribution(df):
     """Create simple, clear ICP score distribution chart"""
-    if df.empty or 'ICP_score_new' not in df.columns:
+    # Find the ICP score column
+    icp_score_col = 'ICP_score'
+    if df.empty or icp_score_col not in df.columns:
         return go.Figure().update_layout(title_text="No data available for Score Distribution")
     
-    scores = df['ICP_score_new']
+    scores = df[icp_score_col]
     
     # Calculate data range for better binning
     min_score = scores.min()
@@ -693,10 +626,10 @@ def create_score_distribution(df):
     # Create histogram using regular count (not density)
     fig = px.histogram(
         df, 
-        x='ICP_score_new',
+        x=icp_score_col,
         nbins=int((max_score - min_score) / bin_size) + 1,
         title="Distribution of ICP Scores",
-        labels={'ICP_score_new': 'ICP Score', 'count': 'Number of Customers'},
+        labels={icp_score_col: 'ICP Score', 'count': 'Number of Customers'},
         color_discrete_sequence=['#4ECDC4'],  # GoEngineer teal
         text_auto=True  # Show count on each bar
     )
@@ -712,7 +645,7 @@ def create_score_distribution(df):
     )
     
     # Calculate and add summary statistics
-    high_value_count = len(df[df['ICP_score_new'] >= 70])
+    high_value_count = len(df[df[icp_score_col] >= 70])
     total_count = len(df)
     high_value_pct = (high_value_count / total_count * 100) if total_count > 0 else 0
     
@@ -755,10 +688,11 @@ def create_score_distribution(df):
 
 def create_score_distribution_enhanced(df):
     """Create enhanced score distribution with histogram and box plot"""
-    if df.empty or 'ICP_score_new' not in df.columns:
+    icp_score_col = 'ICP_score'
+    if df.empty or icp_score_col not in df.columns:
         return go.Figure().update_layout(title_text="No data available for Score Distribution")
     
-    scores = df['ICP_score_new']
+    scores = df[icp_score_col]
     
     # Create subplots: histogram on top, box plot on bottom
     fig = make_subplots(
@@ -821,7 +755,7 @@ def create_score_distribution_enhanced(df):
     )
     
     # Calculate statistics
-    high_value_count = len(df[df['ICP_score_new'] >= 70])
+    high_value_count = len(df[df['ICP_score'] >= 70])
     total_count = len(df)
     high_value_pct = (high_value_count / total_count * 100) if total_count > 0 else 0
     avg_score = scores.mean()
@@ -856,20 +790,81 @@ def create_score_distribution_enhanced(df):
     
     return fig
 
+def create_raw_icp_histogram(df):
+    """Create histogram of raw ICP scores (before normalization)"""
+    icp_raw_col = 'ICP_score_raw'
+    if df.empty or icp_raw_col not in df.columns:
+        return go.Figure().update_layout(title_text="No raw ICP score data available")
+    
+    raw_scores = df[icp_raw_col]
+    
+    # Calculate data range for better binning
+    min_score = raw_scores.min()
+    max_score = raw_scores.max()
+    
+    # Create adaptive bins
+    bin_size = (max_score - min_score) / 20  # Aim for about 20 bins
+    
+    # Create histogram
+    fig = px.histogram(
+        df, 
+        x=icp_raw_col,
+        nbins=20,
+        title="Raw ICP Score Distribution (Before Normalization)",
+        labels={icp_raw_col: 'Raw ICP Score', 'count': 'Number of Customers'},
+        color_discrete_sequence=['#FF6B6B'],  # Different color to distinguish from normalized
+        text_auto=True
+    )
+    
+    # Add summary statistics
+    avg_raw = raw_scores.mean()
+    median_raw = raw_scores.median()
+    
+    fig.add_annotation(
+        x=0.02, y=0.98,
+        xref="paper", yref="paper",
+        text=f"<b>Raw Score Stats:</b><br>Avg: {avg_raw:.1f}<br>Median: {median_raw:.1f}<br>Range: {min_score:.1f} - {max_score:.1f}",
+        showarrow=False,
+        align="left",
+        bgcolor="rgba(255, 255, 255, 0.95)",
+        bordercolor="#E9ECEF",
+        borderwidth=1,
+        font=dict(size=11)
+    )
+    
+    # Update layout
+    fig.update_layout(
+        xaxis_title="Raw ICP Score",
+        yaxis_title="Number of Customers",
+        showlegend=False,
+        bargap=0.1,
+        height=400
+    )
+    
+    # Add text labels on bars
+    fig.update_traces(
+        texttemplate='%{y}', 
+        textposition='outside',
+        textfont_size=10
+    )
+    
+    return fig
+
 def create_score_by_vertical(df):
     """Create average score by vertical chart"""
-    if df.empty or 'Industry' not in df.columns or 'ICP_score_new' not in df.columns:
+    # Find the ICP_score column
+    icp_score_col = 'ICP_score'
+    if df.empty or 'Industry' not in df.columns or icp_score_col not in df.columns:
         return go.Figure().update_layout(title_text="No data available for Industry Score Analysis")
-        
-    vertical_scores = df.groupby('Industry')['ICP_score_new'].agg(['mean', 'count']).reset_index()
+    
+    vertical_scores = df.groupby('Industry')[icp_score_col].agg(['mean', 'count']).reset_index()
     vertical_scores = vertical_scores[vertical_scores['count'] >= 1].nlargest(15, 'mean') # Show top 15, min 1 customer
-    vertical_scores = vertical_scores.sort_values(by='mean', ascending=True) # For horizontal bar chart
     
     fig = px.bar(
         vertical_scores, 
         x='mean', 
         y='Industry',
-        text=vertical_scores['count'].apply(lambda x: f" ({x} cust.)"), # Add count text
+        text=[f" ({int(x)} cust.)" for x in vertical_scores['count'].tolist()], # Add count text
         title="Average ICP Score by Industry (Top 15)",
         labels={'mean': 'Average ICP Score', 'Industry': 'Industry'},
         color='mean',
@@ -922,14 +917,19 @@ def create_score_components_radar(weights, segment_name="Overall"):
 
 def create_scatter_matrix(df):
     """Create scatter plot matrix of key metrics"""
+    # Find the ICP_score column
+    icp_score_col = 'ICP_score'
+    if icp_score_col not in df.columns:
+        return None
+    
     numeric_cols = ['vertical_score', 'size_score', 'adoption_score', 'relationship_score']
     available_cols = [col for col in numeric_cols if col in df.columns]
     
     if len(available_cols) >= 2:
         fig = px.scatter_matrix(
-            df[available_cols + ['ICP_score_new']].sample(min(500, len(df))),
+            df[available_cols + [icp_score_col]].sample(min(500, len(df))),
             dimensions=available_cols,
-            color='ICP_score_new',
+            color=icp_score_col,
             title="Component Score Relationships",
             color_continuous_scale='viridis'
         )
@@ -993,7 +993,7 @@ def main():
     current_segment_config = st.session_state.segment_config.copy()
     
     # Add segment column to data
-    df_loaded['customer_segment'] = df_loaded['revenue_exact'].apply(
+    df_loaded['customer_segment'] = df_loaded['revenue_estimate'].apply(
         lambda x: determine_customer_segment(x, current_segment_config)
     )
     
@@ -1169,12 +1169,29 @@ def main():
     
     # Main dashboard
     st.markdown(f"## 📈 Key Metrics - {dashboard_title_suffix}")
+
+    # --- Metric Calculation ---
+    icp_score_col = 'ICP_score'
     
-    # Calculate metrics
-    avg_score = df_scored['ICP_score_new'].mean()
-    high_score_count = len(df_scored[df_scored['ICP_score_new'] >= 70])
-    total_gp = df_scored['GP24'].sum() if 'GP24' in df_scored.columns else 0
-    high_value_gp = df_scored[df_scored['ICP_score_new'] >= 70]['GP24'].sum() if 'GP24' in df_scored.columns else 0
+    # Ensure the column exists before proceeding
+    if icp_score_col in df_scored.columns:
+        avg_score = df_scored[icp_score_col].mean()
+        high_score_mask = df_scored[icp_score_col] >= 70
+        high_score_count = high_score_mask.sum()
+        total_gp = df_scored['GP24'].sum() if 'GP24' in df_scored.columns else 0
+        
+        if 'GP24' in df_scored.columns:
+            high_value_gp = df_scored.loc[high_score_mask, 'GP24'].sum()
+        else:
+            high_value_gp = 0
+    else:
+        # Fallback values if the score column is missing
+        st.error(f"Scoring column '{icp_score_col}' not found. Metrics will be zero.")
+        avg_score = 0
+        high_score_count = 0
+        total_gp = 0
+        high_value_gp = 0
+
     hv_percentage = (high_value_gp / total_gp * 100) if total_gp > 0 else 0
     
     col1, col2, col3, col4, col5, col6 = st.columns(6)
@@ -1409,6 +1426,10 @@ def main():
     fig_dist = create_score_distribution_enhanced(df_scored)
     st.plotly_chart(fig_dist, use_container_width=True)
     
+    # Raw ICP score histogram
+    fig_raw = create_raw_icp_histogram(df_scored)
+    st.plotly_chart(fig_raw, use_container_width=True)
+    
     # Second row of charts
     col1, col2 = st.columns(2)
     
@@ -1428,10 +1449,10 @@ def main():
             fig_scatter_printers = px.scatter(
                 df_scatter.sample(min(500, len(df_scatter))),
                 x='printer_count',
-                y='ICP_score_new',
+                y='ICP_score',
                 color='Industry', # Color by Industry if available and diverse enough
                 title=f"Printer Count vs ICP Score - {dashboard_title_suffix}",
-                labels={'printer_count': 'Printer Count', 'ICP_score_new': 'ICP Score'},
+                labels={'printer_count': 'Printer Count', 'ICP_score': 'ICP Score'},
                 hover_data=['Company Name'] # Add company name to tooltip
             )
             fig_scatter_printers.update_layout(
@@ -1483,10 +1504,10 @@ def main():
     
     # Select columns to display
     display_cols = [
-        'Company Name', 'Industry', 'ICP_score_new', 
+        'Company Name', 'Industry', 'ICP_score', 
         'adoption_score', 'relationship_score', 
         'printer_count', 'Total Consumable Revenue', 'relationship_feature',
-        'revenue_exact'
+        'revenue_estimate'
     ]
     if 'customer_segment' in df_scored.columns and selected_segment == 'All Segments':
         display_cols.insert(2, 'customer_segment')
@@ -1494,10 +1515,10 @@ def main():
     available_cols = [col for col in display_cols if col in df_scored.columns]
     
     # Get top 100 customers and format for display
-    top_customers = df_scored.nlargest(100, 'ICP_score_new')[available_cols].copy()
+    top_customers = df_scored.nlargest(100, 'ICP_score')[available_cols].copy()
     
     # Format currency and score columns
-    for col in ['revenue_exact', 'Total Consumable Revenue', 'relationship_feature']:
+    for col in ['revenue_estimate', 'Total Consumable Revenue', 'relationship_feature']:
         if col in top_customers.columns:
             top_customers[col] = top_customers[col].apply(
                 lambda x: f"${x:,.0f}" if pd.notnull(x) and x > 0 else "$0"
@@ -1509,8 +1530,8 @@ def main():
 
     # Rename columns for a clean display
     column_renames = {
-        'ICP_score_new': 'ICP Score',
-        'revenue_exact': 'Total Annual Revenue',
+        'ICP_score': 'ICP Score',
+        'revenue_estimate': 'Total Annual Revenue',
         'printer_count': 'Printer Count',
         'customer_segment': 'Customer Segment',
         'adoption_score': 'Adoption Score',

@@ -4,7 +4,7 @@ import json
 from functools import partial
 from optimize_weights import objective
 
-def run_optimization(n_trials=5000, lambda_param=0.25):
+def run_optimization(n_trials=5000, lambda_param=0.25, include_size=True):
     """
     Main function to run the weight optimization process.
     """
@@ -49,7 +49,14 @@ def run_optimization(n_trials=5000, lambda_param=0.25):
 
     # Define the objective function with the data baked in
     # Use functools.partial to pass the dataframes and lambda to the objective function
-    obj_func = partial(objective, X=X, y=y, lambda_param=lambda_param, weight_names=weight_names)
+    obj_func = partial(
+        objective,
+        X=X,
+        y=y,
+        lambda_param=lambda_param,
+        weight_names=weight_names,
+        include_size=include_size,
+    )
     
     study = optuna.create_study(direction='minimize')
     study.optimize(obj_func, n_trials=n_trials, show_progress_bar=True)
@@ -63,8 +70,14 @@ def run_optimization(n_trials=5000, lambda_param=0.25):
     print("Best weights (already normalized):")
     # The weights are already normalized to sum to 1 by the objective function
     # but we will re-normalize just in case of float precision issues
-    total_weight = sum(best_weights.values())
-    normalized_weights = {name: w / total_weight for name, w in best_weights.items()}
+
+    # Ensure we have explicit size weight in the result dictionary
+    if include_size is False:
+        best_weights['size_score'] = 0.0
+
+    # Re-normalise exactly to 1.0 (handles tiny float drift)
+    total = sum(best_weights.values())
+    normalized_weights = {k: v / total for k, v in best_weights.items()}
 
     for name, weight in normalized_weights.items():
         print(f"  - {name}: {weight:.4f}")
@@ -74,7 +87,8 @@ def run_optimization(n_trials=5000, lambda_param=0.25):
         'weights': normalized_weights,
         'lambda_param': lambda_param,
         'n_trials': n_trials,
-        'best_objective_value': study.best_value
+        'best_objective_value': study.best_value,
+        'include_size': include_size,
     }
 
     with open('optimized_weights.json', 'w') as f:
@@ -87,4 +101,5 @@ if __name__ == '__main__':
     N_TRIALS = 5000  # Number of optimization rounds
     LAMBDA = 0.25   # 0.0 = pure revenue prediction, 1.0 = pure distribution matching
 
-    run_optimization(n_trials=N_TRIALS, lambda_param=LAMBDA) 
+    # Set include_size=False to lock the size criterion at 0 weight
+    run_optimization(n_trials=N_TRIALS, lambda_param=LAMBDA, include_size=False) 

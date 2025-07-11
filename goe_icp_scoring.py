@@ -26,21 +26,15 @@ from sklearn.preprocessing import MinMaxScaler
 import json
 from scipy.stats import norm
 
+# Import the centralized scoring logic
+from scoring_logic import calculate_scores, LICENSE_COL, DEFAULT_WEIGHTS
+
 # --------------------------- #
 # 0.  CONFIG – file names & weights
 # --------------------------- #
-# ASSET_FILE   = "TR - All SSYS Customer Assets - Customer Segmentation.xlsx"  # No longer needed for industry data
 CUSTOMER_FILE = "JY - Customer Analysis - Customer Segmentation.xlsx"
 SALES_FILE   = "TR - Master Sales Log - Customer Segementation.xlsx"
-REVENUE_FILE = "customer_revenue_analysis.xlsx"  # New revenue data file
-
-# Default weights (fallback if optimized weights file doesn't exist)
-DEFAULT_WEIGHTS = {
-    "vertical": 0.25,
-    "size": 0.25,
-    "adoption": 0.25,
-    "relationship": 0.25,
-}
+REVENUE_FILE = "enrichment_progress.csv"  # New revenue data file
 
 def load_weights():
     """Load optimized weights from JSON file, or use defaults if not available."""
@@ -51,9 +45,9 @@ def load_weights():
             
             # Convert from optimizer format to script format and calculate missing weights
             weights = {}
-            weights['vertical'] = raw_weights.get('vertical_score', 0.25)
-            weights['size'] = raw_weights.get('size_score', 0.25)
-            weights['adoption'] = raw_weights.get('adoption_score', 0.25)
+            weights['vertical'] = raw_weights.get('vertical_score', DEFAULT_WEIGHTS['vertical'])
+            weights['size'] = raw_weights.get('size_score', DEFAULT_WEIGHTS['size'])
+            weights['adoption'] = raw_weights.get('adoption_score', DEFAULT_WEIGHTS['adoption'])
             
             # Calculate relationship score as remainder to ensure sum = 1.0
             total_so_far = weights['vertical'] + weights['size'] + weights['adoption']
@@ -72,35 +66,6 @@ def load_weights():
 
 # Load weights dynamically
 WEIGHTS = load_weights()
-
-# Data-driven vertical weights based on actual Total Hardware + Consumable Revenue performance from JY spreadsheet
-# Analysis shows these industries generate the highest combined hardware and consumable revenue
-PERFORMANCE_VERTICAL_WEIGHTS = {
-    "aerospace & defense": 1.0,
-    "automotive & transportation": 1.0,
-    "consumer goods": 1.0,
-    "high tech": 1.0,
-    "medical devices & life sciences": 1.0,
-    "engineering services": 0.8,
-    "heavy equip & ind. components": 0.8,
-    "industrial machinery": 0.8,
-    "mold, tool & die": 0.8,
-    "other": 0.8,
-    "building & construction": 0.6,
-    "chemicals & related products": 0.6,
-    "dental": 0.6,
-    "manufactured products": 0.6,
-    "services": 0.6,
-    "education & research": 0.4,
-    "electromagnetic": 0.4,
-    "energy": 0.4,
-    "packaging": 0.4,
-    "plant & process": 0.4,
-    "shipbuilding": 0.4,
-}
-# Any industry not in this list will receive a default score of 0.3
-
-LICENSE_COL = "Total Software License Revenue"
 
 # --------------------------- #
 # 1.  Utility helpers
@@ -136,11 +101,11 @@ def load_revenue() -> pd.DataFrame:
         return pd.DataFrame()  # Return empty dataframe if file doesn't exist
     
     try:
-        df = pd.read_excel(REVENUE_FILE)
+        df = pd.read_csv(REVENUE_FILE)
         
         # Handle potential column name variations
         company_col = None
-        for col in ["Company Name", "Compnay Name", "company name", "company_name"]:
+        for col in ["company_name", "Company Name", "Compnay Name", "company name"]:
             if col in df.columns:
                 company_col = col
                 break
@@ -158,29 +123,36 @@ def load_revenue() -> pd.DataFrame:
         df["reliable_revenue"] = None
         df["revenue_source"] = "none"
         
-        # Priority 1: pdl_estimate (most reliable)
-        pdl_mask = df["source"] == "pdl_estimate"
-        df.loc[pdl_mask, "reliable_revenue"] = pd.to_numeric(df.loc[pdl_mask, "revenue_exact"], errors="coerce")
+        # Priority 1: sec_match (highest priority - SEC filings)
+        sec_mask = df["source"] == "sec_match"
+        df.loc[sec_mask, "reliable_revenue"] = pd.to_numeric(df.loc[sec_mask, "revenue_estimate"], errors="coerce")
+        df.loc[sec_mask, "revenue_source"] = "sec_match"
+        sec_count = sec_mask.sum()
+        
+        # Priority 2: pdl_estimate (most reliable)
+        pdl_mask = (df["source"] == "pdl_estimate") & (df["reliable_revenue"].isna())
+        df.loc[pdl_mask, "reliable_revenue"] = pd.to_numeric(df.loc[pdl_mask, "revenue_estimate"], errors="coerce")
         df.loc[pdl_mask, "revenue_source"] = "pdl_estimate"
         pdl_count = pdl_mask.sum()
         
-        # Priority 2: fmp_income but only if < $1 trillion (to filter currency errors)
-        fmp_mask = (df["source"] == "fmp_income") & (df["reliable_revenue"].isna())
-        fmp_revenue = pd.to_numeric(df.loc[fmp_mask, "revenue_exact"], errors="coerce")
+        # Priority 3: fmp_match but only if < $1 trillion (to filter currency errors)
+        fmp_mask = (df["source"] == "fmp_match") & (df["reliable_revenue"].isna())
+        fmp_revenue = pd.to_numeric(df.loc[fmp_mask, "revenue_estimate"], errors="coerce")
         valid_fmp_mask = fmp_mask & (fmp_revenue < 1000000000000)  # < $1 trillion
         df.loc[valid_fmp_mask, "reliable_revenue"] = fmp_revenue.loc[valid_fmp_mask]
-        df.loc[valid_fmp_mask, "revenue_source"] = "fmp_income"
+        df.loc[valid_fmp_mask, "revenue_source"] = "fmp_match"
         fmp_count = valid_fmp_mask.sum()
         
-        # Priority 3: Discard heuristic_estimate (all garbage)
+        # Priority 4: Discard heuristic_estimate (all garbage)
         heuristic_count = (df["source"] == "heuristic_estimate").sum()
         
         # Remove rows where reliable_revenue is still None or NaN
         df = df.dropna(subset=["reliable_revenue"])
         
         print(f"[INFO] Revenue data prioritization results:")
+        print(f"  - sec_match: {sec_count} customers")
         print(f"  - pdl_estimate: {pdl_count} customers")
-        print(f"  - fmp_income (valid): {fmp_count} customers") 
+        print(f"  - fmp_match (valid): {fmp_count} customers") 
         print(f"  - heuristic_estimate (discarded): {heuristic_count} customers")
         print(f"  - Total reliable revenue records: {len(df)}")
         
@@ -192,17 +164,6 @@ def load_revenue() -> pd.DataFrame:
 # --------------------------- #
 # 2.  Load & clean data sets
 # --------------------------- #
-def load_assets() -> pd.DataFrame:
-    df = pd.read_excel(ASSET_FILE)
-    # Since we're not using this file for industry enrichment anymore, 
-    # just return an empty dataframe if required columns are missing
-    if "Company Name" not in df.columns:
-        print("[INFO] Assets file doesn't have required columns. Skipping assets data.")
-        return pd.DataFrame(columns=["key"])
-    
-    df["key"] = df["Company Name"].map(clean_name)
-    return df
-
 def load_customers() -> pd.DataFrame:
     df = pd.read_excel(CUSTOMER_FILE)
     needed = {
@@ -247,23 +208,19 @@ def aggregate_gp24(sales: pd.DataFrame) -> pd.DataFrame:
     )
     return gp24
 
-def merge_master(assets, customers, gp24, revenue=None) -> pd.DataFrame:
+def merge_master(customers, gp24, revenue=None) -> pd.DataFrame:
     # Join on Customer ID (preferred) then key
     cust = customers.copy()
     master = cust.merge(
         gp24[["key", "GP24", "Revenue24"]], on="key", how="left", suffixes=("","")
     )
     
-    # Skip industry enrichment from assets file since JY file already has good industry data
-    # The Industry column from the JY file contains proper industry categories
-    # No need to merge or override with assets data
-    
     # Merge revenue data if available
     if revenue is not None and len(revenue) > 0:
         master = master.merge(revenue, on="key", how="left", suffixes=("",""))
         # Use the reliable_revenue column and rename for consistency
-        master["revenue_exact"] = master["reliable_revenue"].fillna(0)
-        reliable_count = len(master[master["revenue_exact"] > 0])
+        master["revenue_estimate"] = master["reliable_revenue"].fillna(0)
+        reliable_count = len(master[master["revenue_estimate"] > 0])
         print(f"[INFO] Merged reliable revenue data for {reliable_count} customers")
         
         # Add revenue source information for tracking
@@ -271,7 +228,7 @@ def merge_master(assets, customers, gp24, revenue=None) -> pd.DataFrame:
             source_counts = master["revenue_source"].fillna("none").value_counts()
             print(f"[INFO] Revenue sources: {dict(source_counts)}")
     else:
-        master["revenue_exact"] = 0  # Default to 0 if no revenue data
+        master["revenue_estimate"] = 0  # Default to 0 if no revenue data
         
     return master
 
@@ -284,103 +241,11 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     df["printer_count"] = df["Big Box Count"] + df["Small Box Count"]
     df["scaling_flag"] = (df["printer_count"] >= 4).astype(int)
 
-    # Relationship tier from software-license revenue (kept for visuals, not for scoring)
-    bins = [-1, 5000, 25000, 100000, np.inf]
-    labels = ["Bronze", "Silver", "Gold", "Platinum"]
-    df["cad_tier"] = pd.cut(df[LICENSE_COL].fillna(0), bins=bins, labels=labels)
-
-    # Scores for each criterion using the new performance-based weights
-    v_lower = df["Industry"].astype(str).str.lower().str.strip()
-    df["vertical_score"] = v_lower.map(PERFORMANCE_VERTICAL_WEIGHTS).fillna(0.3)
-
-    # --- New data-driven scores ---
-    # 1. New Adoption Score (Printer Count + Consumable Revenue) using log-then-min-max
-    def min_max_scale(series):
-        min_val, max_val = series.min(), series.max()
-        if max_val - min_val == 0: return 0.0
-        return (series - min_val) / (max_val - min_val)
-
-    if 'Total Consumable Revenue' not in df.columns:
-        df['Total Consumable Revenue'] = 0
-
-    # Ensure non-negative values for log transformation to avoid RuntimeWarning
-    printer_count_safe = np.maximum(df['printer_count'].fillna(0), 0)
-    consumable_revenue_safe = np.maximum(df['Total Consumable Revenue'].fillna(0), 0)
-    
-    printer_score = min_max_scale(np.log1p(printer_count_safe))
-    consumable_score = min_max_scale(np.log1p(consumable_revenue_safe))
-    df['adoption_score'] = 0.5 * printer_score + 0.5 * consumable_score
-
-    # 2. New Relationship Score (All Software-related Revenue) using log-then-min-max
-    relationship_cols = ['Total Software License Revenue', 'Total SaaS Revenue', 'Total Maintenance Revenue']
-    for col in relationship_cols:
-        if col not in df.columns:
-            df[col] = 0
-
-    df['relationship_feature'] = df[relationship_cols].fillna(0).sum(axis=1)
-    # Ensure non-negative values for log transformation to avoid RuntimeWarning
-    relationship_feature_safe = np.maximum(df['relationship_feature'], 0)
-    df['relationship_score'] = min_max_scale(np.log1p(relationship_feature_safe))
-    
-    # --- Data-Driven Size Score ---
-    # Size score based on empirical analysis showing $1B+ companies are the sweet spot
-    if "revenue_exact" in df.columns and df["revenue_exact"].sum() > 0:
-        revenue_values = df["revenue_exact"].fillna(0)
-        has_reliable_revenue = revenue_values > 0
-        
-        # Initialize with neutral default score for all customers
-        df["size_score"] = 0.5  # Neutral default score
-        
-        # Apply data-driven revenue-based scoring based on engaged customer analysis
-        # Analysis showed $250M-$1B companies have highest performance among engaged customers
-        conditions = [
-            (revenue_values >= 250_000_000) & (revenue_values < 1_000_000_000),  # $250M-$1B (Sweet Spot)
-            (revenue_values >= 1_000_000_000),      # $1B+ (Excellent but harder to penetrate)
-            (revenue_values >= 50_000_000),         # $50M-$250M (Moderate)
-            (revenue_values >= 10_000_000),         # $10M-$50M (Lower)
-            (revenue_values > 0)                    # $0-$10M (Lower)
-        ]
-        
-        scores = [1.0, 0.9, 0.6, 0.4, 0.4]
-        
-        # Apply scoring tiers only to customers with reliable revenue data
-        for condition, score in zip(conditions, scores):
-            mask = has_reliable_revenue & condition
-            df.loc[mask, "size_score"] = score
-        
-        reliable_count = has_reliable_revenue.sum()
-        neutral_count = len(df) - reliable_count
-        sweet_spot_count = (has_reliable_revenue & (revenue_values >= 250_000_000) & (revenue_values < 1_000_000_000)).sum()
-        excellent_count = (has_reliable_revenue & (revenue_values >= 1_000_000_000)).sum()
-        
-        print(f"[INFO] Data-driven size scoring applied (based on engaged customer analysis):")
-        print(f"  - {reliable_count} customers with reliable revenue data")
-        print(f"  - {sweet_spot_count} customers in sweet spot ($250M-$1B)")
-        print(f"  - {excellent_count} customers in excellent tier ($1B+)")
-        print(f"  - {neutral_count} customers with neutral default score (0.5)")
-    else:
-        # If no revenue data at all, use neutral scoring for all customers
-        df["size_score"] = 0.5  # Neutral default for all
-        print("[INFO] No revenue data available - using neutral size scores for all customers")
-
-    # Final ICP weighted score 0-100 (pain criteria removed)
-    df["ICP_score_raw"] = (
-        df["vertical_score"] * WEIGHTS["vertical"]
-        + df["size_score"] * WEIGHTS["size"]
-        + df["adoption_score"] * WEIGHTS["adoption"]
-        + df["relationship_score"] * WEIGHTS["relationship"]
-    ) * 100
-
-    # Monotonic normalization for bell-curve shape
-    ranks = df['ICP_score_raw'].rank(method='first')
-    n = len(ranks)
-    p = (ranks - 0.5) / n
-    z = np.sqrt(2) * norm.ppf(p) # Use scipy's norm.ppf for inverse cdf
-    
-    df['ICP_score'] = (50 + 15 * z).clip(0, 100)
-
     # Create the target variable for the optimizer as per user specification
     df['Total Hardware + Consumable Revenue'] = df['Total Hardware Revenue'].fillna(0) + df['Total Consumable Revenue'].fillna(0)
+
+    # Use the centralized scoring logic
+    df = calculate_scores(df, WEIGHTS)
 
     return df
 
@@ -491,8 +356,6 @@ def build_visuals(df: pd.DataFrame):
 def main():
     check_files_exist()
     print("Loading spreadsheets…")
-    # Skip loading assets since we're not using it for industry enrichment anymore
-    # assets = load_assets()
     customers = load_customers()
     sales = load_sales()
 
@@ -501,9 +364,7 @@ def main():
 
     print("Merging data sets…")
     revenue = load_revenue()
-    # Pass empty dataframe for assets since we don't need it
-    empty_assets = pd.DataFrame(columns=["key"])
-    master = merge_master(empty_assets, customers, gp24, revenue)
+    master = merge_master(customers, gp24, revenue)
 
     print("Engineering features & scores…")
     scored = engineer_features(master)
@@ -521,6 +382,7 @@ def main():
         "Revenue24",
         "Total Hardware + Consumable Revenue",
         "ICP_score",
+        "ICP_grade",
         "ICP_score_raw",
         "vertical_score",
         "size_score",
@@ -550,3 +412,6 @@ if __name__ == "__main__":
     except Exception as e:
         print("\n⚠ An error occurred – details below.\n")
         raise
+
+
+
