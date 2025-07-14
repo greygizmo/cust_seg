@@ -86,7 +86,9 @@ def objective(trial, X, y, lambda_param, weight_names, include_size=True):
 
     # --- Feasibility Checks (Constraints) ---
     # Prune (discard) trials that don't meet the basic constraint that weights
-    # must sum to 1.0. This significantly speeds up the search.
+    # form a valid set. When size is included we require the weights to sum
+    # to approximately 1.0; otherwise we simply normalize the remaining
+    # weights, pruning only if they are all zero.
     if include_size:
         # Allow a small tolerance for floating point inaccuracies.
         if not 0.95 <= total <= 1.05:
@@ -97,9 +99,15 @@ def objective(trial, X, y, lambda_param, weight_names, include_size=True):
         w_adoption /= total
         w_relationship /= total
     else:
-        # If size is excluded, the other three must sum to 1.
-        if abs(total - 1.0) > 1e-3:
+        # Normalize the non-size weights so they sum to 1.0. If their
+        # combined value is zero, prune the trial because normalization
+        # would be impossible.
+        total_no_size = w_vertical + w_adoption + w_relationship
+        if abs(total_no_size) < 1e-12:
             raise optuna.exceptions.TrialPruned()
+        w_vertical /= total_no_size
+        w_adoption /= total_no_size
+        w_relationship /= total_no_size
 
     weights_dict = {
         'vertical_score': w_vertical,
