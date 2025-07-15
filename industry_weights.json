@@ -1,0 +1,39 @@
+{
+    "weights": {
+        "aerospace & defense": 1.0,
+        "automotive & transportation": 0.5344770650992416,
+        "building & construction": 0.05230869623018343,
+        "chemicals & related products": 0.2799616843710566,
+        "consumer goods": 0.4194142431454525,
+        "dental": 0.6489931034838843,
+        "education & research": 0.14057623210295922,
+        "energy": 0.11242315320296437,
+        "engineering services": 0.051466953467620244,
+        "heavy equip & ind. components": 0.09641345595356929,
+        "high tech": 0.2915119675125956,
+        "industrial machinery": 0.07705866057522201,
+        "industrial machinery & equipment": 0.13917413617813304,
+        "manufactured products": 0.06807163136677868,
+        "manufacturing": 0.46845167976917684,
+        "manufacturing & industrial": 0.23413941219431714,
+        "medical devices & life sciences": 0.3732142199167486,
+        "mold, tool & die": 0.010971198202836954,
+        "other": 0.0,
+        "packaging": 0.3398223687381154,
+        "plant & process": 0.007903876907317095,
+        "services": 0.12533957656032038,
+        "shipbuilding": 0.3642438798847537,
+        "unknown": 0.3,
+        "": 0.3,
+        "NaN": 0.3
+    },
+    "metadata": {
+        "generated_at": "2025-07-15T10:34:40.224226",
+        "method": "empirical_bayes_shrinkage",
+        "total_industries": 26,
+        "score_range": [
+            0.0,
+            1.0
+        ]
+    }
+}
