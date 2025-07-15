@@ -46,27 +46,47 @@ def calculate_industry_performance(df: pd.DataFrame) -> pd.DataFrame:
 
 def aggregate_by_industry(df: pd.DataFrame, min_sample: int = 10) -> pd.DataFrame:
     """
-    Aggregate performance metrics by industry with sample size filtering.
+    Aggregate performance metrics by industry using adoption-adjusted success metric.
+    
+    Success = (adoption_rate) × (mean_revenue_among_adopters)
+    This accounts for both the likelihood of hardware adoption and the value when it happens.
     
     Args:
         df (pd.DataFrame): Customer dataframe with 'Industry' and 'total_performance' columns
         min_sample (int): Minimum number of customers required for an industry to be scored
         
     Returns:
-        pd.DataFrame: Industry-level aggregated metrics
+        pd.DataFrame: Industry-level aggregated metrics with adoption-adjusted success
     """
     # Handle missing/blank industries
     df['Industry_clean'] = df['Industry'].fillna('Unknown').str.strip()
     df.loc[df['Industry_clean'] == '', 'Industry_clean'] = 'Unknown'
     
-    # Aggregate by industry
-    industry_stats = df.groupby('Industry_clean').agg({
-        'total_performance': ['count', 'mean', 'sum', 'std']
-    }).round(2)
+    # Calculate adoption-adjusted metrics by industry
+    def calc_adoption_metrics(group):
+        total_customers = len(group)
+        adopters = group[group['total_performance'] > 0]
+        adopter_count = len(adopters)
+        
+        if adopter_count > 0:
+            adoption_rate = adopter_count / total_customers
+            mean_among_adopters = adopters['total_performance'].mean()
+            success_metric = adoption_rate * mean_among_adopters
+        else:
+            adoption_rate = 0.0
+            mean_among_adopters = 0.0
+            success_metric = 0.0
+        
+        return pd.Series({
+            'customer_count': total_customers,
+            'adopter_count': adopter_count,
+            'adoption_rate': adoption_rate,
+            'mean_among_adopters': mean_among_adopters,
+            'success_metric': success_metric,
+            'mean_performance': group['total_performance'].mean()  # Keep for reference
+        })
     
-    # Flatten column names
-    industry_stats.columns = ['customer_count', 'mean_performance', 'total_performance', 'std_performance']
-    industry_stats = industry_stats.reset_index()
+    industry_stats = df.groupby('Industry_clean').apply(calc_adoption_metrics).reset_index()
     
     # Filter out industries with insufficient sample size
     sufficient_sample = industry_stats['customer_count'] >= min_sample
@@ -74,34 +94,39 @@ def aggregate_by_industry(df: pd.DataFrame, min_sample: int = 10) -> pd.DataFram
     industry_stats = industry_stats[sufficient_sample]
     
     print(f"[INFO] Found {len(industry_stats)} industries with >= {min_sample} customers")
+    print(f"[INFO] Using adoption-adjusted success metric: adoption_rate × mean_revenue_among_adopters")
+    
     if len(small_industries) > 0:
         print(f"[INFO] {len(small_industries)} industries have < {min_sample} customers and will be treated as 'Unknown'")
         print(f"[INFO] Small industries: {small_industries['Industry_clean'].tolist()}")
+    
+    # Store success metric in 'shrunk_mean' column so downstream code works unchanged
+    industry_stats['shrunk_mean'] = industry_stats['success_metric']
     
     return industry_stats
 
 
 def apply_empirical_bayes_shrinkage(industry_stats: pd.DataFrame, k: int = 20) -> pd.DataFrame:
     """
-    Apply Empirical-Bayes shrinkage to industry means to handle small sample sizes.
+    Apply Empirical-Bayes shrinkage to industry success metrics to handle small sample sizes.
     
     Args:
-        industry_stats (pd.DataFrame): Industry aggregated statistics
+        industry_stats (pd.DataFrame): Industry aggregated statistics with success_metric
         k (int): Shrinkage parameter (effective sample size of prior)
         
     Returns:
-        pd.DataFrame: Industry stats with shrunk means
+        pd.DataFrame: Industry stats with shrunk success metrics
     """
-    # Calculate global mean across all customers (weighted by customer count)
+    # Calculate global success metric (weighted by customer count)
     total_customers = industry_stats['customer_count'].sum()
-    global_mean = (industry_stats['mean_performance'] * industry_stats['customer_count']).sum() / total_customers
+    global_success = (industry_stats['success_metric'] * industry_stats['customer_count']).sum() / total_customers
     
-    print(f"[INFO] Global mean performance: ${global_mean:,.0f}")
+    print(f"[INFO] Global success metric: {global_success:,.0f}")
     print(f"[INFO] Applying Empirical-Bayes shrinkage with k={k}")
     
-    # Apply shrinkage formula: (n_i * μ_i + k * μ_global) / (n_i + k)
+    # Apply shrinkage formula to success metric: (n_i * success_i + k * global_success) / (n_i + k)
     industry_stats['shrunk_mean'] = (
-        (industry_stats['customer_count'] * industry_stats['mean_performance'] + k * global_mean) /
+        (industry_stats['customer_count'] * industry_stats['success_metric'] + k * global_success) /
         (industry_stats['customer_count'] + k)
     )
     
@@ -113,91 +138,66 @@ def apply_empirical_bayes_shrinkage(industry_stats: pd.DataFrame, k: int = 20) -
     return industry_stats
 
 
-def normalize_to_scores(industry_stats: pd.DataFrame, neutral_score: float = 0.3) -> dict:
+def build_industry_weights(df: pd.DataFrame, min_sample: int = 10, k: int = 20, neutral_score: float = 0.3) -> dict:
     """
-    Normalize shrunk means to 0-1 scores with special handling for neutral categories.
-    
-    Args:
-        industry_stats (pd.DataFrame): Industry stats with shrunk means
-        neutral_score (float): Score to assign to unknown/blank industries
-        
-    Returns:
-        dict: Mapping of industry names to scores (0-1)
+    Main function to build data-driven industry weights from customer performance data.
     """
-    if len(industry_stats) == 0:
-        print("[WARN] No industries to score, returning empty weights")
-        return {}
+    print(f"[INFO] Building hybrid industry weights with min_sample={min_sample}, k={k}, neutral={neutral_score}")
+
+    # Step 1: Calculate historical performance (data-driven score)
+    df_with_performance = calculate_industry_performance(df.copy())
+    industry_stats = aggregate_by_industry(df_with_performance, min_sample)
+    if len(industry_stats) > 0:
+        industry_stats = apply_empirical_bayes_shrinkage(industry_stats, k)
     
-    # Min-max normalization of shrunk means
-    min_shrunk = industry_stats['shrunk_mean'].min()
-    max_shrunk = industry_stats['shrunk_mean'].max()
-    
-    if max_shrunk == min_shrunk:
-        # Edge case: all industries have same performance
-        print("[WARN] All industries have identical performance, assigning neutral scores")
-        industry_stats['final_score'] = neutral_score
+        # Normalize data-driven score to 0-1 range
+        min_shrunk = industry_stats['shrunk_mean'].min()
+        max_shrunk = industry_stats['shrunk_mean'].max()
+        if max_shrunk > min_shrunk:
+            industry_stats['data_driven_score'] = (industry_stats['shrunk_mean'] - min_shrunk) / (max_shrunk - min_shrunk)
+        else:
+            industry_stats['data_driven_score'] = 0.5 # Neutral if all same
     else:
-        industry_stats['final_score'] = (
-            (industry_stats['shrunk_mean'] - min_shrunk) / (max_shrunk - min_shrunk)
-        )
-    
-    # Create weights dictionary
+        # Handle case with no industries meeting sample size
+        return {'unknown': neutral_score, '': neutral_score, np.nan: neutral_score}
+
+
+    # Step 2: Load strategic scores from config
+    print("[INFO] Loading strategic tiers from strategic_industry_tiers.json")
+    with open('strategic_industry_tiers.json', 'r') as f:
+        strategic_config = json.load(f)
+    tier_scores = strategic_config['tier_scores']
+    blend_weights = strategic_config['blend_weight']
+    industry_to_tier = {industry: tier for tier, industries in strategic_config['industry_tiers'].items() for industry in industries}
+
+    def get_strategic_score(industry_name):
+        tier = industry_to_tier.get(industry_name, 'tier_3') # Default to tier_3
+        return tier_scores.get(tier, 0.4)
+
+    industry_stats['strategic_score'] = industry_stats['Industry_clean'].apply(get_strategic_score)
+
+    # Step 3: Blend data-driven and strategic scores
+    print(f"[INFO] Blending scores with weights: Data-Driven({blend_weights['data_driven']}), Strategic({blend_weights['strategic']})")
+    industry_stats['blended_score'] = (
+        blend_weights['data_driven'] * industry_stats['data_driven_score'] +
+        blend_weights['strategic'] * industry_stats['strategic_score']
+    )
+
+    # Step 4: Apply final bucketing
+    bucketed_scores = (np.round(industry_stats['blended_score'] / 0.05) * 0.05).clip(0.0, 1.0)
+    industry_stats['final_score'] = np.maximum(neutral_score, bucketed_scores)
+    print(f"[INFO] Applied final bucketing: 0.05 increments, minimum {neutral_score:.2f}")
+
+    # Step 5: Create final weights dictionary
     weights = dict(zip(
         industry_stats['Industry_clean'].str.lower().str.strip(),
         industry_stats['final_score']
     ))
-    
-    # Add neutral score for unknown/blank industries
     weights['unknown'] = neutral_score
     weights[''] = neutral_score
     weights[np.nan] = neutral_score
-    
+
     print(f"[INFO] Generated scores for {len(weights)} industry categories")
-    print(f"[INFO] Score range: {min(weights.values()):.3f} to {max(weights.values()):.3f}")
-    
-    # Show top and bottom performers
-    sorted_industries = sorted(weights.items(), key=lambda x: x[1], reverse=True)
-    print(f"[INFO] Top 5 performing industries:")
-    for industry, score in sorted_industries[:5]:
-        if industry not in ['unknown', '', np.nan]:
-            print(f"  - {industry}: {score:.3f}")
-    
-    print(f"[INFO] Bottom 5 performing industries:")
-    for industry, score in sorted_industries[-5:]:
-        if industry not in ['unknown', '', np.nan]:
-            print(f"  - {industry}: {score:.3f}")
-    
-    return weights
-
-
-def build_industry_weights(df: pd.DataFrame, min_sample: int = 10, k: int = 20, neutral_score: float = 0.3) -> dict:
-    """
-    Main function to build data-driven industry weights from customer performance data.
-    
-    Args:
-        df (pd.DataFrame): Customer dataframe with industry and revenue data
-        min_sample (int): Minimum customers required for an industry to be scored individually
-        k (int): Empirical-Bayes shrinkage parameter
-        neutral_score (float): Score for unknown/insufficient sample industries
-        
-    Returns:
-        dict: Industry name -> score (0-1) mapping
-    """
-    print(f"[INFO] Building industry weights with min_sample={min_sample}, k={k}, neutral={neutral_score}")
-    
-    # Step 1: Calculate performance per customer
-    df_with_performance = calculate_industry_performance(df.copy())
-    
-    # Step 2: Aggregate by industry
-    industry_stats = aggregate_by_industry(df_with_performance, min_sample)
-    
-    # Step 3: Apply Empirical-Bayes shrinkage
-    if len(industry_stats) > 0:
-        industry_stats = apply_empirical_bayes_shrinkage(industry_stats, k)
-    
-    # Step 4: Normalize to 0-1 scores
-    weights = normalize_to_scores(industry_stats, neutral_score)
-    
     return weights
 
 

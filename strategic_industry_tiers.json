@@ -1,0 +1,38 @@
+{
+  "tier_scores": {
+    "tier_1": 1.0,
+    "tier_2": 0.7,
+    "tier_3": 0.4
+  },
+  "blend_weight": {
+    "data_driven": 0.5,
+    "strategic": 0.5
+  },
+  "industry_tiers": {
+    "tier_1": [
+      "High Tech",
+      "Medical Devices & Life Sciences",
+      "Aerospace & Defense",
+      "Automotive & Transportation"
+    ],
+    "tier_2": [
+      "Dental",
+      "Consumer Goods",
+      "Packaging"
+    ],
+    "tier_3": [
+      "Building & Construction",
+      "Chemicals & Related Products",
+      "Education & Research",
+      "Energy",
+      "Engineering Services",
+      "Heavy Equip & Ind. Components",
+      "Industrial Machinery",
+      "Manufactured Products",
+      "Mold, Tool & Die",
+      "Plant & Process",
+      "Services",
+      "Shipbuilding"
+    ]
+  }
+} 
