@@ -65,7 +65,7 @@ def objective(trial, X, y, lambda_param, weight_names, include_size=True):
                               - 0.0 = Purely maximize revenue correlation.
                               - 1.0 = Purely match the target grade distribution.
         weight_names (list): The names of the weight columns in the correct order.
-        include_size (bool): If False, the 'size_score' weight is locked to 0.
+        include_size (bool): If False, the 'size_score' weight is locked to 0 and the other weights are normalized to sum to 1.0.
 
     Returns:
         float: The combined objective value to be minimized.
