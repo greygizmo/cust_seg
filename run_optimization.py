@@ -18,7 +18,7 @@ def run_optimization(n_trials=5000, lambda_param=0.25, include_size=True):
         lambda_param (float): The hyperparameter controlling the trade-off between
                               revenue correlation and distribution matching.
         include_size (bool): Whether to include the 'size_score' in the optimization.
-                             If False, its weight is locked to 0.
+                             If False, its weight is locked to 0 and the remaining weights are normalized to sum to 1.0.
     """
     print("Loading scored accounts data...")
     try:
@@ -115,5 +115,5 @@ if __name__ == '__main__':
     N_TRIALS = 5000  # Number of optimization rounds. More is better but slower.
     LAMBDA = 0.25    # Trade-off parameter. 0.0 = pure revenue prediction, 1.0 = pure distribution matching.
 
-    # Set include_size=False to lock the size criterion at 0 weight and optimize the other three.
+    # Set include_size=False to lock the size criterion at 0 weight; the remaining weights will automatically normalize to 1.0.
     run_optimization(n_trials=N_TRIALS, lambda_param=LAMBDA, include_size=False) 
