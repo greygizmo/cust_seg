@@ -1,117 +1,115 @@
-# ICP Scoring Dashboard
+# ICP Scoring and Segmentation Dashboard
 
-An interactive Streamlit dashboard for real-time customer segmentation analysis with adjustable weights for GoEngineer Digital Manufacturing accounts.
+An interactive Streamlit dashboard for real-time customer segmentation and analysis, featuring a data-driven, optimizable scoring model for GoEngineer Digital Manufacturing accounts.
 
 ## Overview
 
 This dashboard allows you to:
-- **Adjust scoring weights in real-time** using interactive sliders
-- **Visualize the impact** of weight changes on customer ICP scores
-- **Identify high-value customers** with dynamic filtering
-- **Export updated scores** for further analysis
+- **Analyze customer segments** based on configurable revenue thresholds (Small Business, Mid-Market, Enterprise).
+- **Adjust scoring weights** in real-time, with defaults provided by an automated optimization process.
+- **Visualize the impact** of weight changes on customer ICP scores and segment performance.
+- **Identify high-value customers** with dynamic filtering and data-driven recommendations.
+- **Export updated scores** and segment data for further analysis.
 
 ## Features
 
+### 🏢 Customer Segmentation
+- **Configurable Thresholds**: Define segments by annual revenue.
+- **Segment Selector**: Filter the entire dashboard view by segment (All, Small Business, Mid-Market, Large Enterprise).
+- **Comparison Analytics**: View charts comparing key metrics like average ICP score, customer count, and revenue across segments.
+- **Segment-Specific Insights**: Get tailored metrics and strategic recommendations for each segment.
+
 ### 🎛️ Interactive Weight Controls
-- **Vertical Weight** (30% default): Industry type scoring
-- **Size Weight** (30% default): Company size based on revenue
-- **Adoption Weight** (20% default): Technology adoption/scaling
-- **Relationship Weight** (20% default): Software revenue tier
+- **Optimized Defaults**: Weights are pre-loaded from `optimized_weights.json` for a data-driven starting point.
+- **Real-time Adjustment**: Sliders for four main criteria:
+    - **Vertical Weight**: Importance of customer's industry.
+    - **Size Weight**: Importance of customer's annual revenue.
+    - **Adoption Weight**: Importance of technology adoption (printer count, consumable revenue).
+    - **Relationship Weight**: Importance of software revenue.
 
 ### 📊 Real-time Visualizations
-1. **ICP Score Distribution** - Histogram showing score spread
-2. **Weight Distribution Radar** - Visual representation of current weights
-3. **Score by Industry** - Average scores across verticals
-4. **Printer Count vs Score** - Scatter plot showing relationships
-
-### 📋 Data Analysis
-- **Key Metrics**: Total customers, average score, high-value count
-- **Top Customers Table**: Dynamic ranking based on current weights
-- **Export Functionality**: Download updated scores as CSV
+1. **ICP Score Distribution**: Enhanced histogram and box plot showing the spread of scores and key statistical markers.
+2. **Segment Comparison**: Multi-panel chart comparing performance across segments.
+3. **Weight Distribution Radar**: Visual representation of the current scoring weights.
+4. **Score by Industry**: Bar chart of average scores across top industry verticals.
+5. **Diagnostic Plots**: Scatter plots to ensure normalized scores correlate with raw data inputs.
 
 ## Setup Instructions
 
-1. **Install Dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
+1.  **Install Dependencies**
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-2. **Ensure Data Files Exist**
-   Make sure `icp_scored_accounts.csv` is in the same directory. If not, run:
-   ```bash
-   python goe_icp_scoring.py
-   ```
+2.  **Generate Base Data**
+    Run the scoring script to process the raw data files and generate `icp_scored_accounts.csv`.
+    ```bash
+    python goe_icp_scoring.py
+    ```
 
-3. **Launch Dashboard**
-   ```bash
-   streamlit run streamlit_icp_dashboard.py
-   ```
+3.  **Optimize Weights (Recommended)**
+    Run the optimization script to find the best weights based on historical revenue data. This creates the `optimized_weights.json` file, which the dashboard will use automatically.
+    ```bash
+    python run_optimization.py
+    ```
+
+4.  **Launch Dashboard**
+    ```bash
+    streamlit run streamlit_icp_dashboard.py
+    ```
 
 ## Scoring Methodology
 
-### Individual Component Scores (0-1):
+The scoring logic is centralized in `scoring_logic.py` and uses a data-driven approach.
 
-**Vertical Score:**
-- Aerospace & Defense: 1.00
-- Automotive: 0.90
-- Medical Devices: 0.85
-- High Tech/Consumer: 0.80
-- Industrial Machinery: 0.70
-- Government: 0.75
+### Individual Component Scores (0-1)
 
-**Size Score:**
-- 2-3 printers: 1.0 (optimal size)
-- Other counts: 0.5
+Component scores are calculated based on empirical data and then normalized.
 
-**Adoption Score:**
-- 4+ printers (scaling): 1.0
-- <4 printers: 0.0
+-   **Vertical Score**: Mapped from a dictionary (`PERFORMANCE_VERTICAL_WEIGHTS`) based on the historical revenue performance of different industries.
+-   **Size Score**: Determined by tiers of reliable, enriched annual revenue data. Higher revenue generally leads to a higher score.
+-   **Adoption Score**: A composite score derived from `log1p`-transformed printer count and consumable revenue, which are then combined and scaled.
+-   **Relationship Score**: A score derived from the `log1p`-transformed sum of all software-related revenue (licenses, SaaS, maintenance), which is then scaled.
 
-**Relationship Score (CAD Tier):**
-- Platinum (>$100K): 1.0
-- Gold ($25K-$100K): 0.9
-- Silver ($5K-$25K): 0.7
-- Bronze (<$5K): 0.5
+### Final ICP Score Calculation
 
-### Final ICP Score Calculation:
-```
-ICP Score = (Vertical × W1 + Size × W2 + Adoption × W3 + Relationship × W4) × 100
-```
+1.  **Raw Score**: The component scores are multiplied by their respective weights (from the dashboard sliders or `optimized_weights.json`) and summed.
+    ```
+    Raw Score = (Vertical * W_v) + (Size * W_s) + (Adoption * W_a) + (Relationship * W_r)
+    ```
+2.  **Normalization**: The raw scores are converted to a percentile rank and then mapped to a normal (bell curve) distribution using the inverse of the cumulative distribution function (`norm.ppf`). This creates a more intuitive and statistically robust final `ICP_score` between 0 and 100.
+3.  **Grading**: Customers are assigned an A-F grade based on their percentile rank in the final score distribution.
 
-Where W1-W4 are the adjustable weights that must sum to 1.0.
+## Weight Optimization
 
-## Usage Tips
+The script `run_optimization.py` uses the `optuna` library to find the ideal set of weights. Its goal is to solve a multi-objective problem:
 
-1. **Experiment with Weights**: Try different combinations to see how they affect customer rankings
-2. **Monitor Weight Sum**: Ensure weights always sum to 1.0 for valid scores
-3. **Focus on High Scores**: Customers with scores ≥70 are typically high-value prospects
-4. **Export Results**: Download updated scores after finding optimal weights
-5. **Industry Analysis**: Use the industry charts to understand vertical performance
+1.  **Maximize Revenue Correlation**: It tries to find weights that make the final ICP score as predictive of historical customer revenue as possible (measured by Spearman correlation).
+2.  **Match Target Distribution**: It simultaneously tries to shape the final scores into a predefined A-F grade distribution (e.g., 10% A's, 20% B's, etc.), measured by KL Divergence.
+
+The `lambda_param` in the script controls the trade-off between these two goals. The best-performing set of weights is saved to `optimized_weights.json`.
 
 ## File Structure
 
 ```
 ├── streamlit_icp_dashboard.py    # Main dashboard application
-├── goe_icp_scoring.py           # Original scoring script
-├── icp_scored_accounts.csv      # Input data (generated by scoring script)
+├── goe_icp_scoring.py           # Generates the base icp_scored_accounts.csv
+├── scoring_logic.py             # Centralized, data-driven scoring functions
+├── run_optimization.py          # Runs the weight optimization
+├── optimize_weights.py          # The optimization objective function
+├── optimized_weights.json       # Output of the optimization, used by the dashboard
 ├── requirements.txt             # Python dependencies
-└── README.md                   # This file
+├── icp_scored_accounts.csv      # Input data for the dashboard
+├── SEGMENTATION_FEATURES.md     # Summary of segmentation feature implementation
+└── README.md                    # This file
 ```
 
 ## Troubleshooting
 
-**Data Not Loading:**
-- Ensure `icp_scored_accounts.csv` exists
-- Run `python goe_icp_scoring.py` to generate the file
-
-**Weight Validation Errors:**
-- Adjust sliders so total equals 1.0
-- Use the reset button to return to defaults
-
-**Performance Issues:**
-- Dashboard samples large datasets for faster rendering
-- Charts are optimized for up to 500 data points
+-   **Data Not Loading**: Ensure `icp_scored_accounts.csv` exists. If not, run `python goe_icp_scoring.py`.
+-   **"Optimized Weights Not Found" Warning**: This means `optimized_weights.json` is missing. The dashboard will fall back to default weights. Run `python run_optimization.py` to generate it.
+-   **Weight Validation Errors**: The four main weights must sum to 1.0. Adjust the sliders until the sum is correct.
 
 ## Support
 
-For questions or issues with the dashboard, please refer to the original scoring methodology in `goe_icp_scoring.py` or contact the data analytics team. 
+For questions or issues, please refer to the relevant scripts or contact the data analytics team.
