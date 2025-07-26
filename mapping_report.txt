@@ -1,0 +1,103 @@
+INDUSTRY DATA CLEANUP MAPPING REPORT
+==================================================
+
+Generated: 2025-07-24 13:02:09
+
+INDUSTRY MAPPINGS
+--------------------
+
+HIGH CONFIDENCE MAPPINGS (≥0.8):
+  'Advertising & Marketing' → 'Services' (confidence: 1.00, method: custom)
+  'Aerospace & Defense' → 'Aerospace & Defense' (confidence: 1.00, method: custom)
+  'Agriculture' → 'Plant & Process' (confidence: 1.00, method: custom)
+  'Agriculture & Forestry' → 'Plant & Process' (confidence: 1.00, method: custom)
+  'Agriculture, Fishing & Forestry' → 'Plant & Process' (confidence: 1.00, method: custom)
+  'Agriculture, Forestry, Fishing and Hunting' → 'Plant & Process' (confidence: 1.00, method: custom)
+  'Automotive & Transportation' → 'Automotive & Transportation' (confidence: 1.00, method: custom)
+  'Building & Construction' → 'Building & Construction' (confidence: 1.00, method: custom)
+  'Chemicals & Related Products' → 'Chemicals & Related Products' (confidence: 1.00, method: custom)
+  'Conglomerate' → 'Manufactured Products' (confidence: 1.00, method: custom)
+  'Consumer Goods' → 'Consumer Goods' (confidence: 1.00, method: custom)
+  'Dental' → 'Dental' (confidence: 1.00, method: exact)
+  'Education & Research' → 'Education & Research' (confidence: 1.00, method: exact)
+  'Electromagnetic' → 'Electromagnetic' (confidence: 1.00, method: exact)
+  'Energy' → 'Energy' (confidence: 1.00, method: custom)
+  'Engineering Services' → 'Services' (confidence: 1.00, method: custom)
+  'Environmental Services' → 'Services' (confidence: 1.00, method: custom)
+  'Finance' → 'Services' (confidence: 1.00, method: custom)
+  'Financial Services' → 'Services' (confidence: 1.00, method: custom)
+  'Financials' → 'Services' (confidence: 1.00, method: custom)
+  'Food & Beverage' → 'Consumer Goods' (confidence: 1.00, method: custom)
+  'Government' → 'Services' (confidence: 1.00, method: custom)
+  'Government & Public Administration' → 'Services' (confidence: 1.00, method: custom)
+  'Heavy Equip & Ind. Components' → 'Heavy Equip & Ind. Components' (confidence: 1.00, method: exact)
+  'High Tech' → 'High Tech' (confidence: 1.00, method: custom)
+  'Industrial Machinery' → 'Industrial Machinery' (confidence: 1.00, method: custom)
+  'Industrial Machinery & Components' → 'Industrial Machinery' (confidence: 1.00, method: custom)
+  'Industrial Machinery & Equipment' → 'Industrial Machinery' (confidence: 1.00, method: custom)
+  'Industrial Machinery Manufacturing' → 'Industrial Machinery' (confidence: 1.00, method: custom)
+  'Industrial Machinery and Equipment Merchant Wholesalers' → 'Services' (confidence: 1.00, method: custom)
+  'Industrial Manufacturing' → 'Industrial Machinery' (confidence: 1.00, method: custom)
+  'Industrial Services' → 'Industrial Machinery' (confidence: 1.00, method: custom)
+  'Industrials' → 'Industrial Machinery' (confidence: 1.00, method: custom)
+  'Legal Services' → 'Services' (confidence: 1.00, method: custom)
+  'Manufactured Products' → 'Manufactured Products' (confidence: 1.00, method: exact)
+  'Manufacturing' → 'Manufactured Products' (confidence: 1.00, method: custom)
+  'Manufacturing & Industrial' → 'Manufactured Products' (confidence: 1.00, method: custom)
+  'Manufacturing, Transport & Logistics' → 'Manufactured Products' (confidence: 1.00, method: custom)
+  'Media & Entertainment' → 'Services' (confidence: 1.00, method: custom)
+  'Media and Entertainment' → 'Services' (confidence: 1.00, method: custom)
+  'Medical Devices' → 'Medical Devices & Life Sciences' (confidence: 1.00, method: custom)
+  'Medical Devices & Life Sciences' → 'Medical Devices & Life Sciences' (confidence: 1.00, method: custom)
+  'Mining' → 'Plant & Process' (confidence: 1.00, method: custom)
+  'Mining & Metals' → 'Plant & Process' (confidence: 1.00, method: custom)
+  'Mold, Tool & Die' → 'Mold, Tool & Die' (confidence: 1.00, method: custom)
+  'Oil & Gas' → 'Energy' (confidence: 1.00, method: custom)
+  'Packaging' → 'Packaging' (confidence: 1.00, method: custom)
+  'Plant & Process' → 'Plant & Process' (confidence: 1.00, method: custom)
+  'Primary Metal Manufacturing' → 'Manufactured Products' (confidence: 1.00, method: custom)
+  'Professional & Commercial Services' → 'Services' (confidence: 1.00, method: custom)
+  'Real Estate' → 'Building & Construction' (confidence: 1.00, method: custom)
+  'Retail & Wholesale Trade' → 'Services' (confidence: 1.00, method: custom)
+  'Services' → 'Services' (confidence: 1.00, method: custom)
+  'Shipbuilding' → 'Building & Construction' (confidence: 1.00, method: custom)
+  'Sports' → 'Consumer Goods' (confidence: 1.00, method: custom)
+
+MEDIUM CONFIDENCE MAPPINGS (0.6-0.8):
+  'Education' → 'Education & Research' (confidence: 0.67, method: fuzzy)
+  'Education & Training' → 'Education & Research' (confidence: 0.67, method: fuzzy)
+
+LOW CONFIDENCE / UNMAPPED:
+  'Health Care' → NO MATCH (best: 'None', confidence: 0.40)
+
+
+SUB-LIST MAPPINGS
+--------------------
+
+SAMPLE SUB-LIST MAPPINGS (first 20):
+  ✗ 'Education & Research' → 'None' (confidence: 0.56)
+  ✓ '07.6 Semiconductors & related devices including PCB' → '07.6 Semiconductors & related devices including PCB' (confidence: 1.00)
+  ✗ 'Manufactured Products' → 'None' (confidence: 0.59)
+  ✓ '06.2 Valves, Pipes, Fittings, Pulleys, Bearings' → '06.2 Valves, Pipes, Fittings, Pulleys, Bearings' (confidence: 1.00)
+  ✓ '02.3 Space systems, Missiles, Arms & Other Defense' → '02.3 Space systems, Missiles, Arms & Other Defense' (confidence: 1.00)
+  ✓ '07.3 Scientific & Process Control Instruments' → '07.3 Scientific & Process Control Instruments' (confidence: 1.00)
+  ✓ '13.1 Engineering Services' → '13.1 Engineering Services' (confidence: 1.00)
+  ✓ '04.5 Other Industrial Machinery' → '04.5 Other Industrial Machinery' (confidence: 1.00)
+  ✓ '10.1 Utilities' → '10.1 Utilities' (confidence: 1.00)
+  ✓ '12.4 Media & Entertainment' → '12.4 Media & Entertainment' (confidence: 1.00)
+  ✓ '10.6 Oil & Gas, Petroleum' → '10.6 Oil & Gas, Petroleum' (confidence: 1.00)
+  ✓ '09.2 Medical Devices & Equipment - incl. Lab Apparatus & Surgical Devices' → '09.2 Medical Devices & Equipment - incl. Lab Apparatus & Surgical Devices' (confidence: 1.00)
+  ✓ '08.1 Furniture - Wood & Metal' → '08.1 Furniture - Wood & Metal' (confidence: 1.00)
+  ✓ '02.3 Space systems, Arms & Other Defense' → '02.3 Space systems, Missiles, Arms & Other Defense' (confidence: 0.89)
+  ✓ '01.3 Auto Parts & Accessories' → '01.3 Auto Parts & Accessories' (confidence: 1.00)
+  ✓ '12.6 Other Services' → '12.6 Other Services' (confidence: 1.00)
+  ✓ 'Engineering Services' → '13.1 Engineering Services' (confidence: 0.89)
+  ✗ 'Packaging' → 'None' (confidence: 0.55)
+  ✓ '07.5 Telecommunication & Navigation' → '07.5 Telecommunication & Navigation' (confidence: 1.00)
+  ✓ '08.5 Packaged Goods - Canned, Frozen foods, Bakery, Liquor & Cosmetics' → '08.5 Packaged Goods - Canned, Frozen foods, Bakery, Liquor & Cosmetics' (confidence: 1.00)
+
+
+SUMMARY STATISTICS
+--------------------
+Industries: 57/58 mapped (98.3%)
+Sub-lists: 273/861 mapped (31.7%)

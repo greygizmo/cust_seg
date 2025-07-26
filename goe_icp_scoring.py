@@ -209,6 +209,21 @@ def load_industry_enrichment() -> pd.DataFrame:
     try:
         df = pd.read_csv(INDUSTRY_ENRICHMENT_FILE)
         
+        # Handle different Customer ID column names
+        customer_id_col = None
+        for col in ["Customer ID", "ID", "customer_id", "id"]:
+            if col in df.columns:
+                customer_id_col = col
+                break
+        
+        if customer_id_col is None:
+            print(f"[WARN] No Customer ID column found in industry enrichment. Available columns: {df.columns.tolist()}")
+            return pd.DataFrame()
+        
+        # Rename to standard column name
+        if customer_id_col != "Customer ID":
+            df = df.rename(columns={customer_id_col: "Customer ID"})
+        
         # Validate required columns
         required_cols = ["Customer ID", "Industry", "Industry Sub List"]
         missing_cols = [col for col in required_cols if col not in df.columns]
@@ -286,6 +301,7 @@ def load_customers() -> pd.DataFrame:
     needed = {
         "Customer ID",
         "Company Name",
+        "Industry",  # Add Industry column requirement
         "Industry Sub List",
         "Big Box Count",
         "Small Box Count",

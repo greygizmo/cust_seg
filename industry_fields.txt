@@ -1,0 +1,114 @@
+# NetSuite CRM Industry and Industry Sub List Options
+
+## Industries
+
+- Aerospace & Defense
+- Automotive & Transportation
+- Building & Construction
+- Chemicals & Related Products
+- Consumer Goods
+- Dental
+- Education & Research
+- Electromagnetic
+- Energy
+- Engineering Services
+- Heavy Equip & Ind. Components
+- High Tech
+- Industrial Machinery
+- Manufactured Products
+- Medical Devices & Life Sciences
+- Mold, Tool & Die
+- Packaging
+- Plant & Process
+- Services
+- Shipbuilding
+
+## Industry Sub Lists (Nested under their parent Industry)
+
+- **Aerospace & Defense**
+  - 02.1 Aircraft Manufacture or Assembly
+  - 02.2 Aircraft Parts & Accessories
+  - 02.3 Space systems, Missiles, Arms & Other Defense
+  - 02.4 Air Transportation Parts & Related Services
+
+- **Automotive & Transportation**
+  - 01.1 Cars, Motorcycles & Light Truck Manufacture & Assembly
+  - 01.2 Trucks, Buses & Trains Manufacture & Assembly
+  - 01.3 Auto Parts & Accessories
+  - 01.4 Automotive & Transportation Services
+
+- **Building & Construction**
+  - 11.1 Architecture
+  - 11.2 General Contractors & Builders
+  - 11.3 Subcontractor - HVAC
+  - 11.4 Subcontractor - Structural Steel & Wood
+  - 11.5 Subcontractor - Flooring, Roofing, Walls, Site prep
+  - 11.6 Operator, Lessor, Developer
+  - 11.7 Infrastructure & GIS, Surveying
+  - 11.8 Raw materials, lumber
+
+- **Consumer Goods**
+  - 08.1 Furniture - Wood & Metal
+  - 08.2 Home & Garden - Power tools, Lawn & Pottery
+  - 08.3 Personal Goods & Leisure - Luggage, Sports, Toys, Music & Books
+  - 08.4 Apparel & Jewelry
+  - 08.5 Packaged Goods - Canned, Frozen foods, Bakery, Liquor & Cosmetics
+  - 08.6 Appliances
+
+- **Engineering Services**
+  - 13.1 Engineering Services
+  - 13.2 Incubator/Makerspace
+
+- **Heavy Equip & Ind. Components**
+  - 06.1 Heavy Equipment - Elevators, Conveyors, Cranes, Hoists & Farm
+  - 06.2 Valves, Pipes, Fittings, Pulleys, Bearings
+  - 06.3 Heating & Refrigeration Equipment, Furnaces, Oven
+  - 06.4 Turbines, Pumps, Compressors
+  - 06.5 Industrial Rubber Products
+
+- **High Tech**
+  - 07.1 PC, Peripherals & Software
+  - 07.2 Houshold Appliances - Cooking, Refrigerator, TV, Vacuums
+  - 07.3 Scientific & Process Control Instruments
+  - 07.4 Motors, Generators, Transformers
+  - 07.5 Telecommunication & Navigation
+  - 07.6 Semiconductors & related devices including PCB
+  - 07.7 Electrical Components (Capacitors, Batteries, Lighting)
+
+- **Industrial Machinery**
+  - 04.1 Packaging Machinery
+  - 04.2 Paper & Textile Machinery
+  - 04.3 Farm & Construction Machinery
+  - 04.4 Metalworking Machinery
+  - 04.5 Other Industrial Machinery
+
+- **Medical Devices & Life Sciences**
+  - 09.1 Pharmaceutical Manufacturing & Processing
+  - 09.2 Medical Devices & Equipment - incl. Lab Apparatus & Surgical Devices
+  - 09.3 Patient Care Centers, Hospitals & Services
+
+- **Mold, Tool & Die**
+  - 05.1 Tools & Dies
+  - 05.2 Metal Casting
+  - 05.3 Plastics Molding
+  - 05.4 Fabricated Metal Products
+
+- **Plant & Process**
+  - 10.1 Utilities
+  - 10.2 Process & Storage Plants
+  - 10.3 Chemical Plants
+  - 10.4 Food or Crop Process Plants
+  - 10.5 Mining
+  - 10.6 Oil & Gas, Petroleum
+
+- **Services**
+  - 12.1 Banking, Finance & Insurance
+  - 12.2 Retail & Wholesale Trade
+  - 12.3 Transportation & System Management
+  - 12.4 Media & Entertainment
+  - 12.5 Education
+  - 12.6 Other Services
+
+- **Shipbuilding**
+  - 03.1 Commercial Ships & Marine Transport Equipment & Services
+  - 03.2 Navy Ships Fabrication & Assembly

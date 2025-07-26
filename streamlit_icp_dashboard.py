@@ -65,9 +65,192 @@ st.set_page_config(
 )
 
 # --- Custom CSS for Styling ---
-# This section injects custom CSS to enhance the visual appearance of the dashboard,
-# including custom metric cards, headers, and responsive design adjustments.
-st.markdown("""...""", unsafe_allow_html=True) # CSS code omitted for brevity
+# Beautiful styling with custom metric cards, animations, and professional appearance
+st.markdown("""
+<style>
+    .main-header {
+        font-size: 2.5rem;
+        color: #1f77b4;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    
+    /* Hide default Streamlit metric containers completely */
+    div[data-testid="metric-container"] {
+        display: none !important;
+    }
+    
+    /* Custom Metric Display */
+    .custom-metric {
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+        padding: 1.5rem;
+        border-radius: 16px;
+        border: 1px solid #e9ecef;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        margin: 0.5rem 0;
+        position: relative;
+        overflow: hidden;
+        text-align: center;
+        height: 140px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        cursor: pointer;
+        animation: fadeInUp 0.6s ease-out;
+        animation-fill-mode: both;
+    }
+    
+    /* Stagger animation for each card */
+    .custom-metric:nth-child(1) { animation-delay: 0.1s; }
+    .custom-metric:nth-child(2) { animation-delay: 0.2s; }
+    .custom-metric:nth-child(3) { animation-delay: 0.3s; }
+    .custom-metric:nth-child(4) { animation-delay: 0.4s; }
+    .custom-metric:nth-child(5) { animation-delay: 0.5s; }
+    .custom-metric:nth-child(6) { animation-delay: 0.6s; }
+    
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translate3d(0, 30px, 0);
+        }
+        to {
+            opacity: 1;
+            transform: translate3d(0, 0, 0);
+        }
+    }
+    
+    .custom-metric:hover {
+        transform: translateY(-4px) scale(1.02);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        border-color: rgba(31, 119, 180, 0.3);
+    }
+    
+    .custom-metric::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 5px;
+        border-radius: 16px 16px 0 0;
+    }
+    
+    .custom-metric::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(45deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%);
+        pointer-events: none;
+    }
+    
+    .metric-customers::before {
+        background: linear-gradient(90deg, #28a745, #20c997);
+    }
+    
+    .metric-score::before {
+        background: linear-gradient(90deg, #1f77b4, #4dabf7);
+    }
+    
+    .metric-high-value::before {
+        background: linear-gradient(90deg, #ffc107, #fd7e14);
+    }
+    
+    .metric-gp::before {
+        background: linear-gradient(90deg, #6f42c1, #e83e8c);
+    }
+    
+    .metric-hv-gp::before {
+        background: linear-gradient(90deg, #dc3545, #fd7e14);
+    }
+    
+    .metric-percentage::before {
+        background: linear-gradient(90deg, #17a2b8, #6610f2);
+    }
+    
+    .metric-title {
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: #6c757d;
+        margin-bottom: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        line-height: 1.2;
+    }
+    
+    .metric-value {
+        font-size: 2rem;
+        font-weight: 800;
+        color: #212529;
+        margin-bottom: 0.5rem;
+        line-height: 1;
+        font-family: 'Segoe UI', 'Inter', sans-serif;
+    }
+    
+    .metric-subtitle {
+        font-size: 0.7rem;
+        color: #8e9196;
+        font-weight: 500;
+        line-height: 1.3;
+    }
+    
+    .metric-icon {
+        font-size: 1.1rem;
+        margin-right: 0.4rem;
+        opacity: 0.9;
+    }
+    
+    /* Enhanced metric card variants for better visual distinction */
+    .metric-customers {
+        background: linear-gradient(135deg, #f8fff9 0%, #e8f5e8 100%);
+        border-color: #c3e6cb;
+    }
+    
+    .metric-score {
+        background: linear-gradient(135deg, #f8fbff 0%, #e3f2fd 100%);
+        border-color: #b3d9ff;
+    }
+    
+    .metric-high-value {
+        background: linear-gradient(135deg, #fffdf8 0%, #fff3cd 100%);
+        border-color: #ffeaa7;
+    }
+    
+    .metric-gp {
+        background: linear-gradient(135deg, #fdf8ff 0%, #f3e5f5 100%);
+        border-color: #e1bee7;
+    }
+    
+    .metric-hv-gp {
+        background: linear-gradient(135deg, #fff8f8 0%, #ffebee 100%);
+        border-color: #ffcdd2;
+    }
+    
+    .metric-percentage {
+        background: linear-gradient(135deg, #f8fcff 0%, #e0f2f1 100%);
+        border-color: #b2dfdb;
+    }
+    
+    /* Additional responsive adjustments */
+    @media (max-width: 768px) {
+        .custom-metric {
+            height: 120px;
+            padding: 1rem;
+        }
+        
+        .metric-value {
+            font-size: 1.6rem;
+        }
+        
+        .metric-title {
+            font-size: 0.7rem;
+        }
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # Default thresholds for customer segmentation based on annual revenue.
 DEFAULT_SEGMENT_THRESHOLDS = {
@@ -94,7 +277,70 @@ def determine_customer_segment(revenue, thresholds):
     else:
         return 'Large Enterprise'
 
-# ... (Chart and metric functions are omitted here for brevity, but are commented in the full code)
+def create_score_components_radar(weights, segment_name="Overall"):
+    """Create radar chart showing weight distribution"""
+    categories = list(weights.keys())
+    # Capitalize categories for better display
+    theta_labels = [cat.replace('_', ' ').capitalize() for cat in categories]
+    values = list(weights.values())
+    
+    fig = go.Figure()
+    fig.add_trace(go.Scatterpolar(
+        r=values + [values[0]], # Close the loop
+        theta=theta_labels + [theta_labels[0]], # Close the loop
+        fill='toself',
+        name='Current Weights',
+        line_color='#1f77b4',
+        marker=dict(color='#1f77b4', size=8) # Add markers
+    ))
+    
+    chart_title = f"ICP Scoring Weight Distribution"
+    
+    fig.update_layout(
+        polar=dict(
+            radialaxis=dict(
+                visible=True,
+                range=[0, max(0.5, max(values) + 0.05)] # Dynamic range based on max weight, at least 0.5
+            ),
+            angularaxis=dict(
+                tickfont_size=10 # Adjust tick font size if labels are too long
+            )
+        ),
+        title=chart_title,
+        showlegend=False,
+        height=500 # Adjust height as needed
+    )
+    return fig
+
+def create_score_by_vertical(df):
+    """Create average score by vertical chart"""
+    # Find the ICP_score column
+    icp_score_col = 'ICP_score'
+    if df.empty or 'Industry' not in df.columns or icp_score_col not in df.columns:
+        return go.Figure().update_layout(title_text="No data available for Industry Score Analysis")
+    
+    vertical_scores = df.groupby('Industry')[icp_score_col].agg(['mean', 'count']).reset_index()
+    vertical_scores = vertical_scores[vertical_scores['count'] >= 1].nlargest(15, 'mean') # Show top 15, min 1 customer
+    
+    fig = px.bar(
+        vertical_scores, 
+        x='mean', 
+        y='Industry',
+        text=[f" ({int(x)} cust.)" for x in vertical_scores['count'].tolist()], # Add count text
+        title="Average ICP Score by Industry (Top 15)",
+        labels={'mean': 'Average ICP Score', 'Industry': 'Industry'},
+        color='mean',
+        color_continuous_scale=px.colors.sequential.Viridis_r, # Reversed Viridis for better high-score emphasis
+        height=max(400, len(vertical_scores) * 35) # Dynamic height
+    )
+    fig.update_traces(texttemplate='%{x:.1f}%{text}', textposition='outside')
+    fig.update_layout(
+        yaxis={'categoryorder': 'total ascending'}, # This will be overridden by sort_values typically
+        xaxis_title="Average ICP Score (Customer Count in Parentheses)",
+        yaxis_title="Industry",
+        coloraxis_colorbar_title='Avg. Score'
+    )
+    return fig
 
 @st.cache_data
 def load_data():
@@ -118,8 +364,10 @@ def load_data():
             # ... (Hybrid matching logic is omitted for brevity)
             
         except FileNotFoundError:
-            st.warning("⚠️ Revenue analysis file not found. Segmentation will be based on printer count as a fallback.")
-            df['revenue_estimate'] = df['printer_count'] * 10000000
+            st.warning("⚠️ Revenue analysis file not found. Using existing revenue data from the dataset.")
+            # Use the existing revenue column if available, otherwise fall back to printer count estimation
+            if 'Total Hardware + Consumable Revenue' not in df.columns:
+                df['Total Hardware + Consumable Revenue'] = df['printer_count'] * 10000000
         
         # ... (Data cleaning and type conversion)
         return df
@@ -130,8 +378,6 @@ def load_data():
 
 def main():
     """Main function to render the Streamlit dashboard."""
-    st.markdown('<h1 class="main-header">🎯 ICP SCORING DASHBOARD</h1>', unsafe_allow_html=True)
-    
     df_loaded = load_data()
     
     # --- CUSTOMER SEGMENTATION CONTROLS ---
@@ -143,11 +389,13 @@ def main():
     
     # Create an expandable section for users to configure the revenue thresholds.
     with st.expander("⚙️ Configure Customer Segments", expanded=False):
-        # ... (UI elements for setting segment thresholds)
+        pass  # TODO: Add UI elements for setting segment thresholds
     
     # Apply the current segmentation configuration.
     current_segment_config = st.session_state.segment_config.copy()
-    df_loaded['customer_segment'] = df_loaded['revenue_estimate'].apply(
+    # Use the actual revenue column name from the dataset
+    revenue_col = 'Total Hardware + Consumable Revenue'
+    df_loaded['customer_segment'] = df_loaded[revenue_col].apply(
         lambda x: determine_customer_segment(x, current_segment_config)
     )
     
@@ -178,34 +426,178 @@ def main():
         
         # Create sliders for adjusting the four main scoring weights.
         st.subheader("⚖️ Adjust Scoring Weights")
-        # ... (Weight sliders)
+        
+        # Weight sliders using the optimized weights as defaults
+        vertical_weight = st.slider("Vertical Score Weight", 0.0, 1.0, optimized_weights["vertical_score"], 0.01)
+        size_weight = st.slider("Size Score Weight", 0.0, 1.0, optimized_weights["size_score"], 0.01)
+        adoption_weight = st.slider("Adoption Score Weight", 0.0, 1.0, optimized_weights["adoption_score"], 0.01)
+        relationship_weight = st.slider("Relationship Score Weight", 0.0, 1.0, optimized_weights["relationship_score"], 0.01)
+        
+        # Normalize weights to sum to 1.0
+        total_weight = vertical_weight + size_weight + adoption_weight + relationship_weight
+        if total_weight > 0:
+            current_main_weights = {
+                "vertical": vertical_weight / total_weight,
+                "size": size_weight / total_weight,
+                "adoption": adoption_weight / total_weight,
+                "relationship": relationship_weight / total_weight
+            }
+        else:
+            current_main_weights = optimized_weights
+        
+        current_size_config = {"enabled": size_weight > 0}
 
     # --- SCORE RECALCULATION ---
     # Recalculate all scores for the filtered data based on the current weights from the sidebar.
     df_scored = calculate_scores(df_filtered.copy(), current_main_weights, current_size_config)
     
+    # Set dashboard title suffix
+    dashboard_title_suffix = selected_segment if selected_segment != 'All Segments' else 'All Customers'
+    
     # --- MAIN DASHBOARD DISPLAY ---
+    st.markdown('<h1 class="main-header">🎯 ICP SCORING DASHBOARD</h1>', unsafe_allow_html=True)
     st.markdown(f"## 📈 Key Metrics - {dashboard_title_suffix}")
-    # ... (Display custom metric cards)
+    
+    # Calculate key metrics
+    total_customers = len(df_scored)
+    avg_score = df_scored['ICP_score'].mean()
+    high_score_count = len(df_scored[df_scored['ICP_score'] >= 70])
+    total_revenue = df_scored[revenue_col].sum()
+    hv_rate = (high_score_count / total_customers * 100) if total_customers > 0 else 0
+    
+    # Display key metrics with beautiful custom cards
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        metric_title = "Total Customers" if selected_segment == 'All Segments' else f"{selected_segment} Customers"
+        st.markdown(f"""
+        <div class="custom-metric metric-customers">
+            <div class="metric-title">
+                <span class="metric-icon">👥</span>{metric_title}
+            </div>
+            <div class="metric-value">{total_customers:,}</div>
+            <div class="metric-subtitle">Active customer accounts</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        score_color = "#28a745" if avg_score >= 70 else "#ffc107" if avg_score >= 50 else "#dc3545"
+        st.markdown(f"""
+        <div class="custom-metric metric-score">
+            <div class="metric-title">
+                <span class="metric-icon">🎯</span>Average ICP Score
+            </div>
+            <div class="metric-value" style="color: {score_color};">{avg_score:.1f}</div>
+            <div class="metric-subtitle">Out of 100 points</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown(f"""
+        <div class="custom-metric metric-high-value">
+            <div class="metric-title">
+                <span class="metric-icon">⭐</span>High-Value Customers
+            </div>
+            <div class="metric-value">{high_score_count:,}</div>
+            <div class="metric-subtitle">{hv_rate:.1f}% of total (≥70 score)</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col4:
+        st.markdown(f"""
+        <div class="custom-metric metric-gp">
+            <div class="metric-title">
+                <span class="metric-icon">💰</span>Total Revenue
+            </div>
+            <div class="metric-value">${total_revenue:,.0f}</div>
+            <div class="metric-subtitle">Hardware + Consumable Revenue</div>
+        </div>
+        """, unsafe_allow_html=True)
     
     # --- SEGMENT ANALYSIS SECTION ---
     # This section is only displayed when viewing "All Segments".
     if selected_segment == 'All Segments':
         st.markdown("## 🏢 Customer Segment Analysis")
-        # ... (Display segment comparison charts and summary table)
+        
+        # Segment summary table
+        segment_summary = df_scored.groupby('customer_segment').agg({
+            'ICP_score': ['count', 'mean'],
+            revenue_col: 'sum',
+            'ICP_grade': lambda x: (x == 'A').sum()
+        }).round(2)
+        
+        segment_summary.columns = ['Customer Count', 'Avg ICP Score', 'Total Revenue', 'A-Grade Count']
+        st.dataframe(segment_summary, use_container_width=True)
     
     # --- REAL-TIME ANALYTICS ---
     st.markdown(f"## 📊 Real-time Analytics")
-    # ... (Display score distribution, vertical analysis, and other charts)
+    
+    # First row of charts
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Enhanced ICP Score Distribution
+        fig_hist = px.histogram(df_scored, x='ICP_score', nbins=30, 
+                               title='Distribution of ICP Scores',
+                               color_discrete_sequence=['#1f77b4'])
+        fig_hist.update_layout(
+            xaxis_title="ICP Score",
+            yaxis_title="Number of Customers",
+            showlegend=False,
+            bargap=0.1
+        )
+        st.plotly_chart(fig_hist, use_container_width=True)
+    
+    with col2:
+        # Enhanced Grade Distribution
+        grade_counts = df_scored['ICP_grade'].value_counts()
+        colors = {'A': '#28a745', 'B': '#1f77b4', 'C': '#ffc107', 'D': '#fd7e14', 'F': '#dc3545'}
+        grade_colors = [colors.get(grade, '#999999') for grade in grade_counts.index]
+        
+        fig_pie = px.pie(values=grade_counts.values, names=grade_counts.index,
+                        title='Customer Grade Distribution',
+                        color_discrete_sequence=grade_colors)
+        st.plotly_chart(fig_pie, use_container_width=True)
+    
+    # Second row of charts
+    col3, col4 = st.columns(2)
+    
+    with col3:
+        # Weight Distribution Radar Chart
+        fig_radar = create_score_components_radar(current_main_weights)
+        st.plotly_chart(fig_radar, use_container_width=True)
+    
+    with col4:
+        # Score by Industry
+        fig_industry = create_score_by_vertical(df_scored)
+        st.plotly_chart(fig_industry, use_container_width=True)
     
     # --- DATA TABLE ---
     st.markdown(f"## 📋 Top Scoring Customers")
-    # ... (Display a formatted table of the top 100 customers)
+    
+    # Display top 100 customers sorted by ICP score
+    top_customers = df_scored.nlargest(100, 'ICP_score')
+    
+    # Select key columns to display
+    display_columns = ['Company Name', 'Industry', 'ICP_score', 'ICP_grade', 
+                      'vertical_score', 'adoption_score', 'relationship_score', revenue_col]
+    
+    # Only show columns that exist in the dataframe
+    available_columns = [col for col in display_columns if col in top_customers.columns]
+    
+    st.dataframe(
+        top_customers[available_columns],
+        use_container_width=True,
+        height=400
+    )
     
     # --- DOWNLOAD BUTTON ---
+    csv_data = df_scored.to_csv(index=False)
     st.download_button(
         label=f"📥 Download {dashboard_title_suffix} Scores (CSV)",
-        # ...
+        data=csv_data,
+        file_name=f"icp_scores_{dashboard_title_suffix.lower().replace(' ', '_')}.csv",
+        mime="text/csv"
     )
 
 if __name__ == "__main__":

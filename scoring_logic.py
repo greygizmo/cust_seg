@@ -20,8 +20,8 @@ LICENSE_COL = "Total Software License Revenue"
 # These are used as a fallback if the `optimized_weights.json` file is not found.
 DEFAULT_WEIGHTS = {
     "vertical": 0.3,
-    "size": 0.3,
-    "adoption": 0.2,
+    "size": 0.0,
+    "adoption": 0.50,
     "relationship": 0.2,
 }
 
@@ -157,7 +157,13 @@ def calculate_scores(df, weights, size_config=None):
 
     # 2. Size Score: Based on tiers of enriched annual revenue data.
     #    A neutral default score is assigned, then updated based on revenue brackets.
-    revenue_values = df_clean['revenue_estimate'].fillna(0)
+    # Use the correct revenue column name from the dataset
+    revenue_col = 'Total Hardware + Consumable Revenue'
+    if revenue_col in df_clean.columns:
+        revenue_values = df_clean[revenue_col].fillna(0)
+    else:
+        # Fallback if column doesn't exist
+        revenue_values = df_clean.get('revenue_estimate', pd.Series([0] * len(df_clean))).fillna(0)
     has_reliable_revenue = revenue_values > 0
     
     df_clean["size_score"] = 0.5  # Neutral default score
@@ -175,25 +181,90 @@ def calculate_scores(df, weights, size_config=None):
         mask = has_reliable_revenue & condition
         df_clean.loc[mask, "size_score"] = score
 
-    # 3. Adoption Score: A composite score of printer count and consumable revenue.
-    #    - Both features are log-transformed to handle skewed distributions.
-    #    - They are then scaled to a 0-1 range using min-max scaling.
-    #    - Finally, they are combined with a 50/50 weighting.
+    # 3. Adoption Score: A robust composite score of printer investment and hardware revenue.
+    #    - Uses percentile-based scaling to ensure fair comparison between different units
+    #    - Weighted printer score: Big Box printers valued at 2x Small Box printers
+    #    - Hardware revenue includes both initial purchases and consumables
+    #    - Combined with 50/50 weighting between printer investment and revenue signals
+    def percentile_scale(series):
+        """
+        Convert values to percentile ranks (0-1 range).
+        
+        CRITICAL FIX: When many values are zero (like 86% of revenue data),
+        standard percentile ranking compresses non-zero values into a tiny range.
+        This function excludes zeros from percentile calculation to provide
+        better distribution among actual non-zero values.
+        """
+        if len(series.unique()) == 1:
+            return pd.Series(0.5, index=series.index)  # All same value = 50th percentile
+        
+        # Create result series initialized to 0.0
+        result = pd.Series(0.0, index=series.index)
+        
+        # Identify non-zero values
+        non_zero_mask = series > 0
+        non_zero_values = series[non_zero_mask]
+        
+        if len(non_zero_values) > 0:
+            # Calculate percentiles only among non-zero values
+            non_zero_percentiles = non_zero_values.rank(method='average', pct=True)
+            result[non_zero_mask] = non_zero_percentiles
+        
+        # Zero values remain 0.0
+        return result
+    
     def min_max_scale(series):
+        """Scale values to 0-1 range using min-max normalization"""
         min_val, max_val = series.min(), series.max()
         if max_val - min_val == 0:
             return pd.Series(0.0, index=series.index)
         return (series - min_val) / (max_val - min_val)
 
+    # Ensure required columns exist
     if 'Total Consumable Revenue' not in df_clean.columns:
         df_clean['Total Consumable Revenue'] = 0
+    if 'Total Hardware Revenue' not in df_clean.columns:
+        df_clean['Total Hardware Revenue'] = 0
 
-    printer_count_safe = np.maximum(df_clean['printer_count'].fillna(0), 0)
-    consumable_revenue_safe = np.maximum(df_clean['Total Consumable Revenue'].fillna(0), 0)
+    # Calculate weighted printer score (Big Box = 2x Small Box)
+    big_box_safe = np.maximum(df_clean['Big Box Count'].fillna(0), 0)
+    small_box_safe = np.maximum(df_clean['Small Box Count'].fillna(0), 0)
+    weighted_printer_score = (2.0 * big_box_safe) + (1.0 * small_box_safe)
     
-    printer_score = min_max_scale(np.log1p(printer_count_safe))
-    consumable_score = min_max_scale(np.log1p(consumable_revenue_safe))
-    df_clean['adoption_score'] = 0.5 * printer_score + 0.5 * consumable_score
+    # Calculate total hardware adoption revenue (hardware + consumables)
+    hardware_revenue_safe = np.maximum(df_clean['Total Hardware Revenue'].fillna(0), 0)
+    consumable_revenue_safe = np.maximum(df_clean['Total Consumable Revenue'].fillna(0), 0)
+    total_hardware_adoption_revenue = hardware_revenue_safe + consumable_revenue_safe
+    
+    # Use percentile-based scaling for fair comparison
+    P = percentile_scale(weighted_printer_score)
+    R = percentile_scale(total_hardware_adoption_revenue)
+    
+    # Improved adoption scoring with better distribution
+    zero_printer_mask = weighted_printer_score == 0
+    zero_revenue_mask = total_hardware_adoption_revenue == 0
+    zero_everything_mask = zero_printer_mask & zero_revenue_mask
+    
+    # Initialize adoption scores
+    adoption_scores = np.zeros(len(df_clean))
+    
+    # 1. Zero printers AND zero revenue = 0.0 (no hardware engagement)
+    # (Already initialized to 0)
+    
+    # 2. Revenue-only customers: 0.0-0.5 using square root curve for better distribution
+    revenue_only_mask = zero_printer_mask & ~zero_revenue_mask
+    adoption_scores[revenue_only_mask] = 0.5 * np.sqrt(R[revenue_only_mask])
+    
+    # 3. Customers with printers: 0.0-1.0 blend (60% printer, 40% revenue)
+    with_printers_mask = ~zero_printer_mask
+    base_score = 0.6 * P + 0.4 * R
+    adoption_scores[with_printers_mask] = base_score[with_printers_mask]
+    
+    # 4. Optional bonus for heavy printer fleets (10+ weighted printers)
+    heavy_fleet_mask = weighted_printer_score >= 10
+    adoption_scores[heavy_fleet_mask] = np.clip(adoption_scores[heavy_fleet_mask] + 0.05, 0, 1)
+    
+    df_clean['adoption_score'] = adoption_scores
 
     # 4. Relationship Score: Based on the sum of all software-related revenue.
     #    - The total software revenue is log-transformed and then min-max scaled.

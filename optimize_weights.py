@@ -72,15 +72,15 @@ def objective(trial, X, y, lambda_param, weight_names, include_size=True):
     """
     # Define the search space for each weight using the trial object.
     # These ranges are based on business rules and prior analysis.
-    w_vertical = trial.suggest_float('vertical_score', 0.10, 0.40)
+    w_vertical = trial.suggest_float('vertical_score', 0.15, 0.50)
 
     if include_size:
-        w_size = trial.suggest_float('size_score', 0.10, 0.40)
+        w_size = trial.suggest_float('size_score', 0.15, 0.50)
     else:
         w_size = 0.0  # Lock the size weight to 0 if specified.
 
-    w_adoption = trial.suggest_float('adoption_score', 0.10, 0.40)
-    w_relationship = trial.suggest_float('relationship_score', 0.15, 0.40)
+    w_adoption = trial.suggest_float('adoption_score', 0.15, 0.50)
+    w_relationship = trial.suggest_float('relationship_score', 0.15, 0.50)
 
     total = w_vertical + w_size + w_adoption + w_relationship
 
@@ -97,9 +97,21 @@ def objective(trial, X, y, lambda_param, weight_names, include_size=True):
         w_adoption /= total
         w_relationship /= total
     else:
-        # If size is excluded, the other three must sum to 1.
-        if abs(total - 1.0) > 1e-3:
+        # Normalize the non-size weights so they sum to 1.0. If their
+        # combined value is zero, prune the trial because normalization
+        # would be impossible.
+        total_no_size = w_vertical + w_adoption + w_relationship
+        if abs(total_no_size) < 1e-12:
             raise optuna.exceptions.TrialPruned()
+        w_vertical /= total_no_size
+        w_adoption /= total_no_size
+        w_relationship /= total_no_size
+
+    # NEW HARD-CAP ────────────────────────────────────────────────────
+    # Abort this trial if any normalised weight is > 0.50
+    if max(w_vertical, w_size, w_adoption, w_relationship) > 0.50:
+        raise optuna.exceptions.TrialPruned()
+    # ─────────────────────────────────────────────────────────────────
 
     weights_dict = {
         'vertical_score': w_vertical,
