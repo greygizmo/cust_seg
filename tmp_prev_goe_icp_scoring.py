@@ -34,6 +34,7 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from sklearn.preprocessing import MinMaxScaler
 import json
 from scipy.stats import norm
 
@@ -41,14 +42,15 @@ from scipy.stats import norm
 from scoring_logic import calculate_scores, LICENSE_COL, DEFAULT_WEIGHTS
 # Import the new industry scoring module
 from industry_scoring import build_industry_weights, save_industry_weights, load_industry_weights
-import data_access as da
 
 # ---------------------------
 # 0.  CONFIG – file names & weights
 # ---------------------------
 
+CUSTOMER_FILE = "JY - Customer Analysis - Customer Segmentation.xlsx"
+SALES_FILE   = "TR - Master Sales Log - Customer Segementation.xlsx"
+REVENUE_FILE = "enrichment_progress.csv"  # New revenue data file
 INDUSTRY_ENRICHMENT_FILE = "TR - Industry Enrichment.csv"  # Updated industry data
-ASSET_WEIGHTS_FILE = "asset_rollup_weights.json"
 
 
 def load_weights():
@@ -113,14 +115,16 @@ def clean_name(x: str) -> str:
     return " ".join(x.split())
 
 
-def check_env():
-    """Checks for required Azure SQL env vars and enrichment CSV presence."""
-    required = ["AZSQL_SERVER", "AZSQL_DB"]
-    missing = [k for k in required if not os.getenv(k)]
-    if missing:
-        print(f"[WARN] Missing environment variables: {missing}. Ensure .env is configured.")
-    if not os.path.exists(INDUSTRY_ENRICHMENT_FILE):
-        print(f"[INFO] Industry enrichment file '{INDUSTRY_ENRICHMENT_FILE}' not found. Proceeding without it.")
+def check_files_exist():
+    """Checks for the existence of required input files and exits if not found."""
+    required_files = (CUSTOMER_FILE, SALES_FILE)
+    for f in required_files:
+        if not os.path.exists(f):
+            sys.exit(f"[ERROR] Cannot find '{f}' in current directory.")
+    
+    # Revenue file is optional but recommended
+    if not os.path.exists(REVENUE_FILE):
+        print(f"[INFO] Revenue file '{REVENUE_FILE}' not found. Size scoring will be based on printer counts.")
 
 
 def load_revenue() -> pd.DataFrame:
@@ -288,68 +292,6 @@ def apply_industry_enrichment(df: pd.DataFrame, enrichment_df: pd.DataFrame) -> 
     return updated
 
 # ---------------------------
-# 2b. Azure SQL assembly
-# ---------------------------
-
-ASSET_WEIGHTS_FILE = "asset_rollup_weights.json"
-
-
-def load_asset_weights():
-    try:
-        with open(ASSET_WEIGHTS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        print(f"[WARN] Could not load {ASSET_WEIGHTS_FILE}. Using default weight=1.0 for all rollups.")
-        return {"focus_goals": ["Printer", "Printer Accessorials", "Scanners", "Geomagic", "Training/Services"], "weights": {}}
-
-
-def assemble_master_from_db() -> pd.DataFrame:
-    """Pull data from Azure SQL and assemble a customer-level master table."""
-    engine = da.get_engine()
-
-    customers = da.get_customers_since_2023(engine)
-
-    # Profit aggregates
-    profit_goal = da.get_profit_since_2023_by_goal(engine)
-    profit_rollup = da.get_profit_since_2023_by_rollup(engine)
-
-    # Assets & seats
-    assets = da.get_assets_and_seats(engine)
-
-    # Apply industry enrichment (CSV)
-    industry_enrichment = load_industry_enrichment()
-    if not industry_enrichment.empty:
-        customers = apply_industry_enrichment(customers, industry_enrichment)
-
-    # Pivot profit by Goal into columns
-    if not profit_goal.empty:
-        p_goal = (
-            profit_goal.pivot_table(index="Customer ID", columns="Goal", values="Profit_Since_2023", aggfunc="sum")
-            .reset_index()
-            .rename_axis(None, axis=1)
-        )
-    else:
-        p_goal = pd.DataFrame()
-
-    # Merge into base
-    master = customers.copy()
-    if not p_goal.empty:
-        master = master.merge(p_goal, on="Customer ID", how="left")
-
-    # Compute total profit since 2023 across all Goals
-    numeric_cols = [c for c in master.columns if c not in ("Customer ID", "Company Name", "Industry", "Industry Sub List", "Industry_Reasoning")]
-    if numeric_cols:
-        master["Profit_Since_2023_Total"] = master[numeric_cols].select_dtypes(include=[float, int]).fillna(0).sum(axis=1)
-    else:
-        master["Profit_Since_2023_Total"] = 0.0
-
-    # Attach assets and rollup profit for feature engineering
-    master._assets_raw = assets
-    master._profit_rollup_raw = profit_rollup
-
-    return master
-
-# ---------------------------
 # 2.  Load & clean data sets
 # ---------------------------
 
@@ -445,113 +387,25 @@ def merge_master(customers, gp24, revenue=None) -> pd.DataFrame:
 # 4.  Feature engineering
 # ---------------------------
 
-FOCUS_GOALS = {"Printer", "Printer Accessorials", "Scanners", "Geomagic", "Training/Services"}
-
-
-def _normalize_goal_name(x: str) -> str:
-    return str(x).strip()
-
-
-def engineer_features(df: pd.DataFrame, asset_weights: dict) -> pd.DataFrame:
+def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Engineers features for scoring using assets/seats and profit.
-
-    Adds:
-      - adoption_assets: weighted asset/seat signal (focus divisions)
-      - adoption_profit: profit signal for focus divisions (Printer, Accessorials, Scanners, Geomagic, 3DP Training rollup)
-      - relationship_profit: profit for software goals (CAD, CPE, Specialty Software)
-      - printer_count: compatibility metric from Printer assets
+    Engineers all features required for scoring and analysis.
+    - Calculates total printer count.
+    - Creates a target variable for the optimization script.
+    - Calls the centralized `calculate_scores` function to generate all ICP scores.
     """
     df = df.copy()
-
-    assets = getattr(df, "_assets_raw", pd.DataFrame())
-    profit_roll = getattr(df, "_profit_rollup_raw", pd.DataFrame())
-
-    # Default zeros
-    df["adoption_assets"] = 0.0
-    df["adoption_profit"] = 0.0
-    df["relationship_profit"] = 0.0
-    df["printer_count"] = 0.0
-
-    # Build adoption_assets from assets table with weights
-    if isinstance(assets, pd.DataFrame) and not assets.empty:
-        weights_cfg = asset_weights.get("weights", {})
-        focus_goals = set(asset_weights.get("focus_goals", list(FOCUS_GOALS)))
-
-        def weighted_measure(row) -> float:
-            goal = _normalize_goal_name(row.get("Goal"))
-            item_rollup = str(row.get("item_rollup"))
-            seats_sum = row.get("seats_sum", 0) or 0
-            asset_count = row.get("asset_count", 0) or 0
-            base = seats_sum if seats_sum and seats_sum > 0 else asset_count
-            goal_weights = weights_cfg.get(goal, {})
-            w = goal_weights.get(item_rollup, goal_weights.get("default", 1.0))
-            return float(base) * float(w)
-
-        a = assets.copy()
-        a["Goal"] = a["Goal"].map(_normalize_goal_name)
-        # Keep only focus goals; special handling for Training/Services: only 3DP Training rollup counts
-        a_focus = a[a["Goal"].isin(focus_goals)].copy()
-        a_focus.loc[:, "weighted_value"] = a_focus.apply(weighted_measure, axis=1)
-
-        # Compute printer_count specifically from Printer assets (use asset_count)
-        printer_assets = a_focus[a_focus["Goal"] == "Printer"]
-        printer_counts = (
-            printer_assets.groupby("Customer ID")["asset_count"].sum().rename("printer_count")
-        )
-
-        adoption_assets = (
-            a_focus.groupby("Customer ID")["weighted_value"].sum().rename("adoption_assets")
-        )
-
-        df = df.merge(adoption_assets, on="Customer ID", how="left")
-        df = df.merge(printer_counts, on="Customer ID", how="left")
-        df["adoption_assets"] = df["adoption_assets"].fillna(0.0)
-        df["printer_count"] = df["printer_count"].fillna(0.0)
-
-    # Build adoption_profit from profit_rollup: focus goals + 3DP Training rollup
-    if isinstance(profit_roll, pd.DataFrame) and not profit_roll.empty:
-        pr = profit_roll.copy()
-        pr["Goal"] = pr["Goal"].map(_normalize_goal_name)
-        # Sum for focus goals
-        mask_focus_goals = pr["Goal"].isin(FOCUS_GOALS)
-        # Include only 3DP Training within Training/Services
-        mask_3dp_training = (pr["Goal"] == "Training/Services") & (pr["item_rollup"].astype(str).str.strip().str.lower() == "3dp training")
-        mask_focus = mask_focus_goals & (~(pr["Goal"] == "Training/Services") | mask_3dp_training)
-        adoption_profit = (
-            pr[mask_focus]
-            .groupby("Customer ID")["Profit_Since_2023"]
-            .sum()
-            .rename("adoption_profit")
-        )
-        df = df.merge(adoption_profit, on="Customer ID", how="left")
-        df["adoption_profit"] = df["adoption_profit"].fillna(0.0)
-
-    # Relationship: software goals CAD, CPE, Specialty Software from goal-level pivot already merged
-    sw_cols = [c for c in df.columns if c in ("CAD", "CPE", "Specialty Software")]
-    if sw_cols:
-        df["relationship_profit"] = df[sw_cols].fillna(0).sum(axis=1)
-    else:
-        if isinstance(profit_roll, pd.DataFrame) and not profit_roll.empty:
-            sw_mask = profit_roll["Goal"].isin(["CAD", "CPE", "Specialty Software"])
-            rel = (
-                profit_roll[sw_mask]
-                .groupby("Customer ID")["Profit_Since_2023"].sum().rename("relationship_profit")
-            )
-            df = df.merge(rel, on="Customer ID", how="left")
-            df["relationship_profit"] = df["relationship_profit"].fillna(0.0)
-
-    # Flag for scaling
+    
+    # Core counts
+    df["printer_count"] = df["Big Box Count"] + df["Small Box Count"]
     df["scaling_flag"] = (df["printer_count"] >= 4).astype(int)
-
-    # Compatibility column for dashboard tiering
-    if "relationship_profit" in df.columns:
-        df[LICENSE_COL] = df["relationship_profit"].fillna(0.0)
-    else:
-        df[LICENSE_COL] = 0.0
-
-    # Calculate all component and final scores via scoring_logic
+    
+    # Create the target variable for the optimizer (historical hardware/consumable revenue)
+    df['Total Hardware + Consumable Revenue'] = df['Total Hardware Revenue'].fillna(0) + df['Total Consumable Revenue'].fillna(0)
+    
+    # Use the centralized scoring logic to calculate all component and final scores
     df = calculate_scores(df, WEIGHTS)
+    
     return df
 
 # ---------------------------
@@ -576,33 +430,30 @@ def build_visuals(df: pd.DataFrame):
     plt.ylabel("Number of Customers")
     save_fig("vis1_icp_hist.png")
     
-    # 2: Total Profit since 2023 by industry vertical
+    # 2: Total GP24 by industry vertical
     plt.figure()
-    if "Industry" in df.columns and "Profit_Since_2023_Total" in df.columns:
-        df.groupby("Industry")["Profit_Since_2023_Total"].sum().nlargest(10).plot(kind="bar")
-    plt.title("Total Profit Since 2023 by Vertical (Top 10)")
-    plt.ylabel("Profit ($)")
+    df.groupby("Industry")["GP24"].sum().nlargest(10).plot(kind="bar")
+    plt.title("Total GP24 by Vertical (Top 10)")
+    plt.ylabel("GP24 ($)")
     save_fig("vis2_gp24_vertical.png")
     
     # 3: Scatter plot of printer count vs GP24
     plt.figure()
-    if "Profit_Since_2023_Total" in df.columns:
-        plt.scatter(df["printer_count"], df["Profit_Since_2023_Total"])
-    plt.title("Printer Count vs Profit Since 2023")
+    plt.scatter(df["printer_count"], df["GP24"])
+    plt.title("Printer Count vs GP24")
     plt.xlabel("Printer Count")
-    plt.ylabel("Profit ($)")
+    plt.ylabel("GP24 ($)")
     save_fig("vis3_printers_gp24.png")
     
     # 4: Box plot of GP24 by CAD tier
     if 'cad_tier' in df.columns and hasattr(df['cad_tier'], 'cat'):
         if not df['cad_tier'].cat.categories.empty and not df['cad_tier'].isnull().all():
             plt.figure()
-            if "Profit_Since_2023_Total" in df.columns:
-                df.boxplot(column="Profit_Since_2023_Total", by="cad_tier")
-            plt.title("Profit Since 2023 by CAD Tier")
+            df.boxplot(column="GP24", by="cad_tier")
+            plt.title("GP24 by CAD Tier")
             plt.suptitle("")
             plt.xlabel("CAD Tier")
-            plt.ylabel("Profit ($)")
+            plt.ylabel("GP24 ($)")
             save_fig("vis4_gp24_cadtier.png")
         else:
             print("[INFO] Skipping 'GP24 by CAD Tier' visual: No data to plot.")
@@ -646,12 +497,11 @@ def build_visuals(df: pd.DataFrame):
     plt.ylabel("ICP Score")
     save_fig("vis8_printers_icp.png")
     
-    # 9: Total Profit since 2023 by industry vertical (duplicate view)
+    # 9: Total Revenue24 by industry vertical
     plt.figure()
-    if "Industry" in df.columns and "Profit_Since_2023_Total" in df.columns:
-        df.groupby("Industry")["Profit_Since_2023_Total"].sum().nlargest(10).plot(kind="bar")
-    plt.title("Total Profit Since 2023 by Vertical (Top 10)")
-    plt.ylabel("Profit ($)")
+    df.groupby("Industry")["Revenue24"].sum().nlargest(10).plot(kind="bar")
+    plt.title("Total Revenue24 by Vertical (Top 10)")
+    plt.ylabel("Revenue24 ($)")
     save_fig("vis9_rev24_vertical.png")
     
     # 10: Customer count by CAD tier
@@ -719,7 +569,7 @@ def main():
     ]
     
     # Dynamically add other software revenue columns to the output if they exist
-    revenue_cols_to_check = ['Total Consumable Revenue', 'Total SaaS Revenue', 'Total Maintenance Revenue', 'Printer', 'Printer Accessorials', 'Scanners', 'Geomagic', 'CAD', 'CPE', 'Specialty Software']
+    revenue_cols_to_check = ['Total Consumable Revenue', 'Total SaaS Revenue', 'Total Maintenance Revenue']
     for col in revenue_cols_to_check:
         if col in scored.columns:
             out_cols.append(col)
@@ -734,7 +584,9 @@ def main():
     scored[out_cols].to_csv("icp_scored_accounts.csv", index=False)
     print("✅  Saved icp_scored_accounts.csv")
     
-    print("Creating visualisations...")`r`n    build_visuals(scored)`r`n    print("? Saved 10 PNG charts (vis1..vis10).")
+    print("Creating visualisations…")
+    build_visuals(scored)
+    print("✅  Saved 10 PNG charts (vis1_… vis10_…).")
     
     print("All done.")
 
@@ -747,9 +599,6 @@ if __name__ == "__main__":
     except Exception as e:
         print("\n⚠ An error occurred – details below.\n")
         raise
-
-
-
 
 
 

@@ -1,0 +1,31 @@
+{
+  "focus_goals": [
+    "Printer",
+    "Printer Accessorials",
+    "Scanners",
+    "Geomagic",
+    "Training/Services"
+  ],
+  "weights": {
+    "Printer": {
+      "default": 1.0
+      /* Example entries (adjust to your taxonomy):
+      , "F123 Large Format": 2.0,
+      "F456 Benchtop": 1.0
+      */
+    },
+    "Printer Accessorials": {
+      "default": 1.0
+    },
+    "Scanners": {
+      "default": 1.0
+    },
+    "Geomagic": {
+      "default": 1.0
+    },
+    "Training/Services": {
+      "default": 1.0,
+      "3DP Training": 1.5
+    }
+  }
+}
