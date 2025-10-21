@@ -16,26 +16,25 @@ import os
 
 def calculate_industry_performance(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Calculate total sales performance per customer from hardware, consumable, and service revenue.
+    Calculate total performance per customer, preferring profit-based totals when available.
     
     Args:
-        df (pd.DataFrame): Customer dataframe with revenue columns
+    df (pd.DataFrame): Customer dataframe with profit or legacy revenue columns
         
     Returns:
         pd.DataFrame: Original dataframe with added 'total_performance' column
     """
-    # Revenue columns to sum for performance metric
-    revenue_cols = ['Total Hardware Revenue', 'Total Consumable Revenue', 'Total Service Bureau Revenue']
-    
-    # Ensure all revenue columns exist, fill missing with 0
-    for col in revenue_cols:
-        if col not in df.columns:
-            print(f"[WARN] Column '{col}' not found, treating as 0")
-            df[col] = 0
-        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-    
-    # Calculate total performance per customer
-    df['total_performance'] = df[revenue_cols].sum(axis=1)
+    # Prefer profit-based totals if present
+    if 'Profit_Since_2023_Total' in df.columns:
+        df['total_performance'] = pd.to_numeric(df['Profit_Since_2023_Total'], errors='coerce').fillna(0)
+    else:
+        revenue_cols = ['Total Hardware Revenue', 'Total Consumable Revenue', 'Total Service Bureau Revenue']
+        for col in revenue_cols:
+            if col not in df.columns:
+                print(f"[WARN] Column '{col}' not found, treating as 0")
+                df[col] = 0
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+        df['total_performance'] = df[revenue_cols].sum(axis=1)
     
     print(f"[INFO] Calculated performance for {len(df)} customers")
     print(f"[INFO] Total performance range: ${df['total_performance'].min():,.0f} - ${df['total_performance'].max():,.0f}")

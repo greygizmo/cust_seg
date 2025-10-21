@@ -181,11 +181,11 @@ def calculate_scores(df, weights, size_config=None):
         mask = has_reliable_revenue & condition
         df_clean.loc[mask, "size_score"] = score
 
-    # 3. Adoption Score: A robust composite score of printer investment and hardware revenue.
-    #    - Uses percentile-based scaling to ensure fair comparison between different units
-    #    - Weighted printer score: Big Box printers valued at 2x Small Box printers
-    #    - Hardware revenue includes both initial purchases and consumables
-    #    - Combined with 50/50 weighting between printer investment and revenue signals
+    # 3. Adoption Score: Composite of asset/seat investment and hardware/training profit.
+    #    New (DB) mode prefers columns:
+    #      - adoption_assets (weighted seats/assets for focus divisions)
+    #      - adoption_profit (Profit since 2023 for focus divisions)
+    #    Falls back to legacy printer + revenue logic if not present.
     def percentile_scale(series):
         """
         Convert values to percentile ranks (0-1 range).
@@ -220,61 +220,68 @@ def calculate_scores(df, weights, size_config=None):
             return pd.Series(0.0, index=series.index)
         return (series - min_val) / (max_val - min_val)
 
-    # Ensure required columns exist
-    if 'Total Consumable Revenue' not in df_clean.columns:
-        df_clean['Total Consumable Revenue'] = 0
-    if 'Total Hardware Revenue' not in df_clean.columns:
-        df_clean['Total Hardware Revenue'] = 0
+    if 'adoption_assets' in df_clean.columns and 'adoption_profit' in df_clean.columns:
+        assets_series = pd.to_numeric(df_clean['adoption_assets'], errors='coerce').fillna(0)
+        profit_series = pd.to_numeric(df_clean['adoption_profit'], errors='coerce').fillna(0)
 
-    # Calculate weighted printer score (Big Box = 2x Small Box)
-    big_box_safe = np.maximum(df_clean['Big Box Count'].fillna(0), 0)
-    small_box_safe = np.maximum(df_clean['Small Box Count'].fillna(0), 0)
-    weighted_printer_score = (2.0 * big_box_safe) + (1.0 * small_box_safe)
-    
-    # Calculate total hardware adoption revenue (hardware + consumables)
-    hardware_revenue_safe = np.maximum(df_clean['Total Hardware Revenue'].fillna(0), 0)
-    consumable_revenue_safe = np.maximum(df_clean['Total Consumable Revenue'].fillna(0), 0)
-    total_hardware_adoption_revenue = hardware_revenue_safe + consumable_revenue_safe
-    
-    # Use percentile-based scaling for fair comparison
-    P = percentile_scale(weighted_printer_score)
-    R = percentile_scale(total_hardware_adoption_revenue)
-    
-    # Improved adoption scoring with better distribution
-    zero_printer_mask = weighted_printer_score == 0
-    zero_revenue_mask = total_hardware_adoption_revenue == 0
-    zero_everything_mask = zero_printer_mask & zero_revenue_mask
-    
-    # Initialize adoption scores
-    adoption_scores = np.zeros(len(df_clean))
-    
-    # 1. Zero printers AND zero revenue = 0.0 (no hardware engagement)
-    # (Already initialized to 0)
-    
-    # 2. Revenue-only customers: 0.0-0.5 using square root curve for better distribution
-    revenue_only_mask = zero_printer_mask & ~zero_revenue_mask
-    adoption_scores[revenue_only_mask] = 0.5 * np.sqrt(R[revenue_only_mask])
-    
-    # 3. Customers with printers: 0.0-1.0 blend (60% printer, 40% revenue)
-    with_printers_mask = ~zero_printer_mask
-    base_score = 0.6 * P + 0.4 * R
-    adoption_scores[with_printers_mask] = base_score[with_printers_mask]
-    
-    # 4. Optional bonus for heavy printer fleets (10+ weighted printers)
-    heavy_fleet_mask = weighted_printer_score >= 10
-    adoption_scores[heavy_fleet_mask] = np.clip(adoption_scores[heavy_fleet_mask] + 0.05, 0, 1)
-    
-    df_clean['adoption_score'] = adoption_scores
+        P = percentile_scale(assets_series)
+        R = percentile_scale(profit_series)
 
-    # 4. Relationship Score: Based on the sum of all software-related revenue.
-    #    - The total software revenue is log-transformed and then min-max scaled.
-    relationship_cols = ['Total Software License Revenue', 'Total SaaS Revenue', 'Total Maintenance Revenue']
-    for col in relationship_cols:
-        if col not in df_clean.columns:
-            df_clean[col] = 0
-    df_clean['relationship_feature'] = df_clean[relationship_cols].fillna(0).sum(axis=1)
-    relationship_feature_safe = np.maximum(df_clean['relationship_feature'], 0)
-    df_clean['relationship_score'] = min_max_scale(np.log1p(relationship_feature_safe))
+        zero_assets = assets_series == 0
+        zero_profit = profit_series == 0
+
+        adoption_scores = np.zeros(len(df_clean))
+        # Profit-only customers: 0.0-0.5 via sqrt
+        profit_only_mask = zero_assets & ~zero_profit
+        adoption_scores[profit_only_mask] = 0.5 * np.sqrt(R[profit_only_mask])
+        # With assets: blend 60/40
+        with_assets_mask = ~zero_assets
+        adoption_scores[with_assets_mask] = (0.6 * P + 0.4 * R)[with_assets_mask]
+
+        df_clean['adoption_score'] = adoption_scores
+    else:
+        # Legacy fallback using printer counts and hardware+consumable revenue
+        if 'Total Consumable Revenue' not in df_clean.columns:
+            df_clean['Total Consumable Revenue'] = 0
+        if 'Total Hardware Revenue' not in df_clean.columns:
+            df_clean['Total Hardware Revenue'] = 0
+
+        big_box_safe = np.maximum(df_clean.get('Big Box Count', 0), 0)
+        small_box_safe = np.maximum(df_clean.get('Small Box Count', 0), 0)
+        weighted_printer_score = (2.0 * pd.to_numeric(big_box_safe, errors='coerce').fillna(0)) + (1.0 * pd.to_numeric(small_box_safe, errors='coerce').fillna(0))
+
+        hardware_revenue_safe = np.maximum(pd.to_numeric(df_clean['Total Hardware Revenue'], errors='coerce').fillna(0), 0)
+        consumable_revenue_safe = np.maximum(pd.to_numeric(df_clean['Total Consumable Revenue'], errors='coerce').fillna(0), 0)
+        total_hardware_adoption_revenue = hardware_revenue_safe + consumable_revenue_safe
+
+        P = percentile_scale(weighted_printer_score)
+        R = percentile_scale(total_hardware_adoption_revenue)
+
+        zero_printer_mask = weighted_printer_score == 0
+        zero_revenue_mask = total_hardware_adoption_revenue == 0
+
+        adoption_scores = np.zeros(len(df_clean))
+        revenue_only_mask = zero_printer_mask & ~zero_revenue_mask
+        adoption_scores[revenue_only_mask] = 0.5 * np.sqrt(R[revenue_only_mask])
+        with_printers_mask = ~zero_printer_mask
+        base_score = 0.6 * P + 0.4 * R
+        adoption_scores[with_printers_mask] = base_score[with_printers_mask]
+        heavy_fleet_mask = weighted_printer_score >= 10
+        adoption_scores[heavy_fleet_mask] = np.clip(adoption_scores[heavy_fleet_mask] + 0.05, 0, 1)
+        df_clean['adoption_score'] = adoption_scores
+
+    # 4. Relationship Score: prefer profit from software goals if present.
+    if 'relationship_profit' in df_clean.columns:
+        rel_safe = np.maximum(pd.to_numeric(df_clean['relationship_profit'], errors='coerce').fillna(0), 0)
+        df_clean['relationship_score'] = min_max_scale(np.log1p(rel_safe))
+    else:
+        relationship_cols = ['Total Software License Revenue', 'Total SaaS Revenue', 'Total Maintenance Revenue']
+        for col in relationship_cols:
+            if col not in df_clean.columns:
+                df_clean[col] = 0
+        df_clean['relationship_feature'] = df_clean[relationship_cols].fillna(0).sum(axis=1)
+        relationship_feature_safe = np.maximum(df_clean['relationship_feature'], 0)
+        df_clean['relationship_score'] = min_max_scale(np.log1p(relationship_feature_safe))
     
     # This creates the 'cad_tier' for display and filtering purposes (legacy feature).
     if LICENSE_COL in df_clean.columns:
