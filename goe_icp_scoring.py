@@ -312,6 +312,7 @@ def assemble_master_from_db() -> pd.DataFrame:
     # Profit aggregates
     profit_goal = da.get_profit_since_2023_by_goal(engine)
     profit_rollup = da.get_profit_since_2023_by_rollup(engine)
+    profit_quarterly = da.get_quarterly_profit_by_goal(engine)
 
     # Assets & seats
     assets = da.get_assets_and_seats(engine)
@@ -337,11 +338,59 @@ def assemble_master_from_db() -> pd.DataFrame:
         master = master.merge(p_goal, on="Customer ID", how="left")
 
     # Compute total profit since 2023 across all Goals
-    numeric_cols = [c for c in master.columns if c not in ("Customer ID", "Company Name", "Industry", "Industry Sub List", "Industry_Reasoning")]
-    if numeric_cols:
-        master["Profit_Since_2023_Total"] = master[numeric_cols].select_dtypes(include=[float, int]).fillna(0).sum(axis=1)
+    value_cols = [
+        c for c in master.columns
+        if c not in ("Customer ID", "Company Name", "Industry", "Industry Sub List", "Industry_Reasoning")
+    ]
+    if value_cols:
+        master["Profit_Since_2023_Total"] = pd.to_numeric(master[value_cols], errors="coerce").fillna(0).sum(axis=1)
     else:
         master["Profit_Since_2023_Total"] = 0.0
+
+    # Derive quarterly totals per customer (LastQ and T4Q)
+    if isinstance(profit_quarterly, pd.DataFrame) and not profit_quarterly.empty:
+        pq = profit_quarterly.copy()
+        # Build a sortable quarter key like 20241, 20242, ...
+        def qkey(qs: str) -> int:
+            # Expect format 'YYYYQn'
+            try:
+                yr = int(qs[0:4])
+                qn = int(qs[-1])
+                return yr * 10 + qn
+            except Exception:
+                return 0
+        pq["_qkey"] = pq["Quarter"].astype(str).map(qkey)
+        # Sum profit per customer, per quarter across goals
+        cust_q = pq.groupby(["Customer ID", "_qkey"])['Profit'].sum().reset_index()
+        # Determine latest quarter key globally
+        latest_qkey = cust_q['_qkey'].max()
+        # Last quarter per customer
+        lastq = cust_q[cust_q['_qkey'] == latest_qkey].set_index("Customer ID")["Profit"].rename("Profit_LastQ_Total")
+        # Trailing 4 quarters per customer
+        t4q_keys = sorted(cust_q['_qkey'].unique())[-4:]
+        t4q = cust_q[cust_q['_qkey'].isin(t4q_keys)].groupby("Customer ID")["Profit"].sum().rename("Profit_T4Q_Total")
+        master = master.merge(lastq, on="Customer ID", how="left")
+        master = master.merge(t4q, on="Customer ID", how="left")
+    else:
+        master["Profit_LastQ_Total"] = 0.0
+        master["Profit_T4Q_Total"] = 0.0
+
+    # Aggregate assets/seats totals and per-goal seats for filters/signals
+    if isinstance(assets, pd.DataFrame) and not assets.empty:
+        agg = assets.groupby("Customer ID").agg(
+            active_assets_total=("active_assets", "sum"),
+            seats_sum_total=("seats_sum", "sum")
+        )
+        master = master.merge(agg, on="Customer ID", how="left")
+        # Seats by Goal → pivot columns Seats_<Goal>
+        seats_by_goal = assets.pivot_table(index="Customer ID", columns="Goal", values="seats_sum", aggfunc="sum").fillna(0)
+        # Rename columns
+        seats_by_goal.columns = [f"Seats_{str(c)}" for c in seats_by_goal.columns]
+        seats_by_goal = seats_by_goal.reset_index()
+        master = master.merge(seats_by_goal, on="Customer ID", how="left")
+    else:
+        master["active_assets_total"] = 0
+        master["seats_sum_total"] = 0
 
     # Attach assets and rollup profit for feature engineering
     master._assets_raw = assets

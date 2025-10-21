@@ -60,7 +60,13 @@ def load_optimized_weights():
             return dashboard_weights, data
     except (FileNotFoundError, json.JSONDecodeError):
         # Fallback to default weights if the file is missing or corrupt.
-        return DEFAULT_WEIGHTS, None
+        mapped = {
+            "vertical_score": DEFAULT_WEIGHTS.get("vertical", 0.25),
+            "size_score": DEFAULT_WEIGHTS.get("size", 0.0),
+            "adoption_score": DEFAULT_WEIGHTS.get("adoption", 0.5),
+            "relationship_score": DEFAULT_WEIGHTS.get("relationship", 0.25),
+        }
+        return mapped, None
 
 # Load optimized weights and metadata at the start of the script.
 optimized_weights, optimization_data = load_optimized_weights()
@@ -412,8 +418,11 @@ def main():
     
     # Apply the current segmentation configuration.
     current_segment_config = st.session_state.segment_config.copy()
-    # Use the actual revenue column name from the dataset
-    revenue_col = 'Total Hardware + Consumable Revenue'
+    # Use Profit Since 2023 by default for segmentation
+    revenue_col = 'Profit_Since_2023_Total'
+    if revenue_col not in df_loaded.columns:
+        # fallback to previous column if profit not present
+        revenue_col = 'Total Hardware + Consumable Revenue' if 'Total Hardware + Consumable Revenue' in df_loaded.columns else revenue_col
     df_loaded['customer_segment'] = df_loaded[revenue_col].apply(
         lambda x: determine_customer_segment(x, current_segment_config)
     )
@@ -465,11 +474,30 @@ def main():
             current_main_weights = optimized_weights
         
         current_size_config = {"enabled": size_weight > 0}
+        current_size_config = {"enabled": size_weight > 0}
+        st.subheader("Profit & Filters")
+        selected_scope = st.selectbox("Profit Scope", ["Since 2023", "Trailing 4Q", "Last Quarter"], index=0)
+        active_only = st.checkbox("Active assets only", value=False)
+        min_cad_seats = st.number_input("Min CAD seats", min_value=0, value=0, step=1)
+        min_cpe_seats = st.number_input("Min CPE seats", min_value=0, value=0, step=1)
 
     # --- SCORE RECALCULATION ---
     # Recalculate all scores for the filtered data based on the current weights from the sidebar.
     df_scored = calculate_scores(df_filtered.copy(), current_main_weights, current_size_config)
     
+    # Apply sidebar filters and profit scope to the dataframe
+    scope_to_col = {
+        "Since 2023": "Profit_Since_2023_Total",
+        "Trailing 4Q": "Profit_T4Q_Total",
+        "Last Quarter": "Profit_LastQ_Total",
+    }
+    profit_col = scope_to_col.get(selected_scope, "Profit_Since_2023_Total") if "selected_scope" in locals() else "Profit_Since_2023_Total"
+    if "active_only" in locals() and active_only and "active_assets_total" in df_scored.columns:
+        df_scored = df_scored[df_scored["active_assets_total"] > 0]
+    if "min_cad_seats" in locals() and "Seats_CAD" in df_scored.columns:
+        df_scored = df_scored[df_scored["Seats_CAD"] >= min_cad_seats]
+    if "min_cpe_seats" in locals() and "Seats_CPE" in df_scored.columns:
+        df_scored = df_scored[df_scored["Seats_CPE"] >= min_cpe_seats]
     # Set dashboard title suffix
     dashboard_title_suffix = selected_segment if selected_segment != 'All Segments' else 'All Customers'
     
@@ -481,7 +509,7 @@ def main():
     total_customers = len(df_scored)
     avg_score = df_scored['ICP_score'].mean()
     high_score_count = len(df_scored[df_scored['ICP_score'] >= 70])
-    total_revenue = df_scored[revenue_col].sum()
+    total_revenue = df_scored[profit_col].sum() if "profit_col" in locals() and profit_col in df_scored.columns else df_scored[revenue_col].sum()
     hv_rate = (high_score_count / total_customers * 100) if total_customers > 0 else 0
     
     # Display key metrics with beautiful custom cards
@@ -526,10 +554,10 @@ def main():
         st.markdown(f"""
         <div class="custom-metric metric-gp">
             <div class="metric-title">
-                <span class="metric-icon">💰</span>Total Revenue
+                <span class="metric-icon">💰</span>Total Profit
             </div>
             <div class="metric-value">${total_revenue:,.0f}</div>
-            <div class="metric-subtitle">Hardware + Consumable Revenue</div>
+            <div class="metric-subtitle">Profit (selected scope)</div>
         </div>
         """, unsafe_allow_html=True)
     
@@ -545,7 +573,7 @@ def main():
             'ICP_grade': lambda x: (x == 'A').sum()
         }).round(2)
         
-        segment_summary.columns = ['Customer Count', 'Avg ICP Score', 'Total Revenue', 'A-Grade Count']
+        segment_summary.columns = ['Customer Count', 'Avg ICP Score', 'Total Profit', 'A-Grade Count']
         st.dataframe(segment_summary, use_container_width=True)
     
     # --- REAL-TIME ANALYTICS ---
