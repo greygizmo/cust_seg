@@ -28,7 +28,7 @@ from normalize_names import normalize_name_for_matching
 # Page configuration
 st.set_page_config(
     page_title="ICP Dashboard - GoEngineer",
-    page_icon="🎯",
+    page_icon=":bar_chart:",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -74,17 +74,9 @@ optimized_weights, optimization_data = load_optimized_weights()
 # --- Navigation ---
 def main():
     # Sidebar navigation
-    st.sidebar.title("🎯 ICP Dashboard Navigation")
+    st.sidebar.title("ICP Dashboard Navigation")
 
-    page = st.sidebar.radio("Navigate to:",
-        ["📊 Main Dashboard", "📚 System Documentation", "🔧 Scoring Details"])
-
-    if page == "📊 Main Dashboard":
-        show_main_dashboard()
-    elif page == "📚 System Documentation":
-        show_documentation()
-    elif page == "🔧 Scoring Details":
-        show_scoring_details()
+    page = st.sidebar.radio("Navigate to:",["Main Dashboard", "System Documentation", "Scoring Details"])\r\n\r\n    if page == "Main Dashboard":\r\n        show_main_dashboard()\r\n    elif page == "System Documentation":\r\n        show_documentation()\r\n    elif page == "Scoring Details":\r\n        show_scoring_details()
 
 def show_main_dashboard():
     """Main dashboard page with metrics, charts, and analysis"""
@@ -496,6 +488,7 @@ def main():
         current_size_config = {"enabled": size_weight > 0}
         st.subheader("Profit & Filters")
         selected_scope = st.selectbox("Profit Scope", ["Since 2023", "Trailing 4Q", "Last Quarter"], index=0)
+        st.session_state.profit_scope = selected_scope
         active_only = st.checkbox("Active assets only", value=False)
         min_cad_seats = st.number_input("Min CAD seats", min_value=0, value=0, step=1)
         min_cpe_seats = st.number_input("Min CPE seats", min_value=0, value=0, step=1)
@@ -615,7 +608,7 @@ def main():
         st.plotly_chart(fig_hist, use_container_width=True)
     
     with col2:
-        # Enhanced Grade Distribution
+        # Grade Distribution
         grade_counts = df_scored['ICP_grade'].value_counts()
         colors = {'A': '#28a745', 'B': '#1f77b4', 'C': '#ffc107', 'D': '#fd7e14', 'F': '#dc3545'}
         grade_colors = [colors.get(grade, '#999999') for grade in grade_counts.index]
@@ -634,9 +627,16 @@ def main():
         st.plotly_chart(fig_radar, use_container_width=True)
     
     with col4:
-        # Score by Industry
-        fig_industry = create_score_by_vertical(df_scored)
-        st.plotly_chart(fig_industry, use_container_width=True)
+        # Profit by Industry (selected scope)
+        # Determine profit column from selected scope
+        scope_to_col = {
+            "Since 2023": "Profit_Since_2023_Total",
+            "Trailing 4Q": "Profit_T4Q_Total",
+            "Last Quarter": "Profit_LastQ_Total",
+        }
+        profit_col = scope_to_col.get(selected_scope, "Profit_Since_2023_Total") if 'selected_scope' in locals() else "Profit_Since_2023_Total"
+        fig_profit_industry = create_profit_by_vertical(df_scored, profit_col)
+        st.plotly_chart(fig_profit_industry, use_container_width=True)
     
     # --- DATA TABLE ---
     st.markdown(f"## 📋 Top Scoring Customers")
@@ -668,7 +668,7 @@ def main():
 
 def show_documentation():
     """System documentation page with Mermaid charts"""
-    st.markdown('<h1 class="main-header">📚 System Documentation</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">System Documentation</h1>', unsafe_allow_html=True)
     st.markdown("### Complete technical documentation for the ICP Scoring System")
 
     # Chart categories with all charts
@@ -759,14 +759,14 @@ def show_documentation():
 
 def show_scoring_details():
     """Scoring methodology details page"""
-    st.markdown('<h1 class="main-header">🔧 Scoring Details</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">Scoring Details</h1>', unsafe_allow_html=True)
     st.markdown("### Detailed breakdown of the ICP scoring methodology")
 
     # Load current weights
     weights = optimized_weights if optimization_data else DEFAULT_WEIGHTS
 
     # Component explanations
-    st.markdown("## 🎯 ICP Scoring Components")
+    st.markdown("## ICP Scoring Components")
 
     col1, col2 = st.columns(2)
 
@@ -857,3 +857,8 @@ def show_scoring_details():
 
 if __name__ == "__main__":
     main() 
+
+
+
+
+
