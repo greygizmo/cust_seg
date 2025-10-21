@@ -1,7 +1,7 @@
 INDUSTRY DATA CLEANUP MAPPING REPORT
 ==================================================
 
-Generated: 2025-07-24 13:02:09
+Generated: 2025-07-28 16:54:14
 
 INDUSTRY MAPPINGS
 --------------------
@@ -26,7 +26,7 @@ HIGH CONFIDENCE MAPPINGS (≥0.8):
   'Environmental Services' → 'Services' (confidence: 1.00, method: custom)
   'Finance' → 'Services' (confidence: 1.00, method: custom)
   'Financial Services' → 'Services' (confidence: 1.00, method: custom)
-  'Financials' → 'Services' (confidence: 1.00, method: custom)
+  'Financial Services & Investing' → 'Services' (confidence: 1.00, method: custom)
   'Food & Beverage' → 'Consumer Goods' (confidence: 1.00, method: custom)
   'Government' → 'Services' (confidence: 1.00, method: custom)
   'Government & Public Administration' → 'Services' (confidence: 1.00, method: custom)
@@ -36,7 +36,6 @@ HIGH CONFIDENCE MAPPINGS (≥0.8):
   'Industrial Machinery & Components' → 'Industrial Machinery' (confidence: 1.00, method: custom)
   'Industrial Machinery & Equipment' → 'Industrial Machinery' (confidence: 1.00, method: custom)
   'Industrial Machinery Manufacturing' → 'Industrial Machinery' (confidence: 1.00, method: custom)
-  'Industrial Machinery and Equipment Merchant Wholesalers' → 'Services' (confidence: 1.00, method: custom)
   'Industrial Manufacturing' → 'Industrial Machinery' (confidence: 1.00, method: custom)
   'Industrial Services' → 'Industrial Machinery' (confidence: 1.00, method: custom)
   'Industrials' → 'Industrial Machinery' (confidence: 1.00, method: custom)
@@ -44,6 +43,7 @@ HIGH CONFIDENCE MAPPINGS (≥0.8):
   'Manufactured Products' → 'Manufactured Products' (confidence: 1.00, method: exact)
   'Manufacturing' → 'Manufactured Products' (confidence: 1.00, method: custom)
   'Manufacturing & Industrial' → 'Manufactured Products' (confidence: 1.00, method: custom)
+  'Manufacturing Products' → 'Manufactured Products' (confidence: 1.00, method: custom)
   'Manufacturing, Transport & Logistics' → 'Manufactured Products' (confidence: 1.00, method: custom)
   'Media & Entertainment' → 'Services' (confidence: 1.00, method: custom)
   'Media and Entertainment' → 'Services' (confidence: 1.00, method: custom)
@@ -69,6 +69,7 @@ MEDIUM CONFIDENCE MAPPINGS (0.6-0.8):
 
 LOW CONFIDENCE / UNMAPPED:
   'Health Care' → NO MATCH (best: 'None', confidence: 0.40)
+  'Materials' → NO MATCH (best: 'None', confidence: 0.47)
 
 
 SUB-LIST MAPPINGS
@@ -99,5 +100,5 @@ SAMPLE SUB-LIST MAPPINGS (first 20):
 
 SUMMARY STATISTICS
 --------------------
-Industries: 57/58 mapped (98.3%)
-Sub-lists: 273/861 mapped (31.7%)
+Industries: 57/59 mapped (96.6%)
+Sub-lists: 232/677 mapped (34.3%)

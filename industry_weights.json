@@ -5,7 +5,7 @@
         "building & construction": 0.3,
         "chemicals & related products": 0.35000000000000003,
         "consumer goods": 0.55,
-        "dental": 0.65,
+        "dental": 0.75,
         "education & research": 0.3,
         "energy": 0.3,
         "engineering services": 0.3,
@@ -24,7 +24,7 @@
         "NaN": 0.3
     },
     "metadata": {
-        "generated_at": "2025-07-25T17:41:16.849054",
+        "generated_at": "2025-07-28T16:57:06.645979",
         "method": "empirical_bayes_shrinkage",
         "total_industries": 22,
         "score_range": [

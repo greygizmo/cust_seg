@@ -4,7 +4,7 @@ import json
 from functools import partial
 from optimize_weights import objective
 
-def run_optimization(n_trials=5000, lambda_param=0.25, include_size=True):
+def run_optimization(n_trials=5000, lambda_param=0.50, include_size=True):
     """
     Main function to run the weight optimization process using Optuna.
 

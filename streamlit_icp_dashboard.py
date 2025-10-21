@@ -25,6 +25,14 @@ from scipy.stats import norm
 from scoring_logic import calculate_scores, LICENSE_COL, DEFAULT_WEIGHTS
 from normalize_names import normalize_name_for_matching
 
+# Page configuration
+st.set_page_config(
+    page_title="ICP Dashboard - GoEngineer",
+    page_icon="🎯",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 def load_optimized_weights():
     """
     Loads the optimized weights from the `optimized_weights.json` file.
@@ -57,16 +65,27 @@ def load_optimized_weights():
 # Load optimized weights and metadata at the start of the script.
 optimized_weights, optimization_data = load_optimized_weights()
 
-# --- Page Configuration ---
-st.set_page_config(
-    page_title="ICP Dashboard - GoEngineer",
-    page_icon="🎯",
-    layout="wide"
-)
+# --- Navigation ---
+def main():
+    # Sidebar navigation
+    st.sidebar.title("🎯 ICP Dashboard Navigation")
 
-# --- Custom CSS for Styling ---
-# Beautiful styling with custom metric cards, animations, and professional appearance
-st.markdown("""
+    page = st.sidebar.radio("Navigate to:",
+        ["📊 Main Dashboard", "📚 System Documentation", "🔧 Scoring Details"])
+
+    if page == "📊 Main Dashboard":
+        show_main_dashboard()
+    elif page == "📚 System Documentation":
+        show_documentation()
+    elif page == "🔧 Scoring Details":
+        show_scoring_details()
+
+def show_main_dashboard():
+    """Main dashboard page with metrics, charts, and analysis"""
+
+    # --- Custom CSS for Styling ---
+    # Beautiful styling with custom metric cards, animations, and professional appearance
+    st.markdown("""
 <style>
     .main-header {
         font-size: 2.5rem;
@@ -574,23 +593,23 @@ def main():
     
     # --- DATA TABLE ---
     st.markdown(f"## 📋 Top Scoring Customers")
-    
+
     # Display top 100 customers sorted by ICP score
     top_customers = df_scored.nlargest(100, 'ICP_score')
-    
+
     # Select key columns to display
-    display_columns = ['Company Name', 'Industry', 'ICP_score', 'ICP_grade', 
+    display_columns = ['Company Name', 'Industry', 'ICP_score', 'ICP_grade',
                       'vertical_score', 'adoption_score', 'relationship_score', revenue_col]
-    
+
     # Only show columns that exist in the dataframe
     available_columns = [col for col in display_columns if col in top_customers.columns]
-    
+
     st.dataframe(
         top_customers[available_columns],
         use_container_width=True,
         height=400
     )
-    
+
     # --- DOWNLOAD BUTTON ---
     csv_data = df_scored.to_csv(index=False)
     st.download_button(
@@ -599,6 +618,195 @@ def main():
         file_name=f"icp_scores_{dashboard_title_suffix.lower().replace(' ', '_')}.csv",
         mime="text/csv"
     )
+
+def show_documentation():
+    """System documentation page with Mermaid charts"""
+    st.markdown('<h1 class="main-header">📚 System Documentation</h1>', unsafe_allow_html=True)
+    st.markdown("### Complete technical documentation for the ICP Scoring System")
+
+    # Chart categories with all charts
+    chart_categories = {
+        "🏗️ System Architecture": [
+            ("01-overall-architecture.md", "Overall System Architecture", "Complete system overview and data flow"),
+            ("07-data-flow-dependencies.md", "Data Flow & Dependencies", "File relationships and dependencies"),
+            ("08-component-interaction.md", "Component Interaction", "Python module interactions"),
+            ("09-file-relationships.md", "File Relationships", "Import/export relationships")
+        ],
+        "🔄 Data Processing": [
+            ("02-data-processing-pipeline.md", "Data Processing Pipeline", "8-stage data processing workflow")
+        ],
+        "🧮 Scoring System": [
+            ("03-scoring-methodology.md", "Scoring Methodology", "4-component ICP scoring system"),
+            ("04-weight-optimization.md", "Weight Optimization", "ML optimization with Optuna"),
+            ("06-industry-scoring.md", "Industry Scoring", "Data-driven industry weights")
+        ],
+        "📊 User Interface": [
+            ("05-dashboard-workflow.md", "Dashboard Workflow", "User interaction and experience")
+        ]
+    }
+
+    # Create a flat list of all charts for the dropdown
+    all_charts = []
+    for category, charts in chart_categories.items():
+        for chart_file, title, description in charts:
+            all_charts.append((chart_file, title, description, category))
+
+    # Create options list for dropdown
+    chart_options = [f"{title} ({category})" for _, title, _, category in all_charts]
+
+    # Chart selection dropdown
+    selected_chart_option = st.selectbox(
+        "Select a diagram to view:",
+        chart_options,
+        help="Choose from any of the 9 Mermaid diagrams across all categories"
+    )
+
+    st.markdown("---")
+
+    # Find the selected chart
+    selected_index = chart_options.index(selected_chart_option)
+    chart_file, title, description, category = all_charts[selected_index]
+    chart_path = f"documentation/mermaid-charts/{chart_file}"
+
+    # Display the selected chart
+    st.markdown(f"## 📈 {title}")
+    st.markdown(f"**Category:** {category}")
+    st.markdown(f"**Description:** {description}")
+    st.markdown("---")
+
+    try:
+        with open(chart_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # Extract Mermaid diagram (between ```mermaid and ```)
+        import re
+        mermaid_match = re.search(r'```mermaid\n(.*?)\n```', content, re.DOTALL)
+        if mermaid_match:
+            mermaid_code = mermaid_match.group(1)
+
+            # Display Mermaid chart
+            st.markdown("### 📊 Mermaid Diagram:")
+            st.markdown("**Copy this code to any Mermaid renderer:**")
+            st.code(mermaid_code, language="mermaid")
+
+            # Try to render Mermaid in Streamlit (if supported)
+            try:
+                st.markdown("### 🔍 Visual Diagram:")
+                st.markdown(f"```mermaid\n{mermaid_code}\n```")
+            except Exception as render_error:
+                st.warning("⚠️ Mermaid rendering may not be supported in this environment. Use the code above in a Mermaid-compatible viewer.")
+
+            # Show full documentation
+            st.markdown("### 📋 Full Documentation:")
+            st.markdown(content.replace(f"```mermaid\n{mermaid_code}\n```", ""))
+        else:
+            st.markdown("### 📋 Documentation Content:")
+            st.markdown(content)
+
+    except FileNotFoundError:
+        st.error(f"❌ Documentation file not found: {chart_file}")
+        st.info("Please ensure all Mermaid chart files are present in the `documentation/mermaid-charts/` directory.")
+    except Exception as e:
+        st.error(f"❌ Error loading documentation: {str(e)}")
+        st.info("Check the file format and encoding. The file should be a valid Markdown file with Mermaid diagram.")
+
+def show_scoring_details():
+    """Scoring methodology details page"""
+    st.markdown('<h1 class="main-header">🔧 Scoring Details</h1>', unsafe_allow_html=True)
+    st.markdown("### Detailed breakdown of the ICP scoring methodology")
+
+    # Load current weights
+    weights = optimized_weights if optimization_data else DEFAULT_WEIGHTS
+
+    # Component explanations
+    st.markdown("## 🎯 ICP Scoring Components")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("### Vertical Score (Industry)")
+        st.info(f"**Current Weight: {weights['vertical_score']:.3f}**")
+        st.markdown("""
+        - **Purpose**: Measures industry performance potential
+        - **Method**: Data-driven weights from historical revenue
+        - **Scale**: 0.0 - 1.0 (higher = better industry)
+        - **Example**: Aerospace & Defense = 1.0, Education = 0.4
+        """)
+
+        st.markdown("### Adoption Score (Hardware Engagement)")
+        st.info(f"**Current Weight: {weights['adoption_score']:.3f}**")
+        st.markdown("""
+        - **Purpose**: Measures hardware investment level
+        - **Method**: Weighted printer counts + revenue percentiles
+        - **Business Rules**:
+          - No printers + no revenue = 0.0
+          - Revenue only = 0.0-0.5
+          - Printer customers = 0.0-1.0
+          - 10+ printers = +0.05 bonus
+        """)
+
+    with col2:
+        st.markdown("### Size Score (Revenue)")
+        st.info(f"**Current Weight: {weights['size_score']:.3f}**")
+        st.markdown("""
+        - **Purpose**: Evaluates company size and scale
+        - **Tiers**:
+          - $250M-$1B: 1.0 (Enterprise)
+          - $50M-$250M: 0.6 (Large)
+          - $10M-$50M: 0.4 (Medium)
+          - $0-$10M: 0.4 (Small)
+        - **Fallback**: 0.5 for missing data
+        """)
+
+        st.markdown("### Relationship Score (Software)")
+        st.info(f"**Current Weight: {weights['relationship_score']:.3f}**")
+        st.markdown("""
+        - **Purpose**: Measures software engagement strength
+        - **Method**: Log transformation of software revenue
+        - **Revenue Types**: License, SaaS, Maintenance
+        - **Scale**: 0.0 - 1.0 (higher = more software revenue)
+        """)
+
+    st.markdown("---")
+
+    # Final scoring explanation
+    st.markdown("## 📊 Final Score Calculation")
+
+    st.markdown("""
+    ### Raw Score
+    ```
+    Raw Score = (Vertical × W_v) + (Size × W_s) + (Adoption × W_a) + (Relationship × W_r)
+    ```
+    Where weights sum to 1.0
+
+    ### Normalization Process
+    1. **Percentile Conversion**: Convert to percentile ranks
+    2. **Normal Distribution**: Apply inverse CDF (bell curve)
+    3. **Scaling**: Transform to 0-100 scale (mean=50, std dev=15)
+
+    ### Grade Assignment
+    - **A Grade**: Top 10% (90-100 percentile)
+    - **B Grade**: Next 20% (70-90 percentile)
+    - **C Grade**: Middle 40% (30-70 percentile)
+    - **D Grade**: Next 20% (10-30 percentile)
+    - **F Grade**: Bottom 10% (0-10 percentile)
+    """)
+
+    # Weight optimization info
+    if optimization_data:
+        st.markdown("---")
+        st.markdown("## 🤖 Optimization Status")
+        st.success("✅ ML-Optimized weights are active!")
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Optimization Trials", optimization_data.get('n_trials', 'N/A'))
+        with col2:
+            st.metric("Best Objective", f"{optimization_data.get('best_objective_value', 0):.4f}")
+        with col3:
+            st.metric("Lambda Parameter", optimization_data.get('lambda_param', 'N/A'))
+    else:
+        st.warning("⚠️ Using default weights. Run optimization for better results.")
 
 if __name__ == "__main__":
     main() 
