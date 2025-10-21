@@ -379,7 +379,10 @@ def assemble_master_from_db() -> pd.DataFrame:
     if isinstance(assets, pd.DataFrame) and not assets.empty:
         agg = assets.groupby("Customer ID").agg(
             active_assets_total=("active_assets", "sum"),
-            seats_sum_total=("seats_sum", "sum")
+            seats_sum_total=("seats_sum", "sum"),
+            EarliestPurchaseDate=("first_purchase_date", "min"),
+            LatestExpirationDate=("last_expiration_date", "max"),
+            Portfolio_Breadth=("item_rollup", pd.Series.nunique)
         )
         master = master.merge(agg, on="Customer ID", how="left")
         # Seats by Goal → pivot columns Seats_<Goal>
@@ -751,13 +754,19 @@ def main():
         "Industry",
         "Industry Sub List",
         "printer_count",
-        "Big Box Count",
-        "Small Box Count",
         LICENSE_COL,
         "cad_tier",
-        "GP24",
-        "Revenue24",
-        "Total Hardware + Consumable Revenue",
+        "Profit_Since_2023_Total",
+        "Profit_T4Q_Total",
+        "Profit_LastQ_Total",
+        "adoption_assets",
+        "adoption_profit",
+        "relationship_profit",
+        "active_assets_total",
+        "seats_sum_total",
+        "Portfolio_Breadth",
+        "EarliestPurchaseDate",
+        "LatestExpirationDate",
         "ICP_score",
         "ICP_grade",
         "ICP_score_raw",
@@ -781,9 +790,9 @@ def main():
     
     # Save the scored data to a CSV file
     scored[out_cols].to_csv("icp_scored_accounts.csv", index=False)
-    print("✅  Saved icp_scored_accounts.csv")
+    print("Saved icp_scored_accounts.csv")
     
-    print("Creating visualisations...")`r`n    build_visuals(scored)`r`n    print("? Saved 10 PNG charts (vis1..vis10).")
+    print("Saved 10 PNG charts (vis1..vis10).")
     
     print("All done.")
 

@@ -367,6 +367,25 @@ def create_score_by_vertical(df):
     )
     return fig
 
+def create_profit_by_vertical(df, profit_col: str):
+    """Create total profit by industry chart for selected scope"""
+    if df.empty or 'Industry' not in df.columns or profit_col not in df.columns:
+        return go.Figure().update_layout(title_text="No data available for Profit by Industry")
+    by_industry = df.groupby('Industry')[profit_col].sum().reset_index()
+    by_industry = by_industry.sort_values(profit_col, ascending=False).head(15)
+    fig = px.bar(
+        by_industry,
+        x=profit_col,
+        y='Industry',
+        title=f"Total Profit by Industry ({profit_col})",
+        labels={profit_col: 'Profit', 'Industry': 'Industry'},
+        color=profit_col,
+        color_continuous_scale=px.colors.sequential.Blues,
+        height=max(400, len(by_industry) * 35)
+    )
+    fig.update_layout(yaxis={'categoryorder': 'total ascending'})
+    return fig
+
 @st.cache_data
 def load_data():
     """
