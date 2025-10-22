@@ -178,6 +178,7 @@ def get_assets_and_seats(engine=None) -> pd.DataFrame:
               active_assets, first_purchase_date, last_expiration_date]
     """
     engine = engine or get_engine()
+    # Switch to the unified all-products view to include hardware assets
     sql = text(
         """
         SELECT
@@ -189,7 +190,7 @@ def get_assets_and_seats(engine=None) -> pd.DataFrame:
             SUM(CASE WHEN p.Status = 'Active' AND (p.Expires IS NULL OR p.Expires >= GETDATE()) THEN 1 ELSE 0 END) AS active_assets,
             MIN(p.Purchase_Date) AS first_purchase_date,
             MAX(p.Expires) AS last_expiration_date
-        FROM dbo.table_Product_Info_cleaned_headers p
+        FROM dbo.table_All_Product_Info_cleaned_headers p
         LEFT JOIN dbo.analytics_product_tags t
             ON p.item_rollup = t.item_rollup
         GROUP BY p.Customer_Internal_Id, p.item_rollup, t.Goal

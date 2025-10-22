@@ -605,11 +605,11 @@ def merge_master(customers, gp24, revenue=None) -> pd.DataFrame:
 # 4.  Feature engineering
 # ---------------------------
 
-FOCUS_GOALS = {"Printer", "Printer Accessorials", "Scanners", "Geomagic", "Training/Services"}
+FOCUS_GOALS = {"Printers", "Printer Accessorials", "Scanners", "Geomagic", "Training/Services"}
 
 
 def _normalize_goal_name(x: str) -> str:
-    return str(x).strip()
+    return str(x).strip().lower()
 
 
 def engineer_features(df: pd.DataFrame, asset_weights: dict) -> pd.DataFrame:
@@ -629,6 +629,13 @@ def engineer_features(df: pd.DataFrame, asset_weights: dict) -> pd.DataFrame:
     assets = getattr(_base_df, "_assets_raw", pd.DataFrame())
     profit_roll = getattr(_base_df, "_profit_rollup_raw", pd.DataFrame())
 
+    def _canon_id_series(s: pd.Series) -> pd.Series:
+        s = s.astype(str).str.strip()
+        return s.str.replace(r"\.0$", "", regex=True)
+
+    if 'Customer ID' in df.columns:
+        df['Customer ID'] = _canon_id_series(df['Customer ID'])
+
     # Default zeros
     df["adoption_assets"] = 0.0
     df["adoption_profit"] = 0.0
@@ -637,8 +644,17 @@ def engineer_features(df: pd.DataFrame, asset_weights: dict) -> pd.DataFrame:
 
     # Build adoption_assets from assets table with weights
     if isinstance(assets, pd.DataFrame) and not assets.empty:
-        weights_cfg = asset_weights.get("weights", {})
+        # Normalize weights config keys to lower case for consistent lookups
+        _raw_weights_cfg = asset_weights.get("weights", {}) or {}
+        weights_cfg = {
+            _normalize_goal_name(g): { (str(k).lower() if isinstance(k, str) else k): v for k, v in (m or {}).items() }
+            for g, m in _raw_weights_cfg.items()
+        }
         focus_goals = set(asset_weights.get("focus_goals", list(FOCUS_GOALS)))
+        focus_goals = {_normalize_goal_name(g) for g in focus_goals}
+        # Add common synonyms
+        if 'printer' in focus_goals or 'printers' in focus_goals:
+            focus_goals.update({'printer', 'printers'})
 
         def weighted_measure(row) -> float:
             goal = _normalize_goal_name(row.get("Goal"))
@@ -651,13 +667,15 @@ def engineer_features(df: pd.DataFrame, asset_weights: dict) -> pd.DataFrame:
             return float(base) * float(w)
 
         a = assets.copy()
+        if 'Customer ID' in a.columns:
+            a['Customer ID'] = _canon_id_series(a['Customer ID'])
         a["Goal"] = a["Goal"].map(_normalize_goal_name)
         # Keep only focus goals; special handling for Training/Services: only 3DP Training rollup counts
         a_focus = a[a["Goal"].isin(focus_goals)].copy()
         a_focus.loc[:, "weighted_value"] = a_focus.apply(weighted_measure, axis=1)
 
         # Compute printer_count specifically from Printer assets (use asset_count)
-        printer_assets = a_focus[a_focus["Goal"] == "Printer"]
+        printer_assets = a_focus[a_focus["Goal"].isin({_normalize_goal_name("Printer"), _normalize_goal_name("Printers")})]
         printer_counts = (
             printer_assets.groupby("Customer ID")["asset_count"].sum().rename("printer_count")
         )
@@ -668,29 +686,36 @@ def engineer_features(df: pd.DataFrame, asset_weights: dict) -> pd.DataFrame:
 
         df = df.merge(adoption_assets, on="Customer ID", how="left")
         df = df.merge(printer_counts, on="Customer ID", how="left")
-        # Resolve potential suffixes from merge
-        if 'adoption_assets' not in df.columns:
-            if 'adoption_assets_y' in df.columns:
+        # Resolve potential suffixes from merge: always prefer merged values when present
+        if 'adoption_assets_y' in df.columns:
+            if 'adoption_assets' in df.columns:
+                df['adoption_assets'] = df['adoption_assets_y'].combine_first(df['adoption_assets'])
+            else:
                 df['adoption_assets'] = df['adoption_assets_y']
-                drop_cols = [c for c in ['adoption_assets_x','adoption_assets_y'] if c in df.columns]
-                df = df.drop(columns=drop_cols)
-        if 'printer_count' not in df.columns:
-            if 'printer_count_y' in df.columns:
+            drop_cols = [c for c in ['adoption_assets_x','adoption_assets_y'] if c in df.columns]
+            df = df.drop(columns=drop_cols)
+        if 'printer_count_y' in df.columns:
+            if 'printer_count' in df.columns:
+                df['printer_count'] = df['printer_count_y'].combine_first(df['printer_count'])
+            else:
                 df['printer_count'] = df['printer_count_y']
-                drop_cols = [c for c in ['printer_count_x','printer_count_y'] if c in df.columns]
-                df = df.drop(columns=drop_cols)
+            drop_cols = [c for c in ['printer_count_x','printer_count_y'] if c in df.columns]
+            df = df.drop(columns=drop_cols)
         df["adoption_assets"] = df.get("adoption_assets", 0).fillna(0.0)
         df["printer_count"] = df.get("printer_count", 0).fillna(0.0)
 
     # Build adoption_profit from profit_rollup: focus goals + 3DP Training rollup
     if isinstance(profit_roll, pd.DataFrame) and not profit_roll.empty:
         pr = profit_roll.copy()
+        if 'Customer ID' in pr.columns:
+            pr['Customer ID'] = _canon_id_series(pr['Customer ID'])
         pr["Goal"] = pr["Goal"].map(_normalize_goal_name)
         # Sum for focus goals
-        mask_focus_goals = pr["Goal"].isin(FOCUS_GOALS)
+        focus_goals_norm = {_normalize_goal_name(g) for g in FOCUS_GOALS}
+        mask_focus_goals = pr["Goal"].isin(focus_goals_norm)
         # Include only 3DP Training within Training/Services
-        mask_3dp_training = (pr["Goal"] == "Training/Services") & (pr["item_rollup"].astype(str).str.strip().str.lower() == "3dp training")
-        mask_focus = mask_focus_goals & (~(pr["Goal"] == "Training/Services") | mask_3dp_training)
+        mask_3dp_training = (pr["Goal"] == _normalize_goal_name("Training/Services")) & (pr["item_rollup"].astype(str).str.strip().str.lower() == "3dp training")
+        mask_focus = mask_focus_goals & (~(pr["Goal"] == _normalize_goal_name("Training/Services")) | mask_3dp_training)
         adoption_profit = (
             pr[mask_focus]
             .groupby("Customer ID")["Profit_Since_2023"]
@@ -698,8 +723,11 @@ def engineer_features(df: pd.DataFrame, asset_weights: dict) -> pd.DataFrame:
             .rename("adoption_profit")
         )
         df = df.merge(adoption_profit, on="Customer ID", how="left")
-        if 'adoption_profit' not in df.columns and 'adoption_profit_y' in df.columns:
-            df['adoption_profit'] = df['adoption_profit_y']
+        if 'adoption_profit_y' in df.columns:
+            if 'adoption_profit' in df.columns:
+                df['adoption_profit'] = df['adoption_profit_y'].combine_first(df['adoption_profit'])
+            else:
+                df['adoption_profit'] = df['adoption_profit_y']
             drop_cols = [c for c in ['adoption_profit_x','adoption_profit_y'] if c in df.columns]
             df = df.drop(columns=drop_cols)
         df["adoption_profit"] = df.get("adoption_profit", 0).fillna(0.0)
@@ -716,8 +744,11 @@ def engineer_features(df: pd.DataFrame, asset_weights: dict) -> pd.DataFrame:
                 .groupby("Customer ID")["Profit_Since_2023"].sum().rename("relationship_profit")
             )
             df = df.merge(rel, on="Customer ID", how="left")
-            if 'relationship_profit' not in df.columns and 'relationship_profit_y' in df.columns:
-                df['relationship_profit'] = df['relationship_profit_y']
+            if 'relationship_profit_y' in df.columns:
+                if 'relationship_profit' in df.columns:
+                    df['relationship_profit'] = df['relationship_profit_y'].combine_first(df['relationship_profit'])
+                else:
+                    df['relationship_profit'] = df['relationship_profit_y']
                 drop_cols = [c for c in ['relationship_profit_x','relationship_profit_y'] if c in df.columns]
                 df = df.drop(columns=drop_cols)
             df["relationship_profit"] = df.get("relationship_profit", 0).fillna(0.0)
@@ -874,6 +905,7 @@ def main():
         "Industry",
         "Industry Sub List",
         "printer_count",
+        "scaling_flag",
         LICENSE_COL,
         "cad_tier",
         "Profit_Since_2023_Total",
