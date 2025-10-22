@@ -192,6 +192,48 @@ def get_quarterly_profit_total(engine=None) -> pd.DataFrame:
     return pd.read_sql(sql, engine, params={"since_date": SINCE_DATE})
 
 
+def get_profit_last_days(engine=None, days: int = 90) -> pd.DataFrame:
+    """
+    Sum of GP (GP + Term_GP) in the last N days per customer.
+
+    Returns: [Customer ID, GP_Last_ND]
+    """
+    engine = engine or get_engine()
+    sql = text(
+        """
+        SELECT
+            s.CompanyId AS [Customer ID],
+            SUM(COALESCE(s.GP,0) + COALESCE(s.Term_GP,0)) AS GP_Last_ND
+        FROM dbo.table_saleslog_detail s
+        WHERE s.Rec_Date >= DATEADD(DAY, -:days, GETDATE())
+        GROUP BY s.CompanyId
+        """
+    )
+    return pd.read_sql(sql, engine, params={"days": int(days)})
+
+
+def get_monthly_profit_last_n(engine=None, months: int = 12) -> pd.DataFrame:
+    """
+    Monthly GP per customer for the last N months.
+
+    Returns: [Customer ID, Year, Month, Profit]
+    """
+    engine = engine or get_engine()
+    sql = text(
+        """
+        SELECT
+            s.CompanyId AS [Customer ID],
+            YEAR(s.Rec_Date) AS [Year],
+            MONTH(s.Rec_Date) AS [Month],
+            SUM(COALESCE(s.GP,0) + COALESCE(s.Term_GP,0)) AS Profit
+        FROM dbo.table_saleslog_detail s
+        WHERE s.Rec_Date >= DATEADD(MONTH, -:months, GETDATE())
+        GROUP BY s.CompanyId, YEAR(s.Rec_Date), MONTH(s.Rec_Date)
+        """
+    )
+    return pd.read_sql(sql, engine, params={"months": int(months)})
+
+
 def get_assets_and_seats(engine=None) -> pd.DataFrame:
     """
     Asset aggregates per customer, item_rollup, and Goal with seats.
@@ -211,6 +253,7 @@ def get_assets_and_seats(engine=None) -> pd.DataFrame:
             SUM(COALESCE(p.Number_of_Seats, 0)) AS seats_sum,
             SUM(CASE WHEN p.Status = 'Active' AND (p.Expires IS NULL OR p.Expires >= GETDATE()) THEN 1 ELSE 0 END) AS active_assets,
             MIN(p.Purchase_Date) AS first_purchase_date,
+            MAX(p.Purchase_Date) AS last_purchase_date,
             MAX(p.Expires) AS last_expiration_date
         FROM dbo.table_All_Product_Info_cleaned_headers p
         LEFT JOIN dbo.analytics_product_tags t
@@ -219,3 +262,122 @@ def get_assets_and_seats(engine=None) -> pd.DataFrame:
         """
     )
     return pd.read_sql(sql, engine)
+
+
+def get_customer_headers(engine=None) -> pd.DataFrame:
+    """
+    Fetch customer header attributes from NetSuite cleaned headers.
+
+    Returns: [Customer ID, entityid, am_sales_rep, AM_Territory, edu_assets]
+    """
+    engine = engine or get_engine()
+    sql = text(
+        """
+        SELECT
+            CAST(c.internalid AS varchar(50))      AS [Customer ID],
+            c.entityid,
+            c.am_sales_rep,
+            c.AM_Territory,
+            c.edu_assets
+        FROM dbo.customer_cleaned_headers c
+        """
+    )
+    return pd.read_sql(sql, engine)
+
+
+def get_primary_contacts(engine=None) -> pd.DataFrame:
+    """
+    Fetch primary Hardware contacts from NetSuite contact headers.
+
+    Filters to rows marked as RP Primary Contact.
+    Returns: [Customer ID, Name, email, phone]
+    """
+    engine = engine or get_engine()
+    sql = text(
+        """
+        SELECT
+            CAST(ch.[Company ID] AS varchar(50)) AS [Customer ID],
+            ch.[Name] AS [Name],
+            ch.[email] AS [email],
+            ch.[phone] AS [phone]
+        FROM dbo.contact_clean_headers ch
+        WHERE (
+            TRY_CAST(ch.[RP Primary Contact] AS int) = 1
+            OR UPPER(LTRIM(RTRIM(CAST(ch.[RP Primary Contact] AS nvarchar(10))))) IN ('TRUE','YES','Y','1')
+        )
+        """
+    )
+    return pd.read_sql(sql, engine)
+
+
+def get_account_primary_contacts(engine=None) -> pd.DataFrame:
+    """
+    Fetch account-level primary contacts (general Primary Contact flag).
+
+    Returns: [Customer ID, Name, email, phone]
+    """
+    engine = engine or get_engine()
+    sql = text(
+        """
+        SELECT
+            CAST(ch.[Company ID] AS varchar(50)) AS [Customer ID],
+            ch.[Name] AS [Name],
+            ch.[email] AS [email],
+            ch.[phone] AS [phone]
+        FROM dbo.contact_clean_headers ch
+        WHERE (
+            TRY_CAST(ch.[Primary Contact] AS int) = 1
+            OR UPPER(LTRIM(RTRIM(CAST(ch.[Primary Contact] AS nvarchar(10))))) IN ('TRUE','YES','Y','1')
+        )
+        """
+    )
+    return pd.read_sql(sql, engine)
+
+
+def get_customer_shipping(engine=None) -> pd.DataFrame:
+    """
+    Fetch customer shipping address fields.
+
+    Preferred source: dbo.customer_customerOnly; falls back to dbo.customer_cleaned_headers.
+
+    Returns: [Customer ID, ShippingAddr1, ShippingAddr2, ShippingCity, ShippingState, ShippingZip, ShippingCountry]
+    """
+    engine = engine or get_engine()
+    # Try primary source first
+    try:
+        sql = text(
+            """
+            SELECT
+                CAST(c.internalid AS varchar(50)) AS [Customer ID],
+                c.ShippingAddr1,
+                c.ShippingAddr2,
+                c.ShippingCity,
+                c.ShippingState,
+                c.ShippingZip,
+                c.ShippingCountry
+            FROM dbo.customer_customerOnly c
+            """
+        )
+        return pd.read_sql(sql, engine)
+    except Exception:
+        # Fallback to cleaned headers if customer_customerOnly not available
+        try:
+            sql2 = text(
+                """
+                SELECT
+                    CAST(c.internalid AS varchar(50)) AS [Customer ID],
+                    c.ShippingAddr1,
+                    c.ShippingAddr2,
+                    c.ShippingCity,
+                    c.ShippingState,
+                    c.ShippingZip,
+                    c.ShippingCountry
+                FROM dbo.customer_cleaned_headers c
+                """
+            )
+            return pd.read_sql(sql2, engine)
+        except Exception:
+            # No shipping available
+            return pd.DataFrame(columns=[
+                'Customer ID','ShippingAddr1','ShippingAddr2','ShippingCity','ShippingState','ShippingZip','ShippingCountry'
+            ])

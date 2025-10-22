@@ -378,10 +378,124 @@ def assemble_master_from_db() -> pd.DataFrame:
     if 'CRM Full Name' in customers.columns:
         customers['Company Name'] = customers['CRM Full Name'].astype(str).str.replace(r'^\d+\s+', '', regex=True).str.strip()
 
+    # Enrich with AM Sales Rep, AM Territory, and EDU assets from customer headers
+    try:
+        cust_hdr = da.get_customer_headers(engine)
+        if not cust_hdr.empty:
+            if 'Customer ID' in cust_hdr.columns:
+                cust_hdr['Customer ID'] = canonicalize_customer_id(cust_hdr['Customer ID'])
+            # Keep only required columns for join
+            keep_cols = [c for c in ['Customer ID','am_sales_rep','AM_Territory','edu_assets'] if c in cust_hdr.columns]
+            if keep_cols:
+                customers = customers.merge(cust_hdr[keep_cols], on='Customer ID', how='left')
+    except Exception as e:
+        print(f"[WARN] Could not load customer headers: {e}")
+
+    # Identify 'cold' customers (own hardware assets but no recent sales)
+    try:
+        assets_all = da.get_assets_and_seats(engine)
+        assets = assets_all.copy()
+        if 'Customer ID' in assets.columns:
+            assets['Customer ID'] = canonicalize_customer_id(assets['Customer ID'])
+        # Hardware goals only (Printers, Printer Accessorials, Scanners)
+        hw_goals = { 'Printers', 'Printer Accessorials', 'Scanners' }
+        if 'Goal' in assets.columns:
+            assets_hw = assets[assets['Goal'].isin({g.lower() for g in hw_goals}) | assets['Goal'].isin(hw_goals)]
+        else:
+            assets_hw = assets
+        # Sum assets per customer and select those with >0 assets
+        if not assets_hw.empty and 'asset_count' in assets_hw.columns:
+            hw_counts = assets_hw.groupby('Customer ID')['asset_count'].sum().rename('hw_asset_count')
+            warm_ids = set(customers['Customer ID'].astype(str)) if 'Customer ID' in customers.columns else set()
+            candidates = hw_counts[hw_counts > 0].reset_index()
+            cold_ids = set(candidates['Customer ID'].astype(str)) - warm_ids
+            if cold_ids:
+                cold_df = pd.DataFrame({'Customer ID': sorted(cold_ids)})
+                # Add Company Name via entityid from cust_hdr if available
+                try:
+                    if 'cust_hdr' not in locals() or cust_hdr is None or cust_hdr.empty:
+                        cust_hdr = da.get_customer_headers(engine)
+                        if not cust_hdr.empty and 'Customer ID' in cust_hdr.columns:
+                            cust_hdr['Customer ID'] = canonicalize_customer_id(cust_hdr['Customer ID'])
+                    if isinstance(cust_hdr, pd.DataFrame) and not cust_hdr.empty:
+                        cols = [c for c in ['Customer ID','entityid','am_sales_rep','AM_Territory','edu_assets'] if c in cust_hdr.columns]
+                        cold_df = cold_df.merge(cust_hdr[cols], on='Customer ID', how='left')
+                        if 'entityid' in cold_df.columns:
+                            cold_df['Company Name'] = cold_df['entityid'].astype(str).str.replace(r'^\d+\s+', '', regex=True).str.strip()
+                            cold_df = cold_df.drop(columns=['entityid'])
+                except Exception as e:
+                    print(f"[WARN] Could not enrich cold customers with headers: {e}")
+                # Mark activity segment (warm/cold)
+                customers['activity_segment'] = 'warm'
+                cold_df['activity_segment'] = 'cold'
+                # Union back into customers
+                customers = pd.concat([customers, cold_df], ignore_index=True, sort=False)
+    except Exception as e:
+        print(f"[WARN] Could not derive cold customers: {e}")
+
+    # Enrich with primary contact info (Name, email, phone)
+    try:
+        contacts_rp = da.get_primary_contacts(engine)
+        if not contacts_rp.empty:
+            if 'Customer ID' in contacts_rp.columns:
+                contacts_rp['Customer ID'] = canonicalize_customer_id(contacts_rp['Customer ID'])
+            contacts_rp = contacts_rp.dropna(subset=['Customer ID']).copy()
+            contacts_rp = contacts_rp.drop_duplicates(subset=['Customer ID'], keep='first')
+            # Rename to RP_ designated columns
+            rp_cols_map = {
+                'Name': 'RP_Primary_Name',
+                'email': 'RP_Primary_Email',
+                'phone': 'RP_Primary_Phone'
+            }
+            available = ['Customer ID'] + [c for c in rp_cols_map if c in contacts_rp.columns]
+            contacts_rp = contacts_rp[available].rename(columns=rp_cols_map)
+            customers = customers.merge(contacts_rp, on='Customer ID', how='left')
+
+        # Account-level Primary Contact
+        contacts_acct = da.get_account_primary_contacts(engine)
+        if not contacts_acct.empty:
+            if 'Customer ID' in contacts_acct.columns:
+                contacts_acct['Customer ID'] = canonicalize_customer_id(contacts_acct['Customer ID'])
+            contacts_acct = contacts_acct.dropna(subset=['Customer ID']).copy()
+            contacts_acct = contacts_acct.drop_duplicates(subset=['Customer ID'], keep='first')
+            acct_cols_map = {
+                'Name': 'Primary_Contact_Name',
+                'email': 'Primary_Contact_Email',
+                'phone': 'Primary_Contact_Phone'
+            }
+            available2 = ['Customer ID'] + [c for c in acct_cols_map if c in contacts_acct.columns]
+            contacts_acct = contacts_acct[available2].rename(columns=acct_cols_map)
+            customers = customers.merge(contacts_acct, on='Customer ID', how='left')
+
+        # Backward-compatible generic contact fields mapped to RP Primary when present
+        for src, dst in [
+            ('RP_Primary_Name','Name'),
+            ('RP_Primary_Email','email'),
+            ('RP_Primary_Phone','phone'),
+        ]:
+            if src in customers.columns and dst not in customers.columns:
+                customers[dst] = customers[src]
+    except Exception as e:
+        print(f"[WARN] Could not load primary contacts: {e}")
+
+    # Enrich with shipping address fields
+    try:
+        ship = da.get_customer_shipping(engine)
+        if not ship.empty:
+            if 'Customer ID' in ship.columns:
+                ship['Customer ID'] = canonicalize_customer_id(ship['Customer ID'])
+            keep_ship = [c for c in ['Customer ID','ShippingAddr1','ShippingAddr2','ShippingCity','ShippingState','ShippingZip','ShippingCountry'] if c in ship.columns]
+            if keep_ship:
+                customers = customers.merge(ship[keep_ship], on='Customer ID', how='left')
+    except Exception as e:
+        print(f"[WARN] Could not load shipping addresses: {e}")
+
     # Profit aggregates
     profit_goal = da.get_profit_since_2023_by_goal(engine)
     profit_rollup = da.get_profit_since_2023_by_rollup(engine)
     profit_quarterly = da.get_quarterly_profit_by_goal(engine)
+    gp_last90 = da.get_profit_last_days(engine, 90)
+    gp_monthly12 = da.get_monthly_profit_last_n(engine, 12)
 
     # Assets & seats
     assets = da.get_assets_and_seats(engine)
@@ -444,38 +558,41 @@ def assemble_master_from_db() -> pd.DataFrame:
         cust_q = pq.groupby(["Customer ID", "_qkey"])['Profit'].sum().reset_index()
         # Canonicalize Customer ID strings to match master
         cust_q["Customer ID"] = canonicalize_customer_id(cust_q["Customer ID"])
-        # Determine latest quarter key globally
+        # Determine current and completed quarter keys
+        now_ts = pd.Timestamp.now()
+        current_qkey = now_ts.year * 10 + ((now_ts.month - 1)//3 + 1)
         latest_qkey = cust_q['_qkey'].max()
         print(f"[INFO] Latest quarter key detected: {latest_qkey}")
-        # Last quarter per customer
-        lastq = cust_q[cust_q['_qkey'] == latest_qkey].set_index("Customer ID")["Profit"].rename("Profit_LastQ_Total")
-        print(f"[INFO] Customers with profit in latest quarter: {len(lastq)}")
-        # Trailing 4 quarters per customer
-        lastq = lastq.reset_index()
-        t4q_keys = sorted(cust_q['_qkey'].unique())[-4:]
-        t4q = cust_q[cust_q['_qkey'].isin(t4q_keys)].groupby("Customer ID")["Profit"].sum().rename("Profit_T4Q_Total")
-        print(f"[INFO] Customers with profit in trailing 4 quarters: {len(t4q)}")
-        master = master.merge(lastq, on="Customer ID", how="left")
-        t4q = t4q.reset_index()
-        master = master.merge(t4q, on="Customer ID", how="left")
-        # Previous quarter per customer (for QoQ growth)
-        keys_sorted = sorted(cust_q['_qkey'].unique())
-        if len(keys_sorted) >= 2:
-            prev_key = keys_sorted[-2]
-            prevq = cust_q[cust_q['_qkey'] == prev_key].set_index("Customer ID")["Profit"].rename("Profit_PrevQ_Total")
-
-            prevq = prevq.reset_index()
-            prevq['Customer ID'] = prevq['Customer ID'].astype(str)
-            # QoQ growth as percent change, guard divide by zero
-            master = master.merge(prevq, on="Customer ID", how="left")
+        # This quarter (partial)
+        thisq = cust_q[cust_q['_qkey'] == current_qkey].set_index("Customer ID")["Profit"].rename("Profit_ThisQ_Total")
+        master = master.merge(thisq.reset_index(), on="Customer ID", how="left")
+        # Completed quarters exclude current quarter
+        completed_keys = sorted([k for k in cust_q['_qkey'].unique() if k < current_qkey])
+        # Trailing 4 completed quarters per customer
+        if completed_keys:
+            t4_keys = completed_keys[-4:]
+            t4q = cust_q[cust_q['_qkey'].isin(t4_keys)].groupby("Customer ID")["Profit"].sum().rename("Profit_T4Q_Total")
+            master = master.merge(t4q.reset_index(), on="Customer ID", how="left")
+        else:
+            master["Profit_T4Q_Total"] = 0.0
+        # Previous quarter per customer (for QoQ growth) using completed quarters only
+        if len(completed_keys) >= 2:
+            last_completed = completed_keys[-1]
+            prev_completed = completed_keys[-2]
+            lastq_comp = cust_q[cust_q['_qkey'] == last_completed].set_index("Customer ID")["Profit"].rename("_tmp_LastComp")
+            prevq_comp = cust_q[cust_q['_qkey'] == prev_completed].set_index("Customer ID")["Profit"].rename("Profit_PrevQ_Total")
+            master = master.merge(prevq_comp.reset_index(), on="Customer ID", how="left")
+            tmp = lastq_comp.reset_index()
+            master = master.merge(tmp, on="Customer ID", how="left")
             prev_safe = master["Profit_PrevQ_Total"].fillna(0)
-            last_safe = master["Profit_LastQ_Total"].fillna(0)
+            last_safe = master["_tmp_LastComp"].fillna(0)
             denom = prev_safe.replace(0, np.nan)
-            qoq = (last_safe - prev_safe) / denom
-            master["Profit_QoQ_Growth"] = qoq.fillna(0.0)
+            master["Profit_QoQ_Growth"] = ((last_safe - prev_safe) / denom).fillna(0.0)
+            master["Profit_QoQ_Delta"] = (last_safe - prev_safe)
         else:
             master["Profit_PrevQ_Total"] = 0.0
             master["Profit_QoQ_Growth"] = 0.0
+            master["Profit_QoQ_Delta"] = 0.0
     else:
         master["Profit_LastQ_Total"] = 0.0
         master["Profit_T4Q_Total"] = 0.0
@@ -488,7 +605,7 @@ def assemble_master_from_db() -> pd.DataFrame:
         # Normalize types
         if 'Customer ID' in a.columns:
             a['Customer ID'] = canonicalize_customer_id(a['Customer ID'])
-        for _dc in ["first_purchase_date", "last_expiration_date"]:
+        for _dc in ["first_purchase_date", "last_purchase_date", "last_expiration_date"]:
             if _dc in a.columns:
                 a[_dc] = pd.to_datetime(a[_dc], errors="coerce")
 
@@ -502,6 +619,9 @@ def assemble_master_from_db() -> pd.DataFrame:
             parts.append(s)
         if 'first_purchase_date' in a.columns:
             s = a.groupby('Customer ID')['first_purchase_date'].min().rename('EarliestPurchaseDate')
+            parts.append(s)
+        if 'last_purchase_date' in a.columns:
+            s = a.groupby('Customer ID')['last_purchase_date'].max().rename('LatestPurchaseDate')
             parts.append(s)
         if 'last_expiration_date' in a.columns:
             s = a.groupby('Customer ID')['last_expiration_date'].max().rename('LatestExpirationDate')
@@ -533,6 +653,9 @@ def assemble_master_from_db() -> pd.DataFrame:
                 print(f"[INFO] Non-null {c}: {master[c].notna().sum()}")
             except Exception:
                 pass
+    # Attach additional raw frames for feature engineering
+    master._gp_last90 = gp_last90
+    master._gp_monthly12 = gp_monthly12
     return master
 
 def check_files_exist():
@@ -637,6 +760,26 @@ def merge_master(customers, gp24, revenue=None) -> pd.DataFrame:
 # ---------------------------
 
 FOCUS_GOALS = {"Printers", "Printer Accessorials", "Scanners", "Geomagic", "Training/Services"}
+
+
+PRINTER_SUBDIVISIONS = [
+    "AM Software",
+    "AM Support",
+    "Consumables",
+    "FDM",
+    "FormLabs",
+    "Metals",
+    "P3",
+    "Polyjet",
+    "Post Processing",
+    "SAF",
+    "SLA",
+    "Spare Parts/Repair Parts/Time & Materials",
+]
+
+
+def _printer_rollup_slug(label: str) -> str:
+    return str(label).strip().replace('/', '_').replace(' ', '_').replace('&', 'and')
 
 
 def _normalize_goal_name(x: str) -> str:
@@ -791,6 +934,161 @@ def engineer_features(df: pd.DataFrame, asset_weights: dict) -> pd.DataFrame:
 
     # Calculate all component and final scores via scoring_logic
     df = calculate_scores(df, WEIGHTS)
+
+    # --- Per-goal quantity (assets) and GP (transactions) totals ---
+    def safe_label(s: str) -> str:
+        return _printer_rollup_slug(s)
+
+    # Normalize goal labels for output
+    goal_label_map = {
+        'printer accessorials': 'Printer Accessories',
+        'printers': 'Printers',
+        'printer': 'Printers',
+        'scanners': 'Scanners',
+        'geomagic': 'Geomagic',
+        'training/services': 'Training',
+        'cad': 'CAD',
+        'cpe': 'CPE',
+        'specialty software': 'Specialty Software',
+    }
+
+    # Quantities from assets
+    assets_df = getattr(_base_df, "_assets_raw", pd.DataFrame())
+    if isinstance(assets_df, pd.DataFrame) and not assets_df.empty:
+        a2 = assets_df.copy()
+        if 'Customer ID' in a2.columns:
+            a2['Customer ID'] = canonicalize_customer_id(a2['Customer ID'])
+        a2['Goal'] = a2['Goal'].map(_normalize_goal_name)
+        # Totals per goal by asset_count
+        qty_goal = (
+            a2.groupby(['Customer ID','Goal'])['asset_count'].sum().unstack(fill_value=0)
+        )
+        if not qty_goal.empty:
+            qty_goal.columns = [f"Qty_{goal_label_map.get(c, c.title())}" for c in qty_goal.columns]
+            qty_goal = qty_goal.reset_index()
+            df = df.merge(qty_goal, on='Customer ID', how='left')
+        # Per rollup totals, always including printer subdivisions
+        weights_cfg = (asset_weights.get('weights', {}) or {})
+        keep_rollups = set()
+        for g, m in weights_cfg.items():
+            if isinstance(m, dict):
+                for r in m.keys():
+                    keep_rollups.add((_normalize_goal_name(g), str(r)))
+        ar = a2.copy()
+        ar['item_rollup'] = ar['item_rollup'].astype(str)
+        printer_goal = _normalize_goal_name("Printers")
+        printer_rollups = {
+            (printer_goal, str(r))
+            for r in ar.loc[ar['Goal'] == printer_goal, 'item_rollup'].dropna().unique()
+            if str(r).strip() and str(r).strip().lower() != 'default'
+        }
+        rollup_filters = keep_rollups.union(printer_rollups)
+        if rollup_filters:
+            ar['_combo'] = list(zip(ar['Goal'], ar['item_rollup']))
+            ar = ar[ar['_combo'].isin(rollup_filters)]
+            ar = ar.drop(columns=['_combo'])
+        if not ar.empty:
+            grp = ar.groupby(['Customer ID','Goal','item_rollup'])['asset_count'].sum().reset_index()
+            for (g, r), sub in grp.groupby(['Goal','item_rollup']):
+                label = f"Qty_{goal_label_map.get(g, g.title())}_{safe_label(r)}"
+                m = sub.set_index('Customer ID')['asset_count']
+                df[label] = df['Customer ID'].map(m).fillna(0)
+
+        for roll in PRINTER_SUBDIVISIONS:
+            col = f"Qty_Printers_{safe_label(roll)}"
+            if col not in df.columns:
+                df[col] = 0
+
+    # GP per goal and per rollup from transactions
+    pr_df = getattr(_base_df, "_profit_rollup_raw", pd.DataFrame())
+    if isinstance(pr_df, pd.DataFrame) and not pr_df.empty:
+        pr2 = pr_df.copy()
+        if 'Customer ID' in pr2.columns:
+            pr2['Customer ID'] = canonicalize_customer_id(pr2['Customer ID'])
+        pr2['Goal'] = pr2['Goal'].map(_normalize_goal_name)
+        gp_goal = pr2.groupby(['Customer ID','Goal'])['Profit_Since_2023'].sum().unstack(fill_value=0)
+        if not gp_goal.empty:
+            gp_goal.columns = [f"GP_{goal_label_map.get(c, c.title())}" for c in gp_goal.columns]
+            gp_goal = gp_goal.reset_index()
+            df = df.merge(gp_goal, on='Customer ID', how='left')
+        pr2['item_rollup'] = pr2['item_rollup'].astype(str)
+        grp = pr2.groupby(['Customer ID','Goal','item_rollup'])['Profit_Since_2023'].sum().reset_index()
+        for (g, r), sub in grp.groupby(['Goal','item_rollup']):
+            label = f"GP_{goal_label_map.get(g, g.title())}_{safe_label(r)}"
+            m = sub.set_index('Customer ID')['Profit_Since_2023']
+            df[label] = df['Customer ID'].map(m).fillna(0.0)
+
+        for roll in PRINTER_SUBDIVISIONS:
+            col = f"GP_Printers_{safe_label(roll)}"
+            if col not in df.columns:
+                df[col] = 0.0
+
+    # Days since metrics
+    # Use timezone-naive 'now' to align with tz-naive datetimes
+    # Normalize 'now' and target datetimes to tz-naive before diff
+    now = pd.Timestamp.now(tz=None).normalize()
+    for col, out in [
+        ('EarliestPurchaseDate','Days_Since_First_Purchase'),
+        ('LatestPurchaseDate','Days_Since_Last_Purchase'),
+        ('LatestExpirationDate','Days_Since_Last_Expiration')
+    ]:
+        if col in df.columns:
+            dt = pd.to_datetime(df[col], errors='coerce')
+            # strip tz info if present
+            try:
+                dt = dt.dt.tz_convert(None)
+            except Exception:
+                try:
+                    dt = dt.dt.tz_localize(None)
+                except Exception:
+                    pass
+            df[out] = (now - dt).dt.days
+
+    # Phase 1: Momentum & Recency features
+    # GP_Last_90D
+    gp90 = getattr(_base_df, "_gp_last90", pd.DataFrame())
+    if isinstance(gp90, pd.DataFrame) and not gp90.empty:
+        m90 = gp90.groupby('Customer ID')['GP_Last_ND'].sum()
+        df['GP_Last_90D'] = df['Customer ID'].map(m90).fillna(0.0)
+    else:
+        df['GP_Last_90D'] = 0.0
+
+    # Months_Active_12M & GP_Trend_Slope_12M
+    monthly = getattr(_base_df, "_gp_monthly12", pd.DataFrame())
+    if isinstance(monthly, pd.DataFrame) and not monthly.empty:
+        # Normalize ID and build a proper YearMonth key
+        mth = monthly.copy()
+        mth['Customer ID'] = canonicalize_customer_id(mth['Customer ID'])
+        mth['YM'] = mth['Year'] * 100 + mth['Month']
+        # Months active
+        active_counts = (
+            mth.assign(Active=(mth['Profit'] > 0).astype(int))
+               .groupby('Customer ID')['Active'].sum()
+        )
+        df['Months_Active_12M'] = df['Customer ID'].map(active_counts).fillna(0).astype(int)
+
+        # Trend slope using polyfit over last 12 months (fill missing months with 0)
+        import numpy as np
+        def slope_for_customer(g):
+            # Build 12-length series aligned to last 12 distinct YMs
+            yms_all = sorted(mth['YM'].unique())[-12:]
+            if len(yms_all) == 0:
+                return 0.0
+            s = g.set_index('YM')['Profit']
+            vals = [float(s.get(ym, 0.0)) for ym in yms_all]
+            x = np.arange(1, len(vals)+1)
+            if len(x) >= 2 and np.any(vals):
+                try:
+                    return float(np.polyfit(x, vals, 1)[0])
+                except Exception:
+                    return 0.0
+            return 0.0
+        slopes = mth.groupby('Customer ID').apply(slope_for_customer)
+        df['GP_Trend_Slope_12M'] = df['Customer ID'].map(slopes).fillna(0.0)
+    else:
+        df['Months_Active_12M'] = 0
+        df['GP_Trend_Slope_12M'] = 0.0
+
     return df
 
 # ---------------------------
@@ -945,50 +1243,55 @@ def main():
     scored = engineer_features(master, asset_weights)
 
     # Define the columns for the final output CSV
-    out_cols = [
-        "Customer ID",
-        "Company Name",
-        "Industry",
-        "Industry Sub List",
-        "printer_count",
-        "scaling_flag",
-        LICENSE_COL,
-        "Profit_Since_2023_Total",
-        "Profit_T4Q_Total",
-        "Profit_LastQ_Total",
-        "Profit_PrevQ_Total",
-        "Profit_QoQ_Growth",
-        "adoption_assets",
-        "adoption_profit",
-        "relationship_profit",
-        "active_assets_total",
-        "seats_sum_total",
-        "Portfolio_Breadth",
-        "EarliestPurchaseDate",
-        "LatestExpirationDate",
-        "ICP_score",
-        "ICP_grade",
-        "ICP_score_raw",
-        "vertical_score",
-        "size_score"
+    printer_rollup_cols = []
+    for roll in PRINTER_SUBDIVISIONS:
+        slug = _printer_rollup_slug(roll)
+        printer_rollup_cols.extend([
+            f"Qty_Printers_{slug}",
+            f"GP_Printers_{slug}",
+        ])
+
+    desired_order = [
+        # Identity
+        'Customer ID','Company Name',
+        'activity_segment',
+        # Account owner and territory (from NetSuite)
+        'am_sales_rep','AM_Territory','edu_assets',
+        # Contacts (designated)
+        'RP_Primary_Name','RP_Primary_Email','RP_Primary_Phone',
+        'Primary_Contact_Name','Primary_Contact_Email','Primary_Contact_Phone',
+        # Back-compat generic fields (map to RP Primary)
+        'Name','email','phone',
+        # Shipping address
+        'ShippingAddr1','ShippingAddr2','ShippingCity','ShippingState','ShippingZip','ShippingCountry',
+        # Headline score
+        'ICP_score','ICP_grade',
+        # Context
+        'Industry','Industry Sub List','Industry_Reasoning',
+        # Headline Hardware/Software
+        'Hardware_score','Software_score',
+        # Recent GP signals
+        'GP_LastQ_Total','GP_PrevQ_Total','GP_QoQ_Growth','GP_T4Q_Total','GP_Since_2023_Total',
+        # Hardware inputs (qty & GP) – major divisions
+        'Qty_Printers','GP_Printers',
+        *printer_rollup_cols,
+        'Qty_Printer Accessories','GP_Printer Accessories','Qty_Scanners','GP_Scanners','Qty_Geomagic','GP_Geomagic',
+        # Software inputs (seats & GP)
+        'Seats_CAD','GP_CAD','Seats_CPE','GP_CPE','Seats_Specialty Software','GP_Specialty Software',
+        # Operational metrics
+        'scaling_flag', LICENSE_COL,
+        'active_assets_total','seats_sum_total','Portfolio_Breadth',
+        'EarliestPurchaseDate','LatestPurchaseDate','LatestExpirationDate',
+        'Days_Since_First_Purchase','Days_Since_Last_Purchase','Days_Since_Last_Expiration',
+        # Secondary detail scores
+        'vertical_score','size_score','ICP_score_raw'
     ]
     
     # Dynamically add other software revenue columns to the output if they exist
     # Alias DB typo 'Printer Accessorials' to 'Printer Accessories' in output
-    revenue_cols_to_check = ['Total Consumable Revenue', 'Total SaaS Revenue', 'Total Maintenance Revenue', 'Printer', 'Printer Accessorials', 'Scanners', 'Geomagic', 'CAD', 'CPE', 'Specialty Software']
-    for col in revenue_cols_to_check:
-        if col in scored.columns:
-            if col == 'Printer Accessorials':
-                scored['Printer Accessories'] = scored[col]
-                out_cols.append('Printer Accessories')
-            else:
-                out_cols.append(col)
-    
+    # Revenue columns aliasing handled by GP_ feature generation in engineer_features\n    
     # Add industry enrichment columns if they exist
-    industry_enrichment_cols = ['Industry_Reasoning']
-    for col in industry_enrichment_cols:
-        if col in scored.columns:
-            out_cols.append(col)
+    # Include industry enrichment columns automatically via desired_order if present\nindustry_enrichment_cols = ['Industry_Reasoning']
     
     # Backup existing CSV then save the new scored data
     out_env = os.environ.get("ICP_OUT_PATH")
@@ -1003,15 +1306,23 @@ def main():
     # Human-friendly aliases for output readability
     if 'adoption_score' in scored.columns:
         scored['Hardware_score'] = scored['adoption_score']
-        out_cols.append('Hardware_score')
     if 'relationship_score' in scored.columns:
         scored['Software_score'] = scored['relationship_score']
-        out_cols.append('Software_score')
 
-    # Ensure quarterly profit fields are not NaN
-    q_cols = [c for c in ["Profit_T4Q_Total","Profit_LastQ_Total","Profit_PrevQ_Total","Profit_QoQ_Growth"] if c in scored.columns]
-    if q_cols:
-        scored[q_cols] = scored[q_cols].fillna(0.0)
+    # Surface GP_* aliases and ensure fields are not NaN
+    alias_pairs = {
+        'GP_Since_2023_Total': 'Profit_Since_2023_Total',
+        'GP_T4Q_Total': 'Profit_T4Q_Total',
+        'GP_LastQ_Total': 'Profit_LastQ_Total',
+        'GP_PrevQ_Total': 'Profit_PrevQ_Total',
+        'GP_QoQ_Growth': 'Profit_QoQ_Growth',
+    }
+    for gp, prof in alias_pairs.items():
+        if prof in scored.columns:
+            scored[gp] = pd.to_numeric(scored[prof], errors='coerce').fillna(0.0)
+
+    # Build final column order by intersecting with available columns
+    out_cols = [c for c in desired_order if c in scored.columns]
     scored[out_cols].to_csv(out_path, index=False)
     print(f"Saved {out_path}")
 
@@ -1058,6 +1369,14 @@ if __name__ == "__main__":
     except Exception:
         print("\nAn error occurred - see traceback above.\n")
         raise
+
+
+
+
+
+
+
+
 
 
 

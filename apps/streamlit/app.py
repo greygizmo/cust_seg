@@ -511,6 +511,27 @@ def main():
         min_cad_seats = st.number_input("Min CAD seats", min_value=0, value=0, step=1)
         min_cpe_seats = st.number_input("Min CPE seats", min_value=0, value=0, step=1)
 
+        # New: Warm/Cold, AM Rep, Territory, EDU filters (if columns exist)
+        if 'activity_segment' in df_loaded.columns:
+            seg_opts = sorted([s for s in df_loaded['activity_segment'].dropna().unique().tolist()])
+            selected_activity = st.multiselect("Activity Segment", options=seg_opts, default=seg_opts)
+        else:
+            selected_activity = []
+        if 'am_sales_rep' in df_loaded.columns:
+            reps = sorted([s for s in df_loaded['am_sales_rep'].dropna().unique().tolist()])
+            selected_reps = st.multiselect("AM Sales Rep", options=reps, default=[])
+        else:
+            selected_reps = []
+        if 'AM_Territory' in df_loaded.columns:
+            terrs = sorted([s for s in df_loaded['AM_Territory'].dropna().unique().tolist()])
+            selected_terrs = st.multiselect("AM Territory", options=terrs, default=[])
+        else:
+            selected_terrs = []
+        if 'edu_assets' in df_loaded.columns:
+            edu_choice = st.selectbox("EDU Accounts", ["All","EDU only","Non-EDU"], index=0)
+        else:
+            edu_choice = "All"
+
     # --- SCORE RECALCULATION ---
     # Recalculate all scores for the filtered data based on the current weights from the sidebar.
     df_scored = calculate_scores(df_filtered.copy(), current_main_weights, current_size_config)
@@ -528,6 +549,21 @@ def main():
         df_scored = df_scored[df_scored["Seats_CAD"] >= min_cad_seats]
     if "min_cpe_seats" in locals() and "Seats_CPE" in df_scored.columns:
         df_scored = df_scored[df_scored["Seats_CPE"] >= min_cpe_seats]
+    # Apply new filters
+    if 'activity_segment' in df_scored.columns and selected_activity:
+        df_scored = df_scored[df_scored['activity_segment'].isin(selected_activity)]
+    if 'am_sales_rep' in df_scored.columns and selected_reps:
+        df_scored = df_scored[df_scored['am_sales_rep'].isin(selected_reps)]
+    if 'AM_Territory' in df_scored.columns and selected_terrs:
+        df_scored = df_scored[df_scored['AM_Territory'].isin(selected_terrs)]
+    if 'edu_assets' in df_scored.columns and edu_choice != 'All':
+        def _is_truthy(x):
+            s = str(x).strip().lower()
+            return s in ('1','true','yes','y','t')
+        if edu_choice == 'EDU only':
+            df_scored = df_scored[df_scored['edu_assets'].map(_is_truthy)]
+        elif edu_choice == 'Non-EDU':
+            df_scored = df_scored[~df_scored['edu_assets'].map(_is_truthy)]
     # Set dashboard title suffix
     dashboard_title_suffix = selected_segment if selected_segment != 'All Segments' else 'All Customers'
     
