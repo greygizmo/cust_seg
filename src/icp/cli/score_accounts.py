@@ -1,4 +1,4 @@
-﻿"""
+"""
 goe_icp_scoring.py
 ---------------------------------
 End-to-end script to score GoEngineer Digital-Manufacturing accounts
@@ -372,12 +372,9 @@ def assemble_master_from_db() -> pd.DataFrame:
 
     customers = da.get_customers_since_2023(engine)
 
-    def _canon_id_series(s):
-        return canonicalize_customer_id(s)
-
     # Canonicalize IDs and derive Company Name from CRM Full Name (strip leading numeric ID)
     if 'Customer ID' in customers.columns:
-        customers['Customer ID'] = _canon_id_series(customers['Customer ID'])
+        customers['Customer ID'] = canonicalize_customer_id(customers['Customer ID'])
     if 'CRM Full Name' in customers.columns:
         customers['Company Name'] = customers['CRM Full Name'].astype(str).str.replace(r'^\d+\s+', '', regex=True).str.strip()
 
@@ -401,14 +398,14 @@ def assemble_master_from_db() -> pd.DataFrame:
             .reset_index()
             .rename_axis(None, axis=1)
         )
-        if 'Customer ID' in p_goal.columns: p_goal['Customer ID'] = _canon_id_series(p_goal['Customer ID'])
+        if 'Customer ID' in p_goal.columns: p_goal['Customer ID'] = canonicalize_customer_id(p_goal['Customer ID'])
     else:
         p_goal = pd.DataFrame()
 
     # Merge into base
     master = customers.copy()
     if 'Customer ID' in master.columns:
-        master['Customer ID'] = _canon_id_series(master['Customer ID'])
+        master['Customer ID'] = canonicalize_customer_id(master['Customer ID'])
         master = master.merge(p_goal, on="Customer ID", how="left")
 
     # Compute total profit since 2023 across all Goals
@@ -478,7 +475,7 @@ def assemble_master_from_db() -> pd.DataFrame:
         a = assets.copy()
         # Normalize types
         if 'Customer ID' in a.columns:
-            a['Customer ID'] = _canon_id_series(a['Customer ID'])
+            a['Customer ID'] = canonicalize_customer_id(a['Customer ID'])
         for _dc in ["first_purchase_date", "last_expiration_date"]:
             if _dc in a.columns:
                 a[_dc] = pd.to_datetime(a[_dc], errors="coerce")
@@ -504,7 +501,7 @@ def assemble_master_from_db() -> pd.DataFrame:
             agg = pd.concat(parts, axis=1).reset_index()
             master = master.merge(agg, on="Customer ID", how="left")
 
-        # Seats by Goal → pivot columns Seats_<Goal>
+        # Seats by Goal ? pivot columns Seats_<Goal>
         if 'Goal' in a.columns and 'seats_sum' in a.columns:
             seats_by_goal = a.pivot_table(index="Customer ID", columns="Goal", values="seats_sum", aggfunc="sum").fillna(0)
             seats_by_goal.columns = [f"Seats_{str(c)}" for c in seats_by_goal.columns]
@@ -644,11 +641,8 @@ def engineer_features(df: pd.DataFrame, asset_weights: dict) -> pd.DataFrame:
     assets = getattr(_base_df, "_assets_raw", pd.DataFrame())
     profit_roll = getattr(_base_df, "_profit_rollup_raw", pd.DataFrame())
 
-def _canon_id_series(s: pd.Series) -> pd.Series:
-    return canonicalize_customer_id(s)
-
     if 'Customer ID' in df.columns:
-        df['Customer ID'] = _canon_id_series(df['Customer ID'])
+        df['Customer ID'] = canonicalize_customer_id(df['Customer ID'])
 
     # Default zeros
     df["adoption_assets"] = 0.0
@@ -682,7 +676,7 @@ def _canon_id_series(s: pd.Series) -> pd.Series:
 
         a = assets.copy()
         if 'Customer ID' in a.columns:
-            a['Customer ID'] = _canon_id_series(a['Customer ID'])
+            a['Customer ID'] = canonicalize_customer_id(a['Customer ID'])
         a["Goal"] = a["Goal"].map(_normalize_goal_name)
         # Keep only focus goals; special handling for Training/Services: only 3DP Training rollup counts
         a_focus = a[a["Goal"].isin(focus_goals)].copy()
@@ -722,7 +716,7 @@ def _canon_id_series(s: pd.Series) -> pd.Series:
     if isinstance(profit_roll, pd.DataFrame) and not profit_roll.empty:
         pr = profit_roll.copy()
         if 'Customer ID' in pr.columns:
-            pr['Customer ID'] = _canon_id_series(pr['Customer ID'])
+            pr['Customer ID'] = canonicalize_customer_id(pr['Customer ID'])
         pr["Goal"] = pr["Goal"].map(_normalize_goal_name)
         # Sum for focus goals
         focus_goals_norm = {_normalize_goal_name(g) for g in FOCUS_GOALS}
@@ -883,13 +877,16 @@ def build_visuals(df: pd.DataFrame):
             s2.nlargest(10).plot(kind="bar")
         else:
             print("[INFO] Skipping Profit by Vertical (Top 10): no data.")
-    # 10: Customer count by CAD tier
-    plt.figure()
-    df["cad_tier"].value_counts().plot(kind="bar")
-    plt.title("Customer Count by CAD Tier")
-    plt.xlabel("CAD Tier")
-    plt.ylabel("Number of Customers")
-    save_fig("vis10_customers_cadtier.png")
+    # 10: Customer count by CAD tier (deprecated)
+    if 'cad_tier' in df.columns:
+        plt.figure()
+        df["cad_tier"].value_counts().plot(kind="bar")
+        plt.title("Customer Count by CAD Tier")
+        plt.xlabel("CAD Tier")
+        plt.ylabel("Number of Customers")
+        save_fig("vis10_customers_cadtier.png")
+    else:
+        print("[INFO] Skipping 'Customer Count by CAD Tier' visual: cad_tier deprecated.")
 
 # ---------------------------
 # 6.  Main driver
@@ -937,12 +934,7 @@ def main():
         "printer_count",
         "scaling_flag",
         LICENSE_COL,
-        "cad_tier",
         "Profit_Since_2023_Total",
-        "Profit_T4Q_Total",
-        "Profit_LastQ_Total",
-        "Profit_PrevQ_Total",
-        "Profit_QoQ_Growth",
         "adoption_assets",
         "adoption_profit",
         "relationship_profit",
@@ -955,16 +947,19 @@ def main():
         "ICP_grade",
         "ICP_score_raw",
         "vertical_score",
-        "size_score",
-        "adoption_score",
-        "relationship_score"
+        "size_score"
     ]
     
     # Dynamically add other software revenue columns to the output if they exist
+    # Alias DB typo 'Printer Accessorials' to 'Printer Accessories' in output
     revenue_cols_to_check = ['Total Consumable Revenue', 'Total SaaS Revenue', 'Total Maintenance Revenue', 'Printer', 'Printer Accessorials', 'Scanners', 'Geomagic', 'CAD', 'CPE', 'Specialty Software']
     for col in revenue_cols_to_check:
         if col in scored.columns:
-            out_cols.append(col)
+            if col == 'Printer Accessorials':
+                scored['Printer Accessories'] = scored[col]
+                out_cols.append('Printer Accessories')
+            else:
+                out_cols.append(col)
     
     # Add industry enrichment columns if they exist
     industry_enrichment_cols = ['Industry_Reasoning']
@@ -982,6 +977,14 @@ def main():
         backup_path = backup_dir / f"icp_scored_accounts_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         shutil.copy2(out_path, backup_path)
         print(f"Backed up previous CSV to {backup_path}")
+    # Human-friendly aliases for output readability
+    if 'adoption_score' in scored.columns:
+        scored['Hardware_score'] = scored['adoption_score']
+        out_cols.append('Hardware_score')
+    if 'relationship_score' in scored.columns:
+        scored['Software_score'] = scored['relationship_score']
+        out_cols.append('Software_score')
+
     scored[out_cols].to_csv(out_path, index=False)
     print(f"Saved {out_path}")
 
@@ -1028,6 +1031,7 @@ if __name__ == "__main__":
     except Exception:
         print("\nAn error occurred - see traceback above.\n")
         raise
+
 
 
 

@@ -301,15 +301,7 @@ def calculate_scores(df, weights, size_config=None):
         relationship_feature_safe = np.maximum(df_clean['relationship_feature'], 0)
         df_clean['relationship_score'] = min_max_scale(np.log1p(relationship_feature_safe))
     
-    # This creates the 'cad_tier' for display and filtering purposes (legacy feature).
-    if LICENSE_COL in df_clean.columns:
-        license_revenue = pd.to_numeric(df_clean[LICENSE_COL], errors='coerce').fillna(0)
-        bins = [-1, 5000, 25000, 100000, np.inf]
-        labels = ["Bronze", "Silver", "Gold", "Platinum"]
-        df_clean['cad_tier'] = pd.cut(license_revenue, bins=bins, labels=labels)
-    else:
-        df_clean['cad_tier'] = 'Bronze'
-        df_clean['cad_tier'] = pd.Categorical(df_clean['cad_tier'], categories=["Bronze", "Silver", "Gold", "Platinum"])
+    # Deprecated: previously created 'cad_tier' for display; no longer used/exported.
 
     # --- Final Score Calculation ---
 
