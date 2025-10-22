@@ -487,8 +487,8 @@ def main():
         # Weight sliders using the optimized weights as defaults
         vertical_weight = st.slider("Vertical Score Weight", 0.0, 1.0, optimized_weights["vertical_score"], 0.01)
         size_weight = st.slider("Size Score Weight", 0.0, 1.0, optimized_weights["size_score"], 0.01)
-        adoption_weight = st.slider("Adoption Score Weight", 0.0, 1.0, optimized_weights["adoption_score"], 0.01)
-        relationship_weight = st.slider("Relationship Score Weight", 0.0, 1.0, optimized_weights["relationship_score"], 0.01)
+        adoption_weight = st.slider("Hardware Score Weight", 0.0, 1.0, optimized_weights["adoption_score"], 0.01)
+        relationship_weight = st.slider("Software Score Weight", 0.0, 1.0, optimized_weights["relationship_score"], 0.01)
         
         # Normalize weights to sum to 1.0
         total_weight = vertical_weight + size_weight + adoption_weight + relationship_weight
@@ -881,7 +881,7 @@ def show_scoring_details():
         - **Example**: Aerospace & Defense = 1.0, Education = 0.4
         """)
 
-        st.markdown("### Adoption Score (Hardware Engagement)")
+        st.markdown("### Hardware Score (Hardware Engagement)")
         st.info(f"**Current Weight: {weights['adoption_score']:.3f}**")
         st.markdown("""
         - **Purpose**: Measures hardware investment level
@@ -906,7 +906,7 @@ def show_scoring_details():
         - **Fallback**: 0.5 for missing data
         """)
 
-        st.markdown("### Relationship Score (Software)")
+        st.markdown("### Software Score (Software Engagement)")
         st.info(f"**Current Weight: {weights['relationship_score']:.3f}**")
         st.markdown("""
         - **Purpose**: Measures software engagement strength
@@ -923,7 +923,7 @@ def show_scoring_details():
     st.markdown("""
     ### Raw Score
     ```
-    Raw Score = (Vertical  W_v) + (Size  W_s) + (Adoption  W_a) + (Relationship  W_r)
+    Raw Score = (Vertical  W_v) + (Size  W_s) + (Hardware  W_h) + (Software  W_sft)
     ```
     Where weights sum to 1.0
 
@@ -976,9 +976,9 @@ def show_call_list_builder():
     with col2:
         industry = st.text_input("Industry contains", "")
     with col3:
-        adoption_min = st.slider("Min Adoption Score", 0.0, 1.0, 0.5, 0.05)
+        adoption_min = st.slider("Min Hardware Score", 0.0, 1.0, 0.5, 0.05)
     with col4:
-        relationship_min = st.slider("Min Relationship Score", 0.0, 1.0, 0.3, 0.05)
+        relationship_min = st.slider("Min Software Score", 0.0, 1.0, 0.3, 0.05)
 
     col5, col6, col7 = st.columns(3)
     with col5:

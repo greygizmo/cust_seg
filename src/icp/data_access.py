@@ -170,6 +170,28 @@ def get_quarterly_profit_by_goal(engine=None) -> pd.DataFrame:
     return pd.read_sql(sql, engine, params={"since_date": SINCE_DATE})
 
 
+def get_quarterly_profit_total(engine=None) -> pd.DataFrame:
+    """
+    Quarterly Profit (GP + Term_GP) since 2023-01-01 grouped by customer (all goals combined).
+
+    Returns: [Customer ID, Quarter, Profit]
+    Quarter format: YYYYQn (e.g., 2024Q3)
+    """
+    engine = engine or get_engine()
+    sql = text(
+        """
+        SELECT
+            s.CompanyId AS [Customer ID],
+            CONCAT(YEAR(s.Rec_Date),'Q', DATEPART(QUARTER, s.Rec_Date)) AS [Quarter],
+            SUM(COALESCE(s.GP,0) + COALESCE(s.Term_GP,0)) AS Profit
+        FROM dbo.table_saleslog_detail s
+        WHERE s.Rec_Date >= :since_date
+        GROUP BY s.CompanyId, CONCAT(YEAR(s.Rec_Date),'Q', DATEPART(QUARTER, s.Rec_Date))
+        """
+    )
+    return pd.read_sql(sql, engine, params={"since_date": SINCE_DATE})
+
+
 def get_assets_and_seats(engine=None) -> pd.DataFrame:
     """
     Asset aggregates per customer, item_rollup, and Goal with seats.

@@ -420,7 +420,16 @@ def assemble_master_from_db() -> pd.DataFrame:
 
     # Derive quarterly totals per customer (LastQ and T4Q)
     if isinstance(profit_quarterly, pd.DataFrame) and not profit_quarterly.empty:
+        print(f"[INFO] Quarterly profit rows (by goal): {len(profit_quarterly)}")
         pq = profit_quarterly.copy()
+    else:
+        # Fallback to total quarterly profit (no Goal dimension)
+        pq = da.get_quarterly_profit_total(engine)
+        print(f"[INFO] Quarterly profit rows (total): {0 if pq is None else len(pq)}")
+        if pq is None:
+            pq = pd.DataFrame()
+
+    if isinstance(pq, pd.DataFrame) and not pq.empty:
         # Build a sortable quarter key like 20241, 20242, ...
         def qkey(qs: str) -> int:
             # Expect format 'YYYYQn'
@@ -433,18 +442,21 @@ def assemble_master_from_db() -> pd.DataFrame:
         pq["_qkey"] = pq["Quarter"].astype(str).map(qkey)
         # Sum profit per customer, per quarter across goals
         cust_q = pq.groupby(["Customer ID", "_qkey"])['Profit'].sum().reset_index()
+        # Canonicalize Customer ID strings to match master
+        cust_q["Customer ID"] = canonicalize_customer_id(cust_q["Customer ID"])
         # Determine latest quarter key globally
         latest_qkey = cust_q['_qkey'].max()
+        print(f"[INFO] Latest quarter key detected: {latest_qkey}")
         # Last quarter per customer
         lastq = cust_q[cust_q['_qkey'] == latest_qkey].set_index("Customer ID")["Profit"].rename("Profit_LastQ_Total")
+        print(f"[INFO] Customers with profit in latest quarter: {len(lastq)}")
         # Trailing 4 quarters per customer
         lastq = lastq.reset_index()
-        lastq['Customer ID'] = lastq['Customer ID'].astype(str)
         t4q_keys = sorted(cust_q['_qkey'].unique())[-4:]
         t4q = cust_q[cust_q['_qkey'].isin(t4q_keys)].groupby("Customer ID")["Profit"].sum().rename("Profit_T4Q_Total")
+        print(f"[INFO] Customers with profit in trailing 4 quarters: {len(t4q)}")
         master = master.merge(lastq, on="Customer ID", how="left")
         t4q = t4q.reset_index()
-        t4q['Customer ID'] = t4q['Customer ID'].astype(str)
         master = master.merge(t4q, on="Customer ID", how="left")
         # Previous quarter per customer (for QoQ growth)
         keys_sorted = sorted(cust_q['_qkey'].unique())
@@ -514,6 +526,13 @@ def assemble_master_from_db() -> pd.DataFrame:
     master._assets_raw = assets
     master._profit_rollup_raw = profit_rollup
 
+    # Debug: report non-null counts for quarterly fields
+    for c in ["Profit_LastQ_Total","Profit_T4Q_Total","Profit_PrevQ_Total","Profit_QoQ_Growth"]:
+        if c in master.columns:
+            try:
+                print(f"[INFO] Non-null {c}: {master[c].notna().sum()}")
+            except Exception:
+                pass
     return master
 
 def check_files_exist():
@@ -935,6 +954,10 @@ def main():
         "scaling_flag",
         LICENSE_COL,
         "Profit_Since_2023_Total",
+        "Profit_T4Q_Total",
+        "Profit_LastQ_Total",
+        "Profit_PrevQ_Total",
+        "Profit_QoQ_Growth",
         "adoption_assets",
         "adoption_profit",
         "relationship_profit",
@@ -985,6 +1008,10 @@ def main():
         scored['Software_score'] = scored['relationship_score']
         out_cols.append('Software_score')
 
+    # Ensure quarterly profit fields are not NaN
+    q_cols = [c for c in ["Profit_T4Q_Total","Profit_LastQ_Total","Profit_PrevQ_Total","Profit_QoQ_Growth"] if c in scored.columns]
+    if q_cols:
+        scored[q_cols] = scored[q_cols].fillna(0.0)
     scored[out_cols].to_csv(out_path, index=False)
     print(f"Saved {out_path}")
 
