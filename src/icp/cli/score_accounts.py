@@ -284,22 +284,14 @@ def apply_industry_enrichment(df: pd.DataFrame, enrichment_df: pd.DataFrame) -> 
     
     print(f"[INFO] Applying industry enrichment to {len(df)} customers...")
     
-    # Ensure Customer ID columns have matching canonical string form (strip trailing '.0')
-    def _canon_id(s):
+    # Ensure Customer ID columns have matching canonical string form (strip trailing '.0' only)
+    def _canon_id_safe(s: pd.Series) -> pd.Series:
         s = s.astype(str).str.strip()
-        # Remove trailing .0 and cast numeric strings to int
-        def fix(x: str) -> str:
-            try:
-                if x.endswith('.0'):
-                    x = x[:-2]
-                # If numeric, cast to int to drop any leading decimals
-                return str(int(float(x)))
-            except Exception:
-                return x
-        return s.map(fix)
+        # Only remove a single trailing '.0' introduced by Excel-like coercions; DO NOT cast to int
+        return s.str.replace(r"\.0$", "", regex=True)
 
-    df["Customer ID"] = _canon_id(df["Customer ID"])
-    enrichment_df["Customer ID"] = _canon_id(enrichment_df["Customer ID"])
+    df["Customer ID"] = _canon_id_safe(df["Customer ID"])
+    enrichment_df["Customer ID"] = _canon_id_safe(enrichment_df["Customer ID"])
     
     # Merge on Customer ID to update industry data
     updated = df.merge(
@@ -987,7 +979,8 @@ def main():
             out_cols.append(col)
     
     # Backup existing CSV then save the new scored data
-    out_path = ROOT / "data" / "processed" / "icp_scored_accounts.csv"
+    out_env = os.environ.get("ICP_OUT_PATH")
+    out_path = Path(out_env) if out_env else (ROOT / "data" / "processed" / "icp_scored_accounts.csv")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     if out_path.exists():
         backup_dir = ROOT / "archive" / "outputs"
