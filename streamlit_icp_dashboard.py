@@ -400,7 +400,7 @@ def load_data():
             # ... (Hybrid matching logic is omitted for brevity)
             
         except FileNotFoundError:
-            st.warning("⚠️ Revenue analysis file not found. Using existing revenue data from the dataset.")
+            st.warning(" Revenue analysis file not found. Using existing revenue data from the dataset.")
             # Use the existing revenue column if available, otherwise fall back to printer count estimation
             if 'Total Hardware + Consumable Revenue' not in df.columns:
                 df['Total Hardware + Consumable Revenue'] = df['printer_count'] * 10000000
@@ -409,7 +409,7 @@ def load_data():
         return df
         
     except FileNotFoundError:
-        st.error("❌ Could not find 'icp_scored_accounts.csv'. Please run `goe_icp_scoring.py` first.")
+        st.error(" Could not find 'icp_scored_accounts.csv'. Please run `goe_icp_scoring.py` first.")
         st.stop()
 
 def main():
@@ -417,14 +417,14 @@ def main():
     df_loaded = load_data()
     
     # --- CUSTOMER SEGMENTATION CONTROLS ---
-    st.markdown("## 🏢 Customer Segmentation")
+    st.markdown("##  Customer Segmentation")
     
     # Initialize segment configuration in session state if it doesn't exist.
     if 'segment_config' not in st.session_state:
         st.session_state.segment_config = DEFAULT_SEGMENT_THRESHOLDS.copy()
     
     # Create an expandable section for users to configure the revenue thresholds.
-    with st.expander("⚙️ Configure Customer Segments", expanded=False):
+    with st.expander(" Configure Customer Segments", expanded=False):
         pass  # TODO: Add UI elements for setting segment thresholds
     
     # Apply the current segmentation configuration.
@@ -454,17 +454,17 @@ def main():
 
     # --- SIDEBAR CONTROLS ---
     with st.sidebar:
-        st.title("🎯 ICP Scoring Controls")
+        st.title(" ICP Scoring Controls")
         
         # Display information about whether optimized or default weights are being used.
         if optimization_data:
-            st.success("🤖 **Optimized Weights Active**")
+            st.success(" **Optimized Weights Active**")
             # ... (Details of the optimization)
         else:
-            st.warning("⚠️ **Using Default Weights**")
+            st.warning(" **Using Default Weights**")
         
         # Create sliders for adjusting the four main scoring weights.
-        st.subheader("⚖️ Adjust Scoring Weights")
+        st.subheader(" Adjust Scoring Weights")
         
         # Weight sliders using the optimized weights as defaults
         vertical_weight = st.slider("Vertical Score Weight", 0.0, 1.0, optimized_weights["vertical_score"], 0.01)
@@ -514,8 +514,8 @@ def main():
     dashboard_title_suffix = selected_segment if selected_segment != 'All Segments' else 'All Customers'
     
     # --- MAIN DASHBOARD DISPLAY ---
-    st.markdown('<h1 class="main-header">🎯 ICP SCORING DASHBOARD</h1>', unsafe_allow_html=True)
-    st.markdown(f"## 📈 Key Metrics - {dashboard_title_suffix}")
+    st.markdown('<h1 class="main-header"> ICP SCORING DASHBOARD</h1>', unsafe_allow_html=True)
+    st.markdown(f"##  Key Metrics - {dashboard_title_suffix}")
     
     # Calculate key metrics
     total_customers = len(df_scored)
@@ -532,7 +532,7 @@ def main():
         st.markdown(f"""
         <div class="custom-metric metric-customers">
             <div class="metric-title">
-                <span class="metric-icon">👥</span>{metric_title}
+                <span class="metric-icon"></span>{metric_title}
             </div>
             <div class="metric-value">{total_customers:,}</div>
             <div class="metric-subtitle">Active customer accounts</div>
@@ -544,7 +544,7 @@ def main():
         st.markdown(f"""
         <div class="custom-metric metric-score">
             <div class="metric-title">
-                <span class="metric-icon">🎯</span>Average ICP Score
+                <span class="metric-icon"></span>Average ICP Score
             </div>
             <div class="metric-value" style="color: {score_color};">{avg_score:.1f}</div>
             <div class="metric-subtitle">Out of 100 points</div>
@@ -555,10 +555,10 @@ def main():
         st.markdown(f"""
         <div class="custom-metric metric-high-value">
             <div class="metric-title">
-                <span class="metric-icon">⭐</span>High-Value Customers
+                <span class="metric-icon"></span>High-Value Customers
             </div>
             <div class="metric-value">{high_score_count:,}</div>
-            <div class="metric-subtitle">{hv_rate:.1f}% of total (≥70 score)</div>
+            <div class="metric-subtitle">{hv_rate:.1f}% of total (70 score)</div>
         </div>
         """, unsafe_allow_html=True)
     
@@ -566,7 +566,7 @@ def main():
         st.markdown(f"""
         <div class="custom-metric metric-gp">
             <div class="metric-title">
-                <span class="metric-icon">💰</span>Total Profit
+                <span class="metric-icon"></span>Total Profit
             </div>
             <div class="metric-value">${total_revenue:,.0f}</div>
             <div class="metric-subtitle">Profit (selected scope)</div>
@@ -576,7 +576,7 @@ def main():
     # --- SEGMENT ANALYSIS SECTION ---
     # This section is only displayed when viewing "All Segments".
     if selected_segment == 'All Segments':
-        st.markdown("## 🏢 Customer Segment Analysis")
+        st.markdown("##  Customer Segment Analysis")
         
         # Segment summary table
         segment_summary = df_scored.groupby('customer_segment').agg({
@@ -589,7 +589,7 @@ def main():
         st.dataframe(segment_summary, use_container_width=True)
     
     # --- REAL-TIME ANALYTICS ---
-    st.markdown(f"## 📊 Real-time Analytics")
+    st.markdown(f"##  Real-time Analytics")
     
     # First row of charts
     col1, col2 = st.columns(2)
@@ -637,9 +637,40 @@ def main():
         profit_col = scope_to_col.get(selected_scope, "Profit_Since_2023_Total") if 'selected_scope' in locals() else "Profit_Since_2023_Total"
         fig_profit_industry = create_profit_by_vertical(df_scored, profit_col)
         st.plotly_chart(fig_profit_industry, use_container_width=True)
-    
+
+    # Third row of charts: Profit distribution and Profit vs Install Base
+    col5, col6 = st.columns(2)
+    with col5:
+        fig_profit_hist = px.histogram(
+            df_scored, x=profit_col,
+            nbins=30,
+            title=f'Distribution of Profit ({selected_scope})',
+            color_discrete_sequence=['#2ca02c']
+        )
+        fig_profit_hist.update_layout(
+            xaxis_title="Profit",
+            yaxis_title="Number of Customers",
+            showlegend=False,
+            bargap=0.1
+        )
+        st.plotly_chart(fig_profit_hist, use_container_width=True)
+
+    with col6:
+        # Choose install base proxy: printer_count if available, else seats_sum_total
+        base_col = 'printer_count' if 'printer_count' in df_scored.columns else 'seats_sum_total'
+        fig_profit_vs_base = px.scatter(
+            df_scored, x=base_col, y=profit_col,
+            title=f'Profit ({selected_scope}) vs Install Base ({base_col})',
+            trendline='ols'
+        )
+        fig_profit_vs_base.update_layout(
+            xaxis_title=base_col,
+            yaxis_title="Profit"
+        )
+        st.plotly_chart(fig_profit_vs_base, use_container_width=True)
+
     # --- DATA TABLE ---
-    st.markdown(f"## 📋 Top Scoring Customers")
+    st.markdown(f"##  Top Scoring Customers")
 
     # Display top 100 customers sorted by ICP score
     top_customers = df_scored.nlargest(100, 'ICP_score')
@@ -660,7 +691,7 @@ def main():
     # --- DOWNLOAD BUTTON ---
     csv_data = df_scored.to_csv(index=False)
     st.download_button(
-        label=f"📥 Download {dashboard_title_suffix} Scores (CSV)",
+        label=f" Download {dashboard_title_suffix} Scores (CSV)",
         data=csv_data,
         file_name=f"icp_scores_{dashboard_title_suffix.lower().replace(' ', '_')}.csv",
         mime="text/csv"
@@ -673,21 +704,21 @@ def show_documentation():
 
     # Chart categories with all charts
     chart_categories = {
-        "🏗️ System Architecture": [
+        " System Architecture": [
             ("01-overall-architecture.md", "Overall System Architecture", "Complete system overview and data flow"),
             ("07-data-flow-dependencies.md", "Data Flow & Dependencies", "File relationships and dependencies"),
             ("08-component-interaction.md", "Component Interaction", "Python module interactions"),
             ("09-file-relationships.md", "File Relationships", "Import/export relationships")
         ],
-        "🔄 Data Processing": [
+        " Data Processing": [
             ("02-data-processing-pipeline.md", "Data Processing Pipeline", "8-stage data processing workflow")
         ],
-        "🧮 Scoring System": [
+        " Scoring System": [
             ("03-scoring-methodology.md", "Scoring Methodology", "4-component ICP scoring system"),
             ("04-weight-optimization.md", "Weight Optimization", "ML optimization with Optuna"),
             ("06-industry-scoring.md", "Industry Scoring", "Data-driven industry weights")
         ],
-        "📊 User Interface": [
+        " User Interface": [
             ("05-dashboard-workflow.md", "Dashboard Workflow", "User interaction and experience")
         ]
     }
@@ -716,7 +747,7 @@ def show_documentation():
     chart_path = f"documentation/mermaid-charts/{chart_file}"
 
     # Display the selected chart
-    st.markdown(f"## 📈 {title}")
+    st.markdown(f"##  {title}")
     st.markdown(f"**Category:** {category}")
     st.markdown(f"**Description:** {description}")
     st.markdown("---")
@@ -732,29 +763,29 @@ def show_documentation():
             mermaid_code = mermaid_match.group(1)
 
             # Display Mermaid chart
-            st.markdown("### 📊 Mermaid Diagram:")
+            st.markdown("###  Mermaid Diagram:")
             st.markdown("**Copy this code to any Mermaid renderer:**")
             st.code(mermaid_code, language="mermaid")
 
             # Try to render Mermaid in Streamlit (if supported)
             try:
-                st.markdown("### 🔍 Visual Diagram:")
+                st.markdown("###  Visual Diagram:")
                 st.markdown(f"```mermaid\n{mermaid_code}\n```")
             except Exception as render_error:
-                st.warning("⚠️ Mermaid rendering may not be supported in this environment. Use the code above in a Mermaid-compatible viewer.")
+                st.warning(" Mermaid rendering may not be supported in this environment. Use the code above in a Mermaid-compatible viewer.")
 
             # Show full documentation
-            st.markdown("### 📋 Full Documentation:")
+            st.markdown("###  Full Documentation:")
             st.markdown(content.replace(f"```mermaid\n{mermaid_code}\n```", ""))
         else:
-            st.markdown("### 📋 Documentation Content:")
+            st.markdown("###  Documentation Content:")
             st.markdown(content)
 
     except FileNotFoundError:
-        st.error(f"❌ Documentation file not found: {chart_file}")
+        st.error(f" Documentation file not found: {chart_file}")
         st.info("Please ensure all Mermaid chart files are present in the `documentation/mermaid-charts/` directory.")
     except Exception as e:
-        st.error(f"❌ Error loading documentation: {str(e)}")
+        st.error(f" Error loading documentation: {str(e)}")
         st.info("Check the file format and encoding. The file should be a valid Markdown file with Mermaid diagram.")
 
 def show_scoring_details():
@@ -817,12 +848,12 @@ def show_scoring_details():
     st.markdown("---")
 
     # Final scoring explanation
-    st.markdown("## 📊 Final Score Calculation")
+    st.markdown("##  Final Score Calculation")
 
     st.markdown("""
     ### Raw Score
     ```
-    Raw Score = (Vertical × W_v) + (Size × W_s) + (Adoption × W_a) + (Relationship × W_r)
+    Raw Score = (Vertical  W_v) + (Size  W_s) + (Adoption  W_a) + (Relationship  W_r)
     ```
     Where weights sum to 1.0
 
@@ -842,8 +873,8 @@ def show_scoring_details():
     # Weight optimization info
     if optimization_data:
         st.markdown("---")
-        st.markdown("## 🤖 Optimization Status")
-        st.success("✅ ML-Optimized weights are active!")
+        st.markdown("##  Optimization Status")
+        st.success(" ML-Optimized weights are active!")
 
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -853,7 +884,7 @@ def show_scoring_details():
         with col3:
             st.metric("Lambda Parameter", optimization_data.get('lambda_param', 'N/A'))
     else:
-        st.warning("⚠️ Using default weights. Run optimization for better results.")
+        st.warning(" Using default weights. Run optimization for better results.")
 
 if __name__ == "__main__":
     main() 

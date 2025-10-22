@@ -9,10 +9,27 @@ Usage:
 Requires: valid .env for Azure SQL connection.
 """
 
+import os
 import json
 from collections import defaultdict
 
 import pandas as pd
+
+try:
+    from dotenv import load_dotenv  # type: ignore
+    load_dotenv()
+except Exception:
+    # Fallback: simple .env parser
+    env_path = os.path.join(os.getcwd(), ".env")
+    if os.path.exists(env_path):
+        with open(env_path, "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                if not line.strip() or line.strip().startswith("#"):
+                    continue
+                if "=" in line:
+                    k, v = line.strip().split("=", 1)
+                    k = k.strip().lstrip("\ufeff")
+                    os.environ.setdefault(k, v.strip())
 
 import data_access as da
 
@@ -50,9 +67,10 @@ def main():
 
     with open("asset_rollup_weights.json", "w", encoding="utf-8") as f:
         json.dump(output, f, indent=2)
-    print("✓ Wrote asset_rollup_weights.json with evenly balanced sub-division weights")
+    print("Wrote asset_rollup_weights.json with evenly balanced sub-division weights")
 
 
 if __name__ == "__main__":
     main()
+
 

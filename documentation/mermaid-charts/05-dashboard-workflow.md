@@ -10,20 +10,20 @@ graph TD
     end
 
     subgraph "Main Dashboard Display"
-        HeaderSection[Header Section<br/>🎯 ICP SCORING DASHBOARD<br/>Shows current segment filter]
-        MetricCards[Key Metrics Cards<br/>6 Interactive Metric Cards:<br/>- Total Customers<br/>- Average ICP Score<br/>- High-Value Customers (≥70)<br/>- Total Revenue<br/>- High-Value GP<br/>- High-Value Percentage]
+        HeaderSection[Header Section<br/> ICP SCORING DASHBOARD<br/>Shows current segment filter]
+        MetricCards[Key Metrics Cards<br/>6 Interactive Metric Cards:<br/>- Total Customers<br/>- Average ICP Score<br/>- High-Value Customers (70)<br/>- Total Revenue<br/>- High-Value GP<br/>- High-Value Percentage]
     end
 
     subgraph "Customer Segmentation Controls"
-        SegmentConfig[Configure Segments<br/>⚙️ Configure Customer Segments<br/>- Small Business: $0-$100M<br/>- Mid-Market: $100M-$1B<br/>- Large Enterprise: >$1B<br/>- Customizable thresholds]
+        SegmentConfig[Configure Segments<br/> Configure Customer Segments<br/>- Small Business: $0-$100M<br/>- Mid-Market: $100M-$1B<br/>- Large Enterprise: >$1B<br/>- Customizable thresholds]
         SegmentSelector[Select Active Segment<br/>All Segments / Small Business /<br/>Mid-Market / Large Enterprise<br/>Filters entire dashboard view]
         DataFiltering[Apply Segment Filter<br/>Filter DataFrame based on selection<br/>Update all metrics and charts]
     end
 
     subgraph "Interactive Weight Controls"
-        SidebarControls[Sidebar Weight Controls<br/>🎯 ICP Scoring Controls<br/>Displays optimization status]
+        SidebarControls[Sidebar Weight Controls<br/> ICP Scoring Controls<br/>Displays optimization status]
         WeightSliders[Real-time Weight Sliders<br/>- Vertical Score Weight (0.0-1.0)<br/>- Size Score Weight (0.0-1.0)<br/>- Adoption Score Weight (0.0-1.0)<br/>- Relationship Score Weight (0.0-1.0)<br/>Auto-normalize to sum = 1.0]
-        OptimizationStatus[Optimization Status Display<br/>🤖 Optimized Weights Active<br/>Shows trials, lambda parameter<br/>⚠️ Using Default Weights<br/>If optimization not run]
+        OptimizationStatus[Optimization Status Display<br/> Optimized Weights Active<br/>Shows trials, lambda parameter<br/> Using Default Weights<br/>If optimization not run]
     end
 
     subgraph "Real-time Score Recalculation"
@@ -50,7 +50,7 @@ graph TD
 
     subgraph "Data Export & Details"
         TopCustomersTable[Top Scoring Customers Table<br/>Top 100 customers by ICP score<br/>Columns: Company Name, Industry,<br/>ICP_score, ICP_grade, Component Scores<br/>Sortable and searchable]
-        CSVExport[Export Current View<br/>📥 Download [Segment] Scores (CSV)<br/>Filtered data with current weights<br/>Includes all scores and metadata]
+        CSVExport[Export Current View<br/> Download [Segment] Scores (CSV)<br/>Filtered data with current weights<br/>Includes all scores and metadata]
     end
 
     subgraph "User Interaction Flow"
@@ -135,10 +135,10 @@ The Streamlit dashboard provides an interactive, real-time interface for explori
 #### 2. Key Metrics Overview
 - **Total Customers**: Count in current segment
 - **Average ICP Score**: Mean score (0-100 scale)
-- **High-Value Customers**: Count with score ≥70
+- **High-Value Customers**: Count with score 70
 - **Total Revenue**: Hardware + consumable revenue
 - **High-Value Revenue**: Revenue from high-value customers
-- **High-Value Percentage**: Percentage of customers scoring ≥70
+- **High-Value Percentage**: Percentage of customers scoring 70
 
 #### 3. Interactive Visualizations
 - **ICP Distribution**: Histogram showing score spread and statistical markers

@@ -175,19 +175,19 @@ This diagram shows how the Python modules and external libraries interact to for
 
 ### Data Flow Patterns:
 
-#### Input → Processing → Output:
+#### Input  Processing  Output:
 ```
-Input Files → Processing Functions → Generated Files → Dashboard
+Input Files  Processing Functions  Generated Files  Dashboard
 ```
 
-#### Configuration → Processing → Results:
+#### Configuration  Processing  Results:
 ```
-Strategic Config → Industry Scoring → Industry Weights → Scoring Logic
+Strategic Config  Industry Scoring  Industry Weights  Scoring Logic
 ```
 
 #### Optimization Loop:
 ```
-Scored Data → Optimization → Better Weights → Improved Scoring
+Scored Data  Optimization  Better Weights  Improved Scoring
 ```
 
 ### Component Coupling:

@@ -11,25 +11,25 @@ graph TD
     subgraph "Data-Driven Performance Analysis"
         PerformanceCalculation[Calculate Performance per Customer<br/>Total Performance = Hardware Revenue +<br/>Consumable Revenue + Service Bureau Revenue<br/>Measures actual hardware engagement]
         IndustryGrouping[Group by Industry Classification<br/>Clean and standardize industry names<br/>Handle missing/blank industries<br/>Minimum sample size filter (default: 10 customers)]
-        AdoptionMetrics[Calculate Adoption-Adjusted Success<br/>Success = (adoption_rate) × (mean_revenue_among_adopters)<br/>Adoption Rate = customers_with_revenue / total_customers<br/>Mean Among Adopters = avg performance of revenue-generating customers]
+        AdoptionMetrics[Calculate Adoption-Adjusted Success<br/>Success = (adoption_rate)  (mean_revenue_among_adopters)<br/>Adoption Rate = customers_with_revenue / total_customers<br/>Mean Among Adopters = avg performance of revenue-generating customers]
     end
 
     subgraph "Empirical-Bayes Shrinkage"
         GlobalAverage[Calculate Global Success Average<br/>Weighted average across all industries<br/>Weight by customer count<br/>Provides prior for shrinkage]
-        ShrinkageCalculation[Apply Empirical-Bayes Shrinkage<br/>Formula: (n_i × success_i + k × global) / (n_i + k)<br/>k = shrinkage parameter (default: 20)<br/>Balances observed vs global performance]
+        ShrinkageCalculation[Apply Empirical-Bayes Shrinkage<br/>Formula: (n_i  success_i + k  global) / (n_i + k)<br/>k = shrinkage parameter (default: 20)<br/>Balances observed vs global performance]
         ShrinkageFactors[Calculate Shrinkage Factors<br/>Shrinkage Factor = k / (n_i + k)<br/>Higher for small industries<br/>Lower for large industries]
     end
 
     subgraph "Strategic Priority Integration"
         StrategicTiers[Load Strategic Industry Tiers<br/>Tier 1: High priority (score: 1.0)<br/>Tier 2: Medium priority (score: 0.7)<br/>Tier 3: Standard priority (score: 0.4)<br/>Fallback for unmapped industries]
-        IndustryMapping[Map Industries to Strategic Tiers<br/>Dictionary lookup: industry → tier<br/>Default to tier_3 if not found<br/>Handles variations in naming]
+        IndustryMapping[Map Industries to Strategic Tiers<br/>Dictionary lookup: industry  tier<br/>Default to tier_3 if not found<br/>Handles variations in naming]
         StrategicScores[Calculate Strategic Scores<br/>Direct mapping from tier to score<br/>Fixed business priorities<br/>Independent of historical performance]
     end
 
     subgraph "Hybrid Score Blending"
         BlendConfiguration[Load Blend Weights Configuration<br/>Data-Driven Weight (default: 0.7)<br/>Strategic Weight (default: 0.3)<br/>Configurable trade-off ratio]
         ScoreNormalization[Normalize Data-Driven Scores<br/>Convert to 0-1 scale using min-max<br/>Preserve relative differences<br/>Handle edge cases (all same = 0.5)]
-        WeightedBlending[Calculate Blended Scores<br/>Blended = (data_weight × normalized_data) +<br/>(strategic_weight × strategic_score)<br/>Combines empirical evidence with business priorities]
+        WeightedBlending[Calculate Blended Scores<br/>Blended = (data_weight  normalized_data) +<br/>(strategic_weight  strategic_score)<br/>Combines empirical evidence with business priorities]
         FinalBucketing[Apply Final Score Bucketing<br/>Round to 0.05 increments (0.00, 0.05, 0.10, ...)<br/>Minimum score = 0.30 (neutral fallback)<br/>Maximum score = 1.00 (cap at 100%)]
     end
 
@@ -40,7 +40,7 @@ graph TD
     end
 
     subgraph "Output Generation"
-        WeightDictionary[Create Industry Weight Dictionary<br/>industry_name → final_score mapping<br/>Lowercase keys for consistency<br/>Include fallback entries]
+        WeightDictionary[Create Industry Weight Dictionary<br/>industry_name  final_score mapping<br/>Lowercase keys for consistency<br/>Include fallback entries]
         MetadataCreation[Generate Metadata<br/>Processing timestamp<br/>Method description<br/>Sample sizes per industry<br/>Blend parameters used]
         JSONExport[Export industry_weights.json<br/>Weights dictionary + metadata<br/>Used by scoring_logic.py<br/>Cached for performance]
         ResultsDisplay[Display Processing Results<br/>Number of industries processed<br/>Sample size distribution<br/>Score range achieved<br/>Shrinkage statistics]
@@ -118,7 +118,7 @@ The industry scoring process creates data-driven weights for each industry based
 #### 1. Adoption-Adjusted Success Metric
 Instead of simple average revenue, the system calculates:
 ```
-Success = (Adoption Rate) × (Mean Revenue Among Adopters)
+Success = (Adoption Rate)  (Mean Revenue Among Adopters)
 ```
 
 This accounts for two factors:
@@ -130,7 +130,7 @@ Small industries with few customers can have unreliable performance metrics. The
 - **Observed Performance**: Actual data for that industry
 - **Global Average**: Overall performance across all industries
 
-Formula: `(n_i × success_i + k × global) / (n_i + k)`
+Formula: `(n_i  success_i + k  global) / (n_i + k)`
 - `n_i`: Number of customers in industry i
 - `k`: Shrinkage parameter (default: 20)
 - Higher shrinkage for small industries, lower for large ones
@@ -143,14 +143,14 @@ The system blends data-driven scores with strategic business priorities:
 
 #### 4. Hybrid Blending
 ```
-Blended Score = (0.7 × Data-Driven) + (0.3 × Strategic)
+Blended Score = (0.7  Data-Driven) + (0.3  Strategic)
 ```
 - **70% weight** on empirical evidence
 - **30% weight** on strategic priorities
 - Configurable blend weights in `strategic_industry_tiers.json`
 
 #### 5. Quality Controls
-- **Minimum Sample Size**: Industries need ≥10 customers to be scored
+- **Minimum Sample Size**: Industries need 10 customers to be scored
 - **Unknown Handling**: Unmapped industries get neutral score (0.30)
 - **Score Bucketing**: Final scores rounded to 0.05 increments
 - **Validation**: Ensures all industries have valid scores in range 0.30-1.00
@@ -163,7 +163,7 @@ Blended Score = (0.7 × Data-Driven) + (0.3 × Strategic)
 - **Predictive**: Uses adoption-adjusted metrics for better forecasting
 
 ### Output:
-- **industry_weights.json**: Contains the final industry → score mapping
+- **industry_weights.json**: Contains the final industry  score mapping
 - **Used by**: `scoring_logic.py` for vertical score calculation
 - **Integrated with**: Overall ICP scoring system
 - **Cached**: Processed once and reused for performance

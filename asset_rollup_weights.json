@@ -9,23 +9,25 @@
   "weights": {
     "Printer": {
       "default": 1.0
-      /* Example entries (adjust to your taxonomy):
-      , "F123 Large Format": 2.0,
-      "F456 Benchtop": 1.0
-      */
     },
     "Printer Accessorials": {
-      "default": 1.0
+      "AM Software": 1.0,
+      "AM Support": 1.0,
+      "Consumables": 1.0,
+      "Spare Parts/Repair Parts/Time & Materials": 1.0
     },
     "Scanners": {
-      "default": 1.0
+      "Artec": 1.0,
+      "Creaform": 1.0
     },
     "Geomagic": {
-      "default": 1.0
+      "GeoMagic": 1.0
     },
     "Training/Services": {
-      "default": 1.0,
-      "3DP Training": 1.5
+      "3DP Training": 1.0,
+      "Service": 1.0,
+      "Success Plan": 1.0,
+      "Training": 1.0
     }
   }
 }

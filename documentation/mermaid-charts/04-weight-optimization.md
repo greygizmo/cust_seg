@@ -34,11 +34,11 @@ graph TD
         end
 
         subgraph "Objective Calculation"
-            WeightedScoreCalc[Calculate Weighted Scores<br/>ICP_scores = X • weights<br/>Matrix multiplication of features and weights]
+            WeightedScoreCalc[Calculate Weighted Scores<br/>ICP_scores = X  weights<br/>Matrix multiplication of features and weights]
             SpearmanCorrelation[Calculate Spearman Correlation<br/>Correlation between ICP scores and revenue<br/>Measures predictive power<br/>Range: -1.0 to 1.0]
             GradeDistribution[Calculate Grade Distribution<br/>Apply grade assignment logic<br/>Count customers per grade (A-F)<br/>Compare to target distribution]
             KLDiveregence[Calculate KL Divergence<br/>Measure difference between<br/>actual vs target grade distribution<br/>Measures distribution match<br/>Range: 0.0 to infinity]
-            ObjectiveValue[Calculate Combined Objective<br/>Objective = λ × KL + (1-λ) × (-correlation)<br/>Lambda controls trade-off<br/>Lower values are better]
+            ObjectiveValue[Calculate Combined Objective<br/>Objective =   KL + (1-)  (-correlation)<br/>Lambda controls trade-off<br/>Lower values are better]
         end
     end
 
@@ -55,9 +55,9 @@ graph TD
 
     subgraph "Trade-off Analysis"
         subgraph "Correlation vs Distribution Balance"
-            PureCorrelation[λ = 0.0<br/>Pure revenue correlation maximization<br/>May ignore grade distribution target<br/>Risk: unrealistic grade spread]
-            PureDistribution[λ = 1.0<br/>Pure distribution matching<br/>May sacrifice predictive power<br/>Risk: poor revenue correlation]
-            BalancedApproach[λ = 0.25 (default)<br/>75% weight on correlation<br/>25% weight on distribution<br/>Balanced predictive and business requirements]
+            PureCorrelation[ = 0.0<br/>Pure revenue correlation maximization<br/>May ignore grade distribution target<br/>Risk: unrealistic grade spread]
+            PureDistribution[ = 1.0<br/>Pure distribution matching<br/>May sacrifice predictive power<br/>Risk: poor revenue correlation]
+            BalancedApproach[ = 0.25 (default)<br/>75% weight on correlation<br/>25% weight on distribution<br/>Balanced predictive and business requirements]
         end
     end
 
@@ -127,11 +127,11 @@ The optimization balances two competing goals:
 
 ### Key Components:
 
-#### Lambda Parameter (λ)
+#### Lambda Parameter ()
 - **Controls the trade-off between the two objectives**
-- **λ = 0.0**: Pure correlation optimization
-- **λ = 1.0**: Pure distribution matching
-- **λ = 0.25** (default): 75% correlation, 25% distribution
+- ** = 0.0**: Pure correlation optimization
+- ** = 1.0**: Pure distribution matching
+- ** = 0.25** (default): 75% correlation, 25% distribution
 
 #### Search Space Constraints:
 - **Individual weights**: 0.15 - 0.50 range
@@ -146,13 +146,13 @@ The optimization balances two competing goals:
 
 ### Objective Function:
 ```
-Objective = λ × KL_Divergence + (1-λ) × (-Spearman_Correlation)
+Objective =   KL_Divergence + (1-)  (-Spearman_Correlation)
 ```
 
 Where:
 - **KL_Divergence**: Measures difference between actual and target grade distributions
 - **Spearman_Correlation**: Measures correlation between ICP scores and revenue
-- **λ**: Trade-off parameter (0.0-1.0)
+- ****: Trade-off parameter (0.0-1.0)
 
 ### Output:
 - **optimized_weights.json**: Contains the optimized weights and metadata

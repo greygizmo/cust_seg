@@ -172,10 +172,10 @@ graph TB
 ### Critical Dependencies:
 
 #### **Hard Dependencies** (Must Exist):
-- `goe_icp_scoring.py` → `scoring_logic.py` (core scoring functions)
-- `goe_icp_scoring.py` → `industry_scoring.py` (industry weight calculation)
-- `streamlit_icp_dashboard.py` → `icp_scored_accounts.csv` (data source)
-- `scoring_logic.py` → `industry_weights.json` (industry scores)
+- `goe_icp_scoring.py`  `scoring_logic.py` (core scoring functions)
+- `goe_icp_scoring.py`  `industry_scoring.py` (industry weight calculation)
+- `streamlit_icp_dashboard.py`  `icp_scored_accounts.csv` (data source)
+- `scoring_logic.py`  `industry_weights.json` (industry scores)
 
 #### **Soft Dependencies** (Fallback Available):
 - `optimized_weights.json` (falls back to DEFAULT_WEIGHTS)

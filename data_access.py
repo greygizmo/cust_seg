@@ -41,11 +41,13 @@ def _build_connection_url() -> str:
     driver = "ODBC Driver 18 for SQL Server"
 
     if user and pwd:
-        # SQL authentication
-        return (
-            f"mssql+pyodbc://{user}:{pwd}@{server}/{database}?"
-            f"driver={driver.replace(' ', '+')}&Encrypt=yes&TrustServerCertificate=no"
+        # SQL authentication using DSN-less ODBC connection to safely handle special characters
+        from urllib.parse import quote_plus
+        odbc = (
+            "DRIVER={" + driver + "};SERVER=" + server + ";DATABASE=" + database + ";" +
+            "UID=" + user + ";PWD=" + pwd + ";Encrypt=yes;TrustServerCertificate=no"
         )
+        return f"mssql+pyodbc:///?odbc_connect={quote_plus(odbc)}"
     else:
         # AAD interactive or MSI — rely on ODBC authentication parameter
         # Note: some environments require 'Authentication=ActiveDirectoryInteractive'
@@ -192,4 +194,3 @@ def get_assets_and_seats(engine=None) -> pd.DataFrame:
         """
     )
     return pd.read_sql(sql, engine)
-

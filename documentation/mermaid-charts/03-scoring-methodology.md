@@ -29,7 +29,7 @@ graph TD
             end
 
             subgraph "Weighted Printer Score"
-                WeightedPrinterCalc[Calculate Weighted Printer Score<br/>Big Box × 2 + Small Box × 1<br/>Represents hardware investment level]
+                WeightedPrinterCalc[Calculate Weighted Printer Score<br/>Big Box  2 + Small Box  1<br/>Represents hardware investment level]
             end
 
             subgraph "Percentile Scaling"
@@ -59,7 +59,7 @@ graph TD
 
     subgraph "Final ICP Score Calculation"
         ComponentScores[Component Scores<br/>Vertical (0-1) + Size (0-1)<br/>+ Adoption (0-1) + Relationship (0-1)]
-        WeightApplication[Apply Component Weights<br/>Raw Score = Σ(component × weight)<br/>Weights sum to 1.0]
+        WeightApplication[Apply Component Weights<br/>Raw Score = (component  weight)<br/>Weights sum to 1.0]
         PercentileConversion[Convert to Percentile Rank<br/>Rank-based percentile calculation<br/>Handles ties with average ranking]
         NormalDistribution[Normal Distribution Transformation<br/>Inverse CDF (ppf) conversion<br/>Creates bell curve distribution]
         ScaleTo100[Scale to 0-100 Range<br/>Mean = 50, Std Dev = 15<br/>Industry standard scaling]
@@ -188,7 +188,7 @@ The ICP (Ideal Customer Profile) scoring system uses a sophisticated 4-component
 
 #### Raw Score
 ```
-Raw Score = (Vertical × W_v) + (Size × W_s) + (Adoption × W_a) + (Relationship × W_r)
+Raw Score = (Vertical  W_v) + (Size  W_s) + (Adoption  W_a) + (Relationship  W_r)
 ```
 Where weights (W_v, W_s, W_a, W_r) sum to 1.0
 

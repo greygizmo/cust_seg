@@ -40,7 +40,7 @@ graph TD
 
     subgraph "Stage 6: Industry Weight Calculation"
         PerformanceCalculation[Industry Performance Calculation<br/>- Calculate total performance per customer<br/>- Hardware + Consumable + Service revenue<br/>- Group by industry for aggregation]
-        AdoptionMetrics[Adoption-Adjusted Success Metric<br/>- Calculate adoption rate per industry<br/>- Mean revenue among adopters<br/>- Success = adoption_rate × mean_among_adopters<br/>- Filter industries with minimum sample size]
+        AdoptionMetrics[Adoption-Adjusted Success Metric<br/>- Calculate adoption rate per industry<br/>- Mean revenue among adopters<br/>- Success = adoption_rate  mean_among_adopters<br/>- Filter industries with minimum sample size]
         EmpiricalBayes[Empirical-Bayes Shrinkage<br/>- Apply shrinkage to handle small samples<br/>- Balance observed vs. global performance<br/>- Prevent overfitting to small industries<br/>- Calculate shrinkage factors]
         StrategicBlending[Strategic Score Blending<br/>- Load strategic industry tiers<br/>- Blend data-driven and strategic scores<br/>- Apply configurable blend weights<br/>- Final bucketing and normalization]
     end

@@ -104,34 +104,34 @@ This diagram shows the complete data flow and interdependencies between all comp
 
 ### Data Flow Paths:
 
-#### 1. Raw Data → Processing Pipeline
+#### 1. Raw Data  Processing Pipeline
 ```
-External Data Sources → Processing Scripts → Generated Data Files
+External Data Sources  Processing Scripts  Generated Data Files
 ```
 - Customer and sales data are cleaned and standardized
 - Industry classifications are enriched and validated
 - Revenue data is prioritized and merged
 - All data flows through the main scoring script
 
-#### 2. Configuration → Processing
+#### 2. Configuration  Processing
 ```
-Configuration Files → Processing Scripts
+Configuration Files  Processing Scripts
 ```
 - Strategic priorities guide industry scoring
 - System configuration controls processing parameters
 - Dependencies specify required packages
 
-#### 3. Processing → Scoring Engine
+#### 3. Processing  Scoring Engine
 ```
-Generated Data Files → Scoring & Optimization → Dashboard
+Generated Data Files  Scoring & Optimization  Dashboard
 ```
 - Industry weights feed into the scoring logic
 - Optimized weights enhance the scoring model
 - Scoring functions power the dashboard calculations
 
-#### 4. Processing → Output Generation
+#### 4. Processing  Output Generation
 ```
-Processing Scripts → Generated Data Files → Visualizations
+Processing Scripts  Generated Data Files  Visualizations
 ```
 - Scored accounts dataset is the central output
 - Optimization produces improved weights
