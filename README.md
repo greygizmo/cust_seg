@@ -98,4 +98,38 @@ README.md                      # Project overview
 - **Before**: Standard deviation of 0.008 (extremely compressed)
 - **After**: Standard deviation of 0.116 (14x better distribution)
 - **Result**: Much more granular and predictive adoption scoring
+## Scoring Reference
+
+- Adoption Score
+  - Inputs (preferred): doption_assets and doption_profit (profit since 2023 for focus divisions)
+  - Inputs (fallback): Big Box Count, Small Box Count, Total Hardware Revenue, Total Consumable Revenue
+  - Scaling helpers
+    - Percentile scale P/R: ranks only among non-zero values; zero values stay 0.0; if all values identical, returns 0.5 for all
+  - Preferred (DB) mode
+    - P = percentile(adoption_assets)
+    - R = percentile(adoption_profit)
+    - If adoption_assets == 0 and adoption_profit > 0: adoption = 0.5 * sqrt(R)
+    - If adoption_assets > 0: adoption = (0.6 * P) + (0.4 * R)
+    - If both are 0: adoption = 0.0
+  - Legacy fallback
+    - WeightedPrinters = (2.0 * Big Box Count) + (1.0 * Small Box Count)
+    - TotalAdoptionRevenue = Total Hardware Revenue + Total Consumable Revenue (both clamped at >= 0)
+    - P = percentile(WeightedPrinters)
+    - R = percentile(TotalAdoptionRevenue)
+    - If WeightedPrinters == 0 and TotalAdoptionRevenue > 0: adoption = 0.5 * sqrt(R)
+    - If WeightedPrinters > 0: adoption = (0.6 * P) + (0.4 * R)
+    - Heavy fleet bonus: if WeightedPrinters >= 10, add +0.05 and clip to [0, 1]
+
+- Relationship Score
+  - Inputs (preferred): elationship_profit (sum of profits for software-related goals)
+  - Inputs (fallback): Total Software License Revenue, Total SaaS Revenue, Total Maintenance Revenue
+  - Transform
+    - Compute feature = relationship_profit (preferred), else sum of software revenues (all clamped at >= 0)
+    - Apply log1p(feature)
+    - Min-max scale to [0, 1] across the dataset
+
+- Final ICP Score
+  - Raw = (vertical_score * Wv) + (size_score * Ws) + (adoption_score * Wa) + (relationship_score * Wr)
+  - Normalize: rank ? percentile ? inverse normal (ppf) ? scaled to mean 50, std 15, clipped to [0, 100]
+  - Grade: A–F assigned by target percentile cutoffs
 
