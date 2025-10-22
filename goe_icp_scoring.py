@@ -31,6 +31,7 @@ Usage:
 import os
 import sys
 from datetime import datetime
+import shutil
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -371,9 +372,26 @@ def assemble_master_from_db() -> pd.DataFrame:
         t4q = cust_q[cust_q['_qkey'].isin(t4q_keys)].groupby("Customer ID")["Profit"].sum().rename("Profit_T4Q_Total")
         master = master.merge(lastq, on="Customer ID", how="left")
         master = master.merge(t4q, on="Customer ID", how="left")
+        # Previous quarter per customer (for QoQ growth)
+        keys_sorted = sorted(cust_q['_qkey'].unique())
+        if len(keys_sorted) >= 2:
+            prev_key = keys_sorted[-2]
+            prevq = cust_q[cust_q['_qkey'] == prev_key].set_index("Customer ID")["Profit"].rename("Profit_PrevQ_Total")
+            master = master.merge(prevq, on="Customer ID", how="left")
+            # QoQ growth as percent change, guard divide by zero
+            prev_safe = master["Profit_PrevQ_Total"].fillna(0)
+            last_safe = master["Profit_LastQ_Total"].fillna(0)
+            denom = prev_safe.replace(0, np.nan)
+            qoq = (last_safe - prev_safe) / denom
+            master["Profit_QoQ_Growth"] = qoq.fillna(0.0)
+        else:
+            master["Profit_PrevQ_Total"] = 0.0
+            master["Profit_QoQ_Growth"] = 0.0
     else:
         master["Profit_LastQ_Total"] = 0.0
         master["Profit_T4Q_Total"] = 0.0
+        master["Profit_PrevQ_Total"] = 0.0
+        master["Profit_QoQ_Growth"] = 0.0
 
     # Aggregate assets/seats totals and per-goal seats for filters/signals
     if isinstance(assets, pd.DataFrame) and not assets.empty:
@@ -759,6 +777,8 @@ def main():
         "Profit_Since_2023_Total",
         "Profit_T4Q_Total",
         "Profit_LastQ_Total",
+        "Profit_PrevQ_Total",
+        "Profit_QoQ_Growth",
         "adoption_assets",
         "adoption_profit",
         "relationship_profit",
@@ -788,10 +808,17 @@ def main():
         if col in scored.columns:
             out_cols.append(col)
     
-    # Save the scored data to a CSV file
-    scored[out_cols].to_csv("icp_scored_accounts.csv", index=False)
+    # Backup existing CSV then save the new scored data
+    out_path = "icp_scored_accounts.csv"
+    if os.path.exists(out_path):
+        backup_path = f"icp_scored_accounts_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        shutil.copy2(out_path, backup_path)
+        print(f"Backed up previous CSV to {backup_path}")
+    scored[out_cols].to_csv(out_path, index=False)
     print("Saved icp_scored_accounts.csv")
-    
+
+    print("Creating visualisations...")
+    build_visuals(scored)
     print("Saved 10 PNG charts (vis1..vis10).")
     
     print("All done.")

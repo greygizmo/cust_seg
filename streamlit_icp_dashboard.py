@@ -669,6 +669,57 @@ def main():
         )
         st.plotly_chart(fig_profit_vs_base, use_container_width=True)
 
+    # Fourth row of charts: QoQ Profit Growth and Renewal Horizon Bands
+    col7, col8 = st.columns(2)
+    with col7:
+        # QoQ Profit Growth (LastQ vs PrevQ)
+        if 'Profit_QoQ_Growth' in df_scored.columns:
+            growth = df_scored['Profit_QoQ_Growth']
+        elif 'Profit_LastQ_Total' in df_scored.columns and 'Profit_PrevQ_Total' in df_scored.columns:
+            prev = df_scored['Profit_PrevQ_Total'].replace(0, pd.NA)
+            growth = ((df_scored['Profit_LastQ_Total'] - df_scored['Profit_PrevQ_Total']) / prev).fillna(0)
+        else:
+            growth = pd.Series([0])
+        fig_qoq = px.histogram(
+            growth, x=growth,
+            nbins=30,
+            title='QoQ Profit Growth (LastQ vs PrevQ)',
+            color_discrete_sequence=['#9467bd']
+        )
+        fig_qoq.update_layout(xaxis_title='Growth (ratio)', yaxis_title='Customers', showlegend=False)
+        st.plotly_chart(fig_qoq, use_container_width=True)
+
+    with col8:
+        # Renewal horizon bands using LatestExpirationDate
+        if 'LatestExpirationDate' in df_scored.columns:
+            exp = pd.to_datetime(df_scored['LatestExpirationDate'], errors='coerce')
+            days = (exp - pd.Timestamp.today()).dt.days
+            def band(d):
+                if pd.isna(d):
+                    return 'No Expiry'
+                if d < 0:
+                    return 'Expired'
+                if d <= 90:
+                    return '0-90 days'
+                if d <= 180:
+                    return '91-180 days'
+                if d <= 365:
+                    return '181-365 days'
+                return '> 365 days'
+            bands = days.map(band)
+            order = ['Expired','0-90 days','91-180 days','181-365 days','> 365 days','No Expiry']
+            band_counts = bands.value_counts().reindex(order).fillna(0)
+            fig_ren = px.bar(
+                x=band_counts.index, y=band_counts.values,
+                title='Customers by Renewal Horizon (Latest Asset Expiry)',
+                labels={'x':'Horizon','y':'Customers'},
+                color=band_counts.values, color_continuous_scale=px.colors.sequential.Sunset
+            )
+            fig_ren.update_layout(showlegend=False)
+            st.plotly_chart(fig_ren, use_container_width=True)
+        else:
+            st.info('No expiration data available for renewal horizon chart.')
+
     # --- DATA TABLE ---
     st.markdown(f"##  Top Scoring Customers")
 
@@ -690,10 +741,11 @@ def main():
 
     # --- DOWNLOAD BUTTON ---
     csv_data = df_scored.to_csv(index=False)
+    scope_key = selected_scope.lower().replace(' ', '_') if 'selected_scope' in locals() else 'since_2023'
     st.download_button(
-        label=f" Download {dashboard_title_suffix} Scores (CSV)",
+        label=f"Download {dashboard_title_suffix} Scores ({selected_scope}) (CSV)" if 'selected_scope' in locals() else f"Download {dashboard_title_suffix} Scores (CSV)",
         data=csv_data,
-        file_name=f"icp_scores_{dashboard_title_suffix.lower().replace(' ', '_')}.csv",
+        file_name=f"icp_scores_{scope_key}_{dashboard_title_suffix.lower().replace(' ', '_')}.csv" if 'selected_scope' in locals() else f"icp_scores_{dashboard_title_suffix.lower().replace(' ', '_')}.csv",
         mime="text/csv"
     )
 
