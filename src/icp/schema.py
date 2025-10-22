@@ -87,9 +87,14 @@ def unify_columns(df: pd.DataFrame, extra_aliases: Dict[str, str] | None = None)
     return df
 
 
+def canonicalize_customer_id(series: pd.Series) -> pd.Series:
+    """Normalize Customer ID values without losing leading zeros."""
+    s = series.astype(str).str.strip()
+    return s.str.replace(r"\.0$", "", regex=True)
+
+
 REQUIRED_MIN_COLUMNS: List[str] = [
     COL_CUSTOMER_ID,
     COL_COMPANY_NAME,
     COL_INDUSTRY,
 ]
-

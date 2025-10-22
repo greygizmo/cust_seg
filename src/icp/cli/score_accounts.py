@@ -57,6 +57,7 @@ from icp.schema import (
     COL_REL_MAINT,
     COL_HW_REV,
     COL_CONS_REV,
+    canonicalize_customer_id,
 )
 # Import the new industry scoring module
 from icp.industry import build_industry_weights, save_industry_weights, load_industry_weights
@@ -285,13 +286,8 @@ def apply_industry_enrichment(df: pd.DataFrame, enrichment_df: pd.DataFrame) -> 
     print(f"[INFO] Applying industry enrichment to {len(df)} customers...")
     
     # Ensure Customer ID columns have matching canonical string form (strip trailing '.0' only)
-    def _canon_id_safe(s: pd.Series) -> pd.Series:
-        s = s.astype(str).str.strip()
-        # Only remove a single trailing '.0' introduced by Excel-like coercions; DO NOT cast to int
-        return s.str.replace(r"\.0$", "", regex=True)
-
-    df["Customer ID"] = _canon_id_safe(df["Customer ID"])
-    enrichment_df["Customer ID"] = _canon_id_safe(enrichment_df["Customer ID"])
+    df["Customer ID"] = canonicalize_customer_id(df["Customer ID"])
+    enrichment_df["Customer ID"] = canonicalize_customer_id(enrichment_df["Customer ID"])
     
     # Merge on Customer ID to update industry data
     updated = df.merge(
@@ -377,8 +373,7 @@ def assemble_master_from_db() -> pd.DataFrame:
     customers = da.get_customers_since_2023(engine)
 
     def _canon_id_series(s):
-        s = s.astype(str).str.strip()
-        return s.str.replace(r"\.0$", "", regex=True)
+        return canonicalize_customer_id(s)
 
     # Canonicalize IDs and derive Company Name from CRM Full Name (strip leading numeric ID)
     if 'Customer ID' in customers.columns:
@@ -649,9 +644,8 @@ def engineer_features(df: pd.DataFrame, asset_weights: dict) -> pd.DataFrame:
     assets = getattr(_base_df, "_assets_raw", pd.DataFrame())
     profit_roll = getattr(_base_df, "_profit_rollup_raw", pd.DataFrame())
 
-    def _canon_id_series(s: pd.Series) -> pd.Series:
-        s = s.astype(str).str.strip()
-        return s.str.replace(r"\.0$", "", regex=True)
+def _canon_id_series(s: pd.Series) -> pd.Series:
+    return canonicalize_customer_id(s)
 
     if 'Customer ID' in df.columns:
         df['Customer ID'] = _canon_id_series(df['Customer ID'])
