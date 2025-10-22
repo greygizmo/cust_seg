@@ -111,11 +111,14 @@ def run_optimization(n_trials=5000, lambda_param=0.50, include_size=True):
     with open(out_path, 'w') as f:
         json.dump(output_data, f, indent=4)
 
-    print(f"\nSaved optimized weights to {out_path}")if __name__ == '__main__':
-    # --- Configuration ---
-    # You can adjust these parameters before running the script.
-    N_TRIALS = 5000  # Number of optimization rounds. More is better but slower.
-    LAMBDA = 0.25    # Trade-off parameter. 0.0 = pure revenue prediction, 1.0 = pure distribution matching.
+    print(f"\nSaved optimized weights to {out_path}")
 
-    # Set include_size=False to lock the size criterion at 0 weight and optimize the other three.
-    run_optimization(n_trials=N_TRIALS, lambda_param=LAMBDA, include_size=False) 
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description="Optimize ICP weights with Optuna")
+    parser.add_argument("--n-trials", type=int, default=5000, help="Number of trials")
+    parser.add_argument("--lambda", dest="lambda_param", type=float, default=0.25, help="Trade-off between corr and distribution")
+    parser.add_argument("--include-size", action="store_true", help="Include size_score in optimization (default False)")
+    args = parser.parse_args()
+
+    run_optimization(n_trials=args.n_trials, lambda_param=args.lambda_param, include_size=args.include_size)

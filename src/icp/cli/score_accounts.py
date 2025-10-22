@@ -47,6 +47,17 @@ if str(SRC_DIR) not in sys.path:
 
 # Import the centralized scoring logic
 from icp.scoring import calculate_scores, LICENSE_COL, DEFAULT_WEIGHTS
+from icp.validation import ensure_columns, ensure_non_negative, log_validation
+from icp.schema import (
+    COL_CUSTOMER_ID,
+    COL_COMPANY_NAME,
+    COL_INDUSTRY,
+    COL_REL_LICENSE,
+    COL_REL_SAAS,
+    COL_REL_MAINT,
+    COL_HW_REV,
+    COL_CONS_REV,
+)
 # Import the new industry scoring module
 from icp.industry import build_industry_weights, save_industry_weights, load_industry_weights
 import icp.data_access as da
@@ -905,6 +916,17 @@ def main():
     print("Loading data from Azure SQL...")
     master = assemble_master_from_db()
 
+    # --- Validations ---
+    ok, missing = ensure_columns(master, [COL_CUSTOMER_ID, COL_COMPANY_NAME, COL_INDUSTRY])
+    if not ok:
+        log_validation("Missing required columns in master", missing, root=ROOT)
+        print(f"[WARN] Missing required columns: {missing}")
+    ok2, bad = ensure_non_negative(master, [COL_REL_LICENSE, COL_REL_SAAS, COL_REL_MAINT, COL_HW_REV, COL_CONS_REV])
+    if not ok2 and bad:
+        log_validation("Found negative values; clamping to zero", bad, root=ROOT)
+        for c in bad:
+            master[c] = master[c].clip(lower=0)
+
     print("Generating data-driven industry weights...")
     industry_weights_path = ROOT / "artifacts" / "weights" / "industry_weights.json"
     if not industry_weights_path.exists():
@@ -986,9 +1008,37 @@ def main():
 # ---------------------------
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Run ICP scoring pipeline")
+    parser.add_argument("--out", type=str, default=None, help="Output CSV path (default: data/processed/icp_scored_accounts.csv)")
+    parser.add_argument("--weights", type=str, default=None, help="Path to optimized_weights.json")
+    parser.add_argument("--industry-weights", type=str, default=None, help="Path to industry_weights.json")
+    parser.add_argument("--asset-weights", type=str, default=None, help="Path to asset_rollup_weights.json")
+    parser.add_argument("--skip-visuals", action="store_true", help="Skip generating visuals")
+    args, unknown = parser.parse_known_args()
+
+    # Note: core script uses fixed paths; we allow overrides via env-like globals where feasible.
+    # We won't refactor full internals here; just set known paths if provided.
     try:
+        if args.weights:
+            os.environ["ICP_OPT_WEIGHTS_PATH"] = args.weights
+        if args.industry_weights:
+            os.environ["ICP_INDUSTRY_WEIGHTS_PATH"] = args.industry_weights
+        if args.asset_weights:
+            os.environ["ICP_ASSET_WEIGHTS_PATH"] = args.asset_weights
+        # Run main
         main()
-    except Exception as e:
+        # If custom out was requested and default out exists, copy it
+        if args.out:
+            src = ROOT / "data" / "processed" / "icp_scored_accounts.csv"
+            if src.exists():
+                dst = Path(args.out)
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, dst)
+                print(f"[INFO] Wrote copy to {dst}")
+        if args.skip_visuals:
+            print("[INFO] --skip-visuals specified (no additional visuals rendered)")
+    except Exception:
         print("\nAn error occurred - see traceback above.\n")
         raise
 

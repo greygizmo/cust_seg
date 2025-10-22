@@ -13,6 +13,19 @@ import json
 import os
 from pathlib import Path
 from scipy.stats import norm
+from icp.schema import (
+    COL_INDUSTRY,
+    COL_BIG_BOX,
+    COL_SMALL_BOX,
+    COL_HW_REV,
+    COL_CONS_REV,
+    COL_REL_LICENSE,
+    COL_REL_SAAS,
+    COL_REL_MAINT,
+    COL_RELATIONSHIP_PROFIT,
+    COL_ADOPTION_ASSETS,
+    COL_ADOPTION_PROFIT,
+)
 
 # --- Constants and Configurations ---
 LICENSE_COL = "Total Software License Revenue"
@@ -157,7 +170,7 @@ def calculate_scores(df, weights, size_config=None):
     # 1. Vertical Score: Based on a direct mapping from the industry name to its
     #    data-driven performance weight (loaded dynamically from industry_weights.json).
     industry_weights = load_dynamic_industry_weights()
-    v_lower = df_clean["Industry"].astype(str).str.lower().str.strip()
+    v_lower = df_clean[COL_INDUSTRY].astype(str).str.lower().str.strip()
     df_clean["vertical_score"] = v_lower.map(industry_weights).fillna(0.3)
 
     # 2. Size Score: Based on tiers of enriched annual revenue data.
@@ -225,9 +238,9 @@ def calculate_scores(df, weights, size_config=None):
             return pd.Series(0.0, index=series.index)
         return (series - min_val) / (max_val - min_val)
 
-    if 'adoption_assets' in df_clean.columns and 'adoption_profit' in df_clean.columns:
-        assets_series = pd.to_numeric(df_clean['adoption_assets'], errors='coerce').fillna(0)
-        profit_series = pd.to_numeric(df_clean['adoption_profit'], errors='coerce').fillna(0)
+    if COL_ADOPTION_ASSETS in df_clean.columns and COL_ADOPTION_PROFIT in df_clean.columns:
+        assets_series = pd.to_numeric(df_clean[COL_ADOPTION_ASSETS], errors='coerce').fillna(0)
+        profit_series = pd.to_numeric(df_clean[COL_ADOPTION_PROFIT], errors='coerce').fillna(0)
 
         P = percentile_scale(assets_series)
         R = percentile_scale(profit_series)
@@ -246,17 +259,17 @@ def calculate_scores(df, weights, size_config=None):
         df_clean['adoption_score'] = adoption_scores
     else:
         # Legacy fallback using printer counts and hardware+consumable revenue
-        if 'Total Consumable Revenue' not in df_clean.columns:
-            df_clean['Total Consumable Revenue'] = 0
-        if 'Total Hardware Revenue' not in df_clean.columns:
-            df_clean['Total Hardware Revenue'] = 0
+        if COL_CONS_REV not in df_clean.columns:
+            df_clean[COL_CONS_REV] = 0
+        if COL_HW_REV not in df_clean.columns:
+            df_clean[COL_HW_REV] = 0
 
-        big_box_safe = np.maximum(df_clean.get('Big Box Count', 0), 0)
-        small_box_safe = np.maximum(df_clean.get('Small Box Count', 0), 0)
+        big_box_safe = np.maximum(df_clean.get(COL_BIG_BOX, 0), 0)
+        small_box_safe = np.maximum(df_clean.get(COL_SMALL_BOX, 0), 0)
         weighted_printer_score = (2.0 * pd.to_numeric(big_box_safe, errors='coerce').fillna(0)) + (1.0 * pd.to_numeric(small_box_safe, errors='coerce').fillna(0))
 
-        hardware_revenue_safe = np.maximum(pd.to_numeric(df_clean['Total Hardware Revenue'], errors='coerce').fillna(0), 0)
-        consumable_revenue_safe = np.maximum(pd.to_numeric(df_clean['Total Consumable Revenue'], errors='coerce').fillna(0), 0)
+        hardware_revenue_safe = np.maximum(pd.to_numeric(df_clean[COL_HW_REV], errors='coerce').fillna(0), 0)
+        consumable_revenue_safe = np.maximum(pd.to_numeric(df_clean[COL_CONS_REV], errors='coerce').fillna(0), 0)
         total_hardware_adoption_revenue = hardware_revenue_safe + consumable_revenue_safe
 
         P = percentile_scale(weighted_printer_score)
@@ -276,11 +289,11 @@ def calculate_scores(df, weights, size_config=None):
         df_clean['adoption_score'] = adoption_scores
 
     # 4. Relationship Score: prefer profit from software goals if present.
-    if 'relationship_profit' in df_clean.columns:
-        rel_safe = np.maximum(pd.to_numeric(df_clean['relationship_profit'], errors='coerce').fillna(0), 0)
+    if COL_RELATIONSHIP_PROFIT in df_clean.columns:
+        rel_safe = np.maximum(pd.to_numeric(df_clean[COL_RELATIONSHIP_PROFIT], errors='coerce').fillna(0), 0)
         df_clean['relationship_score'] = min_max_scale(np.log1p(rel_safe))
     else:
-        relationship_cols = ['Total Software License Revenue', 'Total SaaS Revenue', 'Total Maintenance Revenue']
+        relationship_cols = [COL_REL_LICENSE, COL_REL_SAAS, COL_REL_MAINT]
         for col in relationship_cols:
             if col not in df_clean.columns:
                 df_clean[col] = 0

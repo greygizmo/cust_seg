@@ -85,7 +85,16 @@ def main():
     # Sidebar navigation
     st.sidebar.title("ICP Dashboard Navigation")
 
-    page = st.sidebar.radio("Navigate to:",["Main Dashboard", "System Documentation", "Scoring Details"])\r\n\r\n    if page == "Main Dashboard":\r\n        show_main_dashboard()\r\n    elif page == "System Documentation":\r\n        show_documentation()\r\n    elif page == "Scoring Details":\r\n        show_scoring_details()
+    page = st.sidebar.radio("Navigate to:", ["Main Dashboard", "Call List Builder", "System Documentation", "Scoring Details"]) 
+
+    if page == "Main Dashboard":
+        show_main_dashboard()
+    elif page == "Call List Builder":
+        show_call_list_builder()
+    elif page == "System Documentation":
+        show_documentation()
+    elif page == "Scoring Details":
+        show_scoring_details()
 
 def show_main_dashboard():
     """Main dashboard page with metrics, charts, and analysis"""
@@ -946,6 +955,79 @@ def show_scoring_details():
             st.metric("Lambda Parameter", optimization_data.get('lambda_param', 'N/A'))
     else:
         st.warning(" Using default weights. Run optimization for better results.")
+
+# ---------------------------
+# Call List Builder Page
+# ---------------------------
+
+def show_call_list_builder():
+    st.markdown('<h1 class="main-header">Call List Builder</h1>', unsafe_allow_html=True)
+
+    try:
+        df = pd.read_csv(ROOT / 'data' / 'processed' / 'icp_scored_accounts.csv')
+    except Exception:
+        st.error("Could not load scored data. Run the scoring pipeline first.")
+        return
+
+    segment_options = ["All", "Small Business", "Mid-Market", "Large Enterprise"]
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        segment = st.selectbox("Segment", segment_options, index=0)
+    with col2:
+        industry = st.text_input("Industry contains", "")
+    with col3:
+        adoption_min = st.slider("Min Adoption Score", 0.0, 1.0, 0.5, 0.05)
+    with col4:
+        relationship_min = st.slider("Min Relationship Score", 0.0, 1.0, 0.3, 0.05)
+
+    col5, col6, col7 = st.columns(3)
+    with col5:
+        revenue_only = st.checkbox("Revenue-only (no printers)", value=False)
+    with col6:
+        heavy_fleet = st.checkbox("Heavy fleet (≥10 weighted)", value=False)
+    with col7:
+        a_b_only = st.checkbox("A/B grades only", value=True)
+
+    flt = df.copy()
+    if segment != "All" and 'customer_segment' in flt.columns:
+        flt = flt[flt['customer_segment'] == segment]
+    if industry and 'Industry' in flt.columns:
+        flt = flt[flt['Industry'].astype(str).str.contains(industry, case=False, na=False)]
+    if 'adoption_score' in flt.columns:
+        flt = flt[flt['adoption_score'] >= adoption_min]
+    if 'relationship_score' in flt.columns:
+        flt = flt[flt['relationship_score'] >= relationship_min]
+    if revenue_only and {'Big Box Count','Small Box Count'}.issubset(flt.columns):
+        weighted = (2.0 * flt['Big Box Count'].fillna(0)) + (1.0 * flt['Small Box Count'].fillna(0))
+        flt = flt[weighted == 0]
+    if heavy_fleet and {'Big Box Count','Small Box Count'}.issubset(flt.columns):
+        weighted = (2.0 * flt['Big Box Count'].fillna(0)) + (1.0 * flt['Small Box Count'].fillna(0))
+        flt = flt[weighted >= 10]
+    if a_b_only and 'ICP_grade' in flt.columns:
+        flt = flt[flt['ICP_grade'].isin(['A','B'])]
+
+    sort_cols = []
+    if 'ICP_score' in flt.columns:
+        sort_cols.append(('ICP_score', False))
+    if 'adoption_score' in flt.columns:
+        sort_cols.append(('adoption_score', False))
+    for c, asc in reversed(sort_cols):
+        flt = flt.sort_values(by=c, ascending=asc)
+
+    display_cols = [c for c in [
+        'Company Name','customer_segment','Industry','ICP_grade','ICP_score','adoption_score','relationship_score',
+        'Profit_Since_2023_Total'
+    ] if c in flt.columns]
+
+    st.subheader(f"Results ({len(flt)} accounts)")
+    st.dataframe(flt[display_cols].head(500), use_container_width=True)
+
+    if st.button("Export CSV"):
+        out_dir = ROOT / 'reports' / 'call_lists' / pd.Timestamp.now().strftime('%Y%m%d')
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / f"call_list_{pd.Timestamp.now().strftime('%H%M%S')}.csv"
+        flt.to_csv(out_path, index=False)
+        st.success(f"Exported to {out_path}")
 
 if __name__ == "__main__":
     main() 
