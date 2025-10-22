@@ -4,56 +4,57 @@
 graph TB
     %% Define main data sources
     subgraph "External Data Sources"
-        CustomerExcel[JY - Customer Analysis.xlsx<br/>Customer master data<br/>Industry, revenue, printer counts]
-        SalesExcel[TR - Master Sales Log.xlsx<br/>Historical sales transactions<br/>GP, revenue, dates]
-        RevenueCSV[enrichment_progress.csv<br/>Enriched revenue data<br/>SEC, PDL, FMP sources]
-        IndustryCSV[TR - Industry Enrichment.csv<br/>Updated industry classifications<br/>With reasoning and validation]
+        AzureCustomers[Azure SQL: Customers Since 2023]
+        AzureProfitGoal[Azure SQL: Profit Since 2023 by Goal]
+        AzureProfitRollup[Azure SQL: Profit Since 2023 by Rollup]
+        AzureQuarterly[Azure SQL: Quarterly Profit by Goal]
+        AzureAssets[Azure SQL: Assets & Seats]
+        IndustryCSV[data/raw/TR - Industry Enrichment.csv (optional)]
     end
 
     subgraph "Configuration Files"
-        ConfigTOML[config.toml<br/>System configuration<br/>File paths, parameters]
-        StrategicJSON[strategic_industry_tiers.json<br/>Strategic priorities<br/>Industry tiers, blend weights]
-        RequirementsTXT[requirements.txt<br/>Python dependencies<br/>Package versions]
+        ConfigTOML[configs/default.toml]
+        StrategicJSON[artifacts/industry/strategic_industry_tiers.json]
+        RequirementsTXT[requirements.txt]
     end
 
     subgraph "Core Processing Scripts"
-        NameCleaningScript[normalize_names.py<br/>Standardize company names<br/>Create matching keys]
-        IndustryCleanupScript[cleanup_industry_data.py<br/>Standardize industry names<br/>Fuzzy matching logic]
-        IndustryScoringScript[industry_scoring.py<br/>Calculate industry weights<br/>Empirical-Bayes shrinkage]
-        MainScoringScript[goe_icp_scoring.py<br/>End-to-end processing<br/>Orchestrates all steps]
+        IndustryCleanupScript[scripts/clean/cleanup_industry_data.py]
+        IndustryScoringScript[src/icp/industry.py]
+        MainScoringScript[src/icp/cli/score_accounts.py]
     end
 
     subgraph "Scoring & Optimization"
-        ScoringLogicModule[scoring_logic.py<br/>Core scoring functions<br/>Component score calculations]
-        OptimizationScript[run_optimization.py<br/>Weight optimization<br/>Optuna study execution]
-        OptimizationFunction[optimize_weights.py<br/>Objective function<br/>Multi-objective optimization]
+        ScoringLogicModule[src/icp/scoring.py]
+        OptimizationScript[src/icp/cli/optimize_weights.py]
+        OptimizationFunction[src/icp/optimization.py]
     end
 
     subgraph "Dashboard & Visualization"
-        DashboardScript[streamlit_icp_dashboard.py<br/>Interactive dashboard<br/>Real-time analysis]
-        VisualizationOutputs[Generated Charts<br/>vis1-vis10 PNG files<br/>Analysis visualizations]
+        DashboardScript[apps/streamlit/app.py]
+        VisualizationOutputs[reports/figures/*.png]
     end
 
     subgraph "Generated Data Files"
-        ScoredAccountsCSV[icp_scored_accounts.csv<br/>Final scored dataset<br/>All customer scores and metadata]
-        OptimizedWeightsJSON[optimized_weights.json<br/>ML-optimized weights<br/>Optimization metadata]
-        IndustryWeightsJSON[industry_weights.json<br/>Data-driven industry scores<br/>Processing metadata]
-        EnrichmentBackup[TR - Industry Enrichment_backup_*.csv<br/>Historical backups<br/>Version control]
+        ScoredAccountsCSV[data/processed/icp_scored_accounts.csv]
+        OptimizedWeightsJSON[artifacts/weights/optimized_weights.json]
+        IndustryWeightsJSON[artifacts/weights/industry_weights.json]
+        EnrichmentBackup[archive/data/...
+Historical backups]
     end
 
     %% Define dependency relationships
-    CustomerExcel --> NameCleaningScript
-    CustomerExcel --> MainScoringScript
-    SalesExcel --> NameCleaningScript
-    SalesExcel --> MainScoringScript
-    RevenueCSV --> MainScoringScript
+    AzureCustomers --> MainScoringScript
+    AzureProfitGoal --> MainScoringScript
+    AzureProfitRollup --> MainScoringScript
+    AzureQuarterly --> MainScoringScript
+    AzureAssets --> MainScoringScript
     IndustryCSV --> IndustryCleanupScript
     IndustryCSV --> MainScoringScript
 
     ConfigTOML --> MainScoringScript
     StrategicJSON --> IndustryScoringScript
 
-    NameCleaningScript --> MainScoringScript
     IndustryCleanupScript --> IndustryScoringScript
     IndustryCleanupScript --> MainScoringScript
 
@@ -90,7 +91,7 @@ graph TB
     classDef output fill:#f9fbe7,stroke:#689f38,stroke-width:2px
 
     %% Apply styles
-    class CustomerExcel,SalesExcel,RevenueCSV,IndustryCSV dataSource
+    class AzureCustomers,AzureProfitGoal,AzureProfitRollup,AzureQuarterly,AzureAssets,IndustryCSV dataSource
     class ConfigTOML,StrategicJSON,RequirementsTXT config
     class NameCleaningScript,IndustryCleanupScript,IndustryScoringScript,MainScoringScript processing
     class ScoringLogicModule,OptimizationScript,OptimizationFunction scoring
@@ -156,21 +157,21 @@ Processing Scripts  Generated Data Files  Visualizations
 2. **Scoring logic** is used by the main processing script
 3. **Main processing script** generates the data used for industry scoring
 
-### File Dependencies:
+### File Dependencies (updated):
 
 #### Input Dependencies:
-- `goe_icp_scoring.py` depends on 4+ Excel/CSV files
-- `industry_scoring.py` depends on processed customer data
-- `run_optimization.py` depends on scored accounts data
+- `src/icp/cli/score_accounts.py` depends on Azure SQL and optional enrichment CSV
+- `src/icp/industry.py` depends on assembled master data
+- `src/icp/cli/optimize_weights.py` depends on scored accounts data
 
 #### Output Dependencies:
-- `icp_scored_accounts.csv` is required by dashboard and optimization
-- `optimized_weights.json` is required by scoring logic and dashboard
-- `industry_weights.json` is required by scoring logic
+- `data/processed/icp_scored_accounts.csv` is required by dashboard and optimization
+- `artifacts/weights/optimized_weights.json` is required by scoring logic and dashboard
+- `artifacts/weights/industry_weights.json` is required by scoring logic
 
 #### Configuration Dependencies:
-- `strategic_industry_tiers.json` configures industry priorities
-- `config.toml` provides system-wide settings
+- `artifacts/industry/strategic_industry_tiers.json` configures industry priorities
+- `configs/default.toml` provides system-wide settings
 - `requirements.txt` specifies runtime dependencies
 
 ### Processing Order:

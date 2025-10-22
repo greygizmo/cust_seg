@@ -4,8 +4,9 @@
 graph TD
     %% Define the main scoring components
     subgraph "Input Data"
-        CustomerRecord[Customer Record<br/>Company Name, Industry, Revenue<br/>Printer Counts, Software Revenue]
-        OptimizedWeights[Optimized Weights<br/>From ML Optimization Process<br/>- Vertical: Industry Importance<br/>- Size: Revenue Importance<br/>- Adoption: Hardware Engagement<br/>- Relationship: Software Revenue]
+        CustomerRecord[Customer Record<br/>Industry, profit, assets/seats<br/>Printer counts (legacy), software revenue]
+        OptimizedWeights[Optimized Weights (artifacts/weights)
+        - Vertical, Size, Adoption, Relationship]
     end
 
     subgraph "Component Score Calculation"
@@ -23,9 +24,12 @@ graph TD
 
         subgraph "3. Adoption Score"
             subgraph "Hardware Data Collection"
-                PrinterCounts[Printer Inventory<br/>Big Box Count (2x weight)<br/>Small Box Count (1x weight)]
-                HardwareRevenue[Hardware Revenue<br/>Total Hardware Revenue<br/>Total Consumable Revenue]
-                TotalHardwareRevenue[Calculate Total Hardware Adoption<br/>Hardware + Consumables]
+                PreferredSignals[Preferred Signals (DB)
+                - adoption_assets (weighted)
+                - adoption_profit (Profit since 2023)]
+                LegacySignals[Legacy Signals (fallback)
+                - Weighted Printers (2x/1x)
+                - HW + Consumable Revenue]
             end
 
             subgraph "Weighted Printer Score"
@@ -34,14 +38,18 @@ graph TD
 
             subgraph "Percentile Scaling"
                 ZeroExclusion[Exclude Zero Values<br/>Only non-zero customers for percentiles<br/>Prevents distribution compression]
-                PrinterPercentile[Printer Percentile Rank<br/>0-1 scale based on weighted printer score<br/>Among customers with printers]
-                RevenuePercentile[Revenue Percentile Rank<br/>0-1 scale based on hardware revenue<br/>Among customers with revenue]
+                PctPreferred[P/R from preferred signals]
+                PctLegacy[P/R from legacy signals]
             end
 
             subgraph "Business Rules Application"
                 ZeroEverythingRule[Zero Everything Rule<br/>No printers + no revenue = 0.0<br/>True non-adopters]
-                RevenueOnlyRule[Revenue-Only Rule<br/>Revenue but no printers = 0.0-0.5<br/>Capped at 0.4, square root scaling]
-                PrinterRule[Printer Customers Rule<br/>0.0-1.0 range<br/>60% printer + 40% revenue blend]
+                RevenueOnlyRule[Revenue-Only Rule (legacy)
+Revenue but no printers = 0.0-0.5
+0.5 * sqrt(R)]
+                PrinterRule[Assets/Profit (preferred)
+If assets>0: 0.6*P + 0.4*R
+Legacy printers: same blend]
                 HeavyFleetBonus[Heavy Fleet Bonus<br/>10+ weighted printers = +0.05<br/>Rewards significant investment]
             end
 
@@ -49,8 +57,9 @@ graph TD
         end
 
         subgraph "4. Relationship Score"
-            SoftwareRevenue[Software Revenue Data<br/>License, SaaS, Maintenance Revenue<br/>Total Software License Revenue<br/>Total SaaS Revenue<br/>Total Maintenance Revenue]
-            TotalSoftware[Calculate Total Software Revenue<br/>Sum all software revenue types]
+            SoftwareRevenue[Software Signals<br/>Preferred: relationship_profit (software goals)
+Fallback: License + SaaS + Maintenance]
+            TotalSoftware[Calculate relationship feature]
             LogTransformation[Log Transformation<br/>log1p(total_software_revenue)<br/>Handles wide range of values]
             MinMaxScaling[Min-Max Scaling<br/>0.0 - 1.0 normalization<br/>Preserves relative differences]
             RelationshipScore[Calculate Relationship Score<br/>0.0 - 1.0 scale<br/>Reflects software engagement]

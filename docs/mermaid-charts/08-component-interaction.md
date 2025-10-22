@@ -4,23 +4,21 @@
 graph TB
     %% Define main Python modules and their key functions/classes
     subgraph "Data Processing Layer"
-        NameNormalizer[normalize_names.py<br/>normalize_name_for_matching()<br/>Standardizes company names]
-        IndustryCleaner[cleanup_industry_data.py<br/>Industry standardization functions<br/>Fuzzy matching algorithms]
-        IndustryScorer[industry_scoring.py<br/>build_industry_weights()<br/>save_industry_weights()<br/>load_industry_weights()]
-        MainProcessor[goe_icp_scoring.py<br/>main() - orchestrates all processing<br/>load_customers(), load_sales()<br/>aggregate_gp24(), merge_master()<br/>engineer_features(), build_visuals()]
+        IndustryCleaner[scripts/clean/cleanup_industry_data.py<br/>Industry standardization utilities]
+        IndustryScorer[src/icp/industry.py<br/>build_industry_weights()<br/>save_industry_weights()<br/>load_industry_weights()]
+        MainProcessor[src/icp/cli/score_accounts.py<br/>main() - orchestrates data assembly & scoring<br/>assemble_master_from_db(), engineer_features(), build_visuals()]
     end
 
     subgraph "Scoring Engine Layer"
-        ScoringLogic[scoring_logic.py<br/>calculate_scores() - Core scoring function<br/>calculate_grades() - Grade assignment<br/>load_dynamic_industry_weights()<br/>percentile_scale(), min_max_scale()<br/>Constants: DEFAULT_WEIGHTS, TARGET_GRADE_DISTRIBUTION]
+        ScoringLogic[src/icp/scoring.py<br/>calculate_scores(), calculate_grades(), load_dynamic_industry_weights()<br/>Constants: DEFAULT_WEIGHTS, TARGET_GRADE_DISTRIBUTION]
     end
 
     subgraph "Optimization Layer"
-        OptimizationRunner[run_optimization.py<br/>run_optimization() - Main optimization function<br/>Configures Optuna study<br/>Executes trials and saves results]
-        ObjectiveFunction[optimize_weights.py<br/>objective() - Optuna objective function<br/>Calculates Spearman correlation<br/>Computes KL divergence<br/>Applies weight constraints]
-    end
+        OptimizationRunner[src/icp/cli/optimize_weights.py<br/>run_optimization() - CLI wrapper]
+        ObjectiveFunction[src/icp/optimization.py<br/>objective() - Optuna objective function<br/>Spearman correlation + KL divergence]</n+    end
 
     subgraph "Dashboard Layer"
-        DashboardApp[streamlit_icp_dashboard.py<br/>main() - Main dashboard function<br/>create_score_components_radar()<br/>create_score_by_vertical()<br/>load_data() - Cached data loading<br/>determine_customer_segment()]
+        DashboardApp[apps/streamlit/app.py<br/>Main dashboard + Call List Builder<br/>Docs integration]
         StreamlitComponents[Streamlit UI Components<br/>st.sidebar, st.slider, st.selectbox<br/>st.columns, st.plotly_chart<br/>st.dataframe, st.download_button]
     end
 
@@ -35,13 +33,16 @@ graph TB
     end
 
     subgraph "Data Storage Layer"
-        InputFiles[Input Data Files<br/>Excel: Customer, Sales<br/>CSV: Revenue, Industry Enrichment<br/>JSON: Strategic config]
-        OutputFiles[Generated Data Files<br/>icp_scored_accounts.csv<br/>optimized_weights.json<br/>industry_weights.json<br/>vis1-vis10.png]
-        CacheFiles[Cache & Backup Files<br/>__pycache__/<br/>Industry enrichment backups<br/>Processed data archives]
+        InputFiles[Inputs<br/>Azure SQL sources<br/>CSV: Industry Enrichment (optional)
+JSON: Strategic config]
+        OutputFiles[Generated Artifacts<br/>data/processed/icp_scored_accounts.csv<br/>artifacts/weights/optimized_weights.json
+artifacts/weights/industry_weights.json
+reports/figures/vis1-vis10.png]
+        CacheFiles[Cache & Backups
+archive/*]
     end
 
     %% Define function call relationships
-    MainProcessor --> NameNormalizer
     MainProcessor --> IndustryCleaner
     MainProcessor --> IndustryScorer
     MainProcessor --> ScoringLogic

@@ -4,46 +4,42 @@
 graph TB
     %% Define all Python files and their relationships
     subgraph "Main Scripts (Executable)"
-        MainScoring[goe_icp_scoring.py<br/>PRIMARY EXECUTABLE<br/>End-to-end processing pipeline<br/>Execution Order: 1st]
-        Optimization[run_optimization.py<br/>OPTIONAL EXECUTABLE<br/>Weight optimization with Optuna<br/>Execution Order: 3rd (after main scoring)]
-        Dashboard[streamlit_icp_dashboard.py<br/>WEB APP EXECUTABLE<br/>Interactive dashboard<br/>Execution Order: 4th (after all processing)]
+        MainScoring[src/icp/cli/score_accounts.py<br/>PRIMARY EXECUTABLE<br/>End-to-end data assembly & scoring]
+        Optimization[src/icp/cli/optimize_weights.py<br/>OPTIONAL EXECUTABLE<br/>Weight optimization with Optuna]
+        Dashboard[apps/streamlit/app.py<br/>WEB APP EXECUTABLE<br/>Interactive dashboard + Call List Builder]
     end
 
     subgraph "Utility Modules (Imported)"
-        NameUtils[normalize_names.py<br/>Name standardization functions<br/>Used by main scoring and dashboard]
-        IndustryUtils[cleanup_industry_data.py<br/>Industry classification utilities<br/>Used by main scoring]
-        IndustryScoring[industry_scoring.py<br/>Data-driven industry weights<br/>Used by main scoring and scoring logic]
-        ScoringLogic[scoring_logic.py<br/>CORE SCORING ENGINE<br/>Component score calculations<br/>Used by main scoring and dashboard]
-        OptimizationObj[optimize_weights.py<br/>Optimization objective function<br/>Used by optimization script]
+        IndustryUtils[scripts/clean/cleanup_industry_data.py]
+        IndustryScoring[src/icp/industry.py]
+        ScoringLogic[src/icp/scoring.py]
+        OptimizationObj[src/icp/optimization.py]
     end
 
     subgraph "Configuration Files (Read)"
-        ConfigFile[config.toml<br/>System configuration<br/>Read by main scoring]
-        StrategicConfig[strategic_industry_tiers.json<br/>Strategic industry priorities<br/>Read by industry scoring]
-        Requirements[requirements.txt<br/>Python dependencies<br/>Read by pip install]
+        ConfigFile[configs/default.toml]
+        StrategicConfig[artifacts/industry/strategic_industry_tiers.json]
+        Requirements[requirements.txt]
     end
 
     subgraph "Data Files (Read/Write)"
-        subgraph "Input Data Files"
-            CustomerData[JY - Customer Analysis.xlsx<br/>Customer master data<br/>Read by main scoring]
-            SalesData[TR - Master Sales Log.xlsx<br/>Historical sales data<br/>Read by main scoring]
-            RevenueData[enrichment_progress.csv<br/>Enriched revenue data<br/>Read by main scoring]
-            IndustryEnrich[TR - Industry Enrichment.csv<br/>Industry classifications<br/>Read by main scoring]
+        subgraph "Input Data"
+            AzureSources[Azure SQL Sources<br/>Customers, Profit, Assets/Seats<br/>Read by main scoring]
+            IndustryEnrich[data/raw/TR - Industry Enrichment.csv<br/>Industry classifications<br/>Read by main scoring (optional)]
         end
 
         subgraph "Generated Data Files"
-            ScoredAccounts[icp_scored_accounts.csv<br/>FINAL OUTPUT<br/>Scored customer dataset<br/>Written by main scoring<br/>Read by dashboard and optimization]
-            OptimizedWeights[optimized_weights.json<br/>ML-optimized weights<br/>Written by optimization<br/>Read by scoring logic and dashboard]
-            IndustryWeights[industry_weights.json<br/>Industry performance weights<br/>Written by main scoring/industry scoring<br/>Read by scoring logic]
-            Visualizations[vis1-vis10.png<br/>Analysis charts<br/>Written by main scoring<br/>Read by dashboard]
+            ScoredAccounts[data/processed/icp_scored_accounts.csv<br/>Scored customer dataset]
+            OptimizedWeights[artifacts/weights/optimized_weights.json]
+            IndustryWeights[artifacts/weights/industry_weights.json]
+            Visualizations[reports/figures/vis1-vis10.png]
         end
     end
 
     subgraph "Import Relationships"
-        MainScoring --> NameUtils
-        MainScoring --> IndustryUtils
-        MainScoring --> IndustryScoring
-        MainScoring --> ScoringLogic
+    MainScoring --> IndustryUtils
+    MainScoring --> IndustryScoring
+    MainScoring --> ScoringLogic
 
         Dashboard --> ScoringLogic
         Dashboard --> NameUtils
@@ -54,9 +50,7 @@ graph TB
     end
 
     subgraph "Data Read Relationships"
-        MainScoring --> CustomerData
-        MainScoring --> SalesData
-        MainScoring --> RevenueData
+        MainScoring --> AzureSources
         MainScoring --> IndustryEnrich
         MainScoring --> ConfigFile
 
@@ -86,9 +80,7 @@ graph TB
     end
 
     subgraph "Execution Dependencies"
-        CustomerData -.-> MainScoring
-        SalesData -.-> MainScoring
-        RevenueData -.-> MainScoring
+        AzureSources -.-> MainScoring
         IndustryEnrich -.-> MainScoring
 
         MainScoring -.-> ScoredAccounts
@@ -152,18 +144,18 @@ graph TB
 
 ### Execution Order:
 
-1. **goe_icp_scoring.py** (Required - Main Processing)
-   - Reads: Customer data, sales data, revenue data, industry data, config
+1. **src/icp/cli/score_accounts.py** (Required - Main Processing)
+   - Reads: Azure SQL sources, optional enrichment CSV, config
    - Writes: Scored accounts, industry weights, visualizations
    - Imports: All utility modules and scoring logic
 
-2. **run_optimization.py** (Optional - Weight Optimization)
+2. **src/icp/cli/optimize_weights.py** (Optional - Weight Optimization)
    - Reads: Scored accounts dataset
    - Writes: Optimized weights JSON
    - Imports: Optimization objective function
    - Depends on: Main scoring completion
 
-3. **streamlit_icp_dashboard.py** (Interactive Analysis)
+3. **apps/streamlit/app.py** (Interactive Analysis)
    - Reads: Scored accounts, optimized weights, industry weights, visualizations
    - No file writes (analysis only)
    - Imports: Scoring logic and name utilities
@@ -172,15 +164,14 @@ graph TB
 ### Critical Dependencies:
 
 #### **Hard Dependencies** (Must Exist):
-- `goe_icp_scoring.py`  `scoring_logic.py` (core scoring functions)
-- `goe_icp_scoring.py`  `industry_scoring.py` (industry weight calculation)
-- `streamlit_icp_dashboard.py`  `icp_scored_accounts.csv` (data source)
-- `scoring_logic.py`  `industry_weights.json` (industry scores)
+- `src/icp/cli/score_accounts.py`  `src/icp/scoring.py` (core scoring)
+- `src/icp/cli/score_accounts.py`  `src/icp/industry.py` (industry weights)
+- `apps/streamlit/app.py`  `data/processed/icp_scored_accounts.csv` (data source)
+- `src/icp/scoring.py`  `artifacts/weights/industry_weights.json` (industry scores)
 
 #### **Soft Dependencies** (Fallback Available):
-- `optimized_weights.json` (falls back to DEFAULT_WEIGHTS)
-- `enrichment_progress.csv` (falls back to printer-based revenue estimation)
-- `TR - Industry Enrichment.csv` (uses original industry data)
+- `artifacts/weights/optimized_weights.json` (falls back to DEFAULT_WEIGHTS)
+- Industry enrichment CSV optional (original industry used if absent)
 
 #### **Generated Dependencies**:
 - All output files are generated by the processing pipeline

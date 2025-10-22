@@ -4,13 +4,15 @@
 graph TD
     %% Define the dashboard user journey
     subgraph "Dashboard Initialization"
-        DataLoading[Load Scored Data<br/>icp_scored_accounts.csv<br/>Cached for performance]
-        WeightLoading[Load Optimized Weights<br/>optimized_weights.json<br/>Fallback to DEFAULT_WEIGHTS if missing]
+        DataLoading[Load Scored Data<br/>data/processed/icp_scored_accounts.csv<br/>Cached for performance]
+        WeightLoading[Load Optimized Weights
+artifacts/weights/optimized_weights.json<br/>Fallback to DEFAULT_WEIGHTS if missing]
         ConfigSetup[Initialize Dashboard Config<br/>- Default segment thresholds<br/>- Session state management<br/>- UI component defaults]
     end
 
     subgraph "Main Dashboard Display"
-        HeaderSection[Header Section<br/> ICP SCORING DASHBOARD<br/>Shows current segment filter]
+        HeaderSection[Header Section<br/> ICP SCORING DASHBOARD + Call List Builder
+Shows current segment filter]
         MetricCards[Key Metrics Cards<br/>6 Interactive Metric Cards:<br/>- Total Customers<br/>- Average ICP Score<br/>- High-Value Customers (70)<br/>- Total Revenue<br/>- High-Value GP<br/>- High-Value Percentage]
     end
 
@@ -49,8 +51,18 @@ graph TD
     end
 
     subgraph "Data Export & Details"
-        TopCustomersTable[Top Scoring Customers Table<br/>Top 100 customers by ICP score<br/>Columns: Company Name, Industry,<br/>ICP_score, ICP_grade, Component Scores<br/>Sortable and searchable]
-        CSVExport[Export Current View<br/> Download [Segment] Scores (CSV)<br/>Filtered data with current weights<br/>Includes all scores and metadata]
+        TopCustomersTable[Top Scoring Customers Table
+Columns: Company, Industry,
+ICP_score, ICP_grade, Component Scores
+Sortable and searchable]
+        CSVExport[Export Current View
+Download [Segment] Scores (CSV)
+Filtered data with current weights
+Includes all scores and metadata]
+        CallListBuilder[Call List Builder
+Filters: segment, industry, adoption/relationship bands
+Toggles: revenue-only, heavy fleet, A/B only
+Export CSV to reports/call_lists/]
     end
 
     subgraph "User Interaction Flow"
@@ -90,6 +102,7 @@ graph TD
     DataUpdate --> WeightDistribution
     DataUpdate --> ScoreByIndustry
     DataUpdate --> TopCustomersTable
+    DataUpdate --> CallListBuilder
 
     MetricCards --> ChartInteraction
     ICPDistribution --> ChartInteraction
@@ -117,7 +130,7 @@ graph TD
     class SidebarControls,WeightSliders,OptimizationStatus controls
     class WeightChangeDetection,ScoreRecalculation,DataUpdate calculation
     class ICPDistribution,GradeDistribution,WeightDistribution,ScoreByIndustry,SegmentComparison visualization
-    class TopCustomersTable,CSVExport export
+    class TopCustomersTable,CSVExport,CallListBuilder export
     class InitialLoad,SegmentSelection,WeightAdjustment,ChartInteraction,DataExport userFlow
 ```
 

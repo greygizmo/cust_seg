@@ -4,8 +4,8 @@
 graph TD
     %% Define the industry scoring workflow
     subgraph "Input Data"
-        CustomerData[Scored Customer Data<br/>icp_scored_accounts.csv<br/>Contains: Industry, GP24, Revenue24<br/>Total Hardware + Consumable Revenue<br/>Printer counts and software revenue]
-        StrategicConfig[strategic_industry_tiers.json<br/>Contains: Tier definitions<br/>Industry to tier mapping<br/>Tier scores and blend weights]
+        MasterData[Scored Customer Data<br/>(assembled)<br/>Contains: Industry, GP24, Revenue24<br/>Total Hardware + Consumable Revenue<br/>Printer counts and software revenue]
+        StrategicConfig[artifacts/industry/strategic_industry_tiers.json<br/>Contains: Tier definitions<br/>Industry to tier mapping<br/>Tier scores and blend weights]
     end
 
     subgraph "Data-Driven Performance Analysis"
@@ -42,7 +42,7 @@ graph TD
     subgraph "Output Generation"
         WeightDictionary[Create Industry Weight Dictionary<br/>industry_name  final_score mapping<br/>Lowercase keys for consistency<br/>Include fallback entries]
         MetadataCreation[Generate Metadata<br/>Processing timestamp<br/>Method description<br/>Sample sizes per industry<br/>Blend parameters used]
-        JSONExport[Export industry_weights.json<br/>Weights dictionary + metadata<br/>Used by scoring_logic.py<br/>Cached for performance]
+        JSONExport[artifacts/weights/industry_weights.json<br/>Weights dictionary + metadata<br/>Used by scoring logic<br/>Cached for performance]
         ResultsDisplay[Display Processing Results<br/>Number of industries processed<br/>Sample size distribution<br/>Score range achieved<br/>Shrinkage statistics]
     end
 
@@ -53,7 +53,7 @@ graph TD
     end
 
     %% Define data flow connections
-    CustomerData --> PerformanceCalculation
+    MasterData --> PerformanceCalculation
     PerformanceCalculation --> IndustryGrouping
     IndustryGrouping --> AdoptionMetrics
 
@@ -99,7 +99,7 @@ graph TD
     classDef examples fill:#ffecb3,stroke:#f57c00,stroke-width:2px
 
     %% Apply styles
-    class CustomerData,StrategicConfig input
+    class MasterData,StrategicConfig input
     class PerformanceCalculation,IndustryGrouping,AdoptionMetrics dataDriven
     class GlobalAverage,ShrinkageCalculation,ShrinkageFactors shrinkage
     class StrategicTiers,IndustryMapping,StrategicScores strategic
@@ -147,7 +147,7 @@ Blended Score = (0.7  Data-Driven) + (0.3  Strategic)
 ```
 - **70% weight** on empirical evidence
 - **30% weight** on strategic priorities
-- Configurable blend weights in `strategic_industry_tiers.json`
+- Configurable blend weights in `artifacts/industry/strategic_industry_tiers.json`
 
 #### 5. Quality Controls
 - **Minimum Sample Size**: Industries need 10 customers to be scored
@@ -167,6 +167,8 @@ Blended Score = (0.7  Data-Driven) + (0.3  Strategic)
 - **Used by**: `scoring_logic.py` for vertical score calculation
 - **Integrated with**: Overall ICP scoring system
 - **Cached**: Processed once and reused for performance
+
+
 
 
 

@@ -2,80 +2,83 @@
 
 ```mermaid
 graph TB
-    %% Define main system components
+    %% Define main system components (updated repo)
     subgraph "Data Sources"
-        CustomerData[JY - Customer Analysis - Customer Segmentation.xlsx<br/>Contains: Industry, Revenue, Customer Details]
-        SalesData[TR - Master Sales Log - Customer Segementation.xlsx<br/>Contains: GP24, Revenue24, Historical Sales Data]
-        RevenueData[enrichment_progress.csv<br/>Contains: Enriched Annual Revenue Data]
-        IndustryData[TR - Industry Enrichment.csv<br/>Contains: Updated Industry Classifications]
+        AzureCustomers[Azure SQL: Customers Since 2023]
+        AzureProfitGoal[Azure SQL: Profit Since 2023 by Goal]
+        AzureProfitRollup[Azure SQL: Profit Since 2023 by Rollup]
+        AzureQuarterly[Azure SQL: Quarterly Profit by Goal]
+        AzureAssets[Azure SQL: Assets & Seats]
+        IndustryCSV[data/raw/TR - Industry Enrichment.csv (optional)<br/>Updated Industry Classifications]
     end
 
-    subgraph "Data Processing Pipeline"
-        NameCleaning[normalize_names.py<br/>Standardizes Company Names for Matching]
-        IndustryCleanup[cleanup_industry_data.py<br/>Standardizes Industry Classifications]
-        IndustryScoring[industry_scoring.py<br/>Calculates Data-Driven Industry Weights]
-        DataAggregation[goe_icp_scoring.py<br/>End-to-End Data Processing & Scoring]
+    subgraph "Processing & Orchestration"
+        MainPipeline[src/icp/cli/score_accounts.py<br/>End-to-End Data Assembly & Scoring]
+        IndustryBuilder[src/icp/industry.py<br/>Build/Load Industry Weights]
+        SchemaValidation[src/icp/schema.py & validation.py<br/>Column constants & data checks]
     end
 
     subgraph "Scoring Engine"
-        ScoringLogic[scoring_logic.py<br/>Centralized Scoring Functions<br/>- Vertical Score (Industry)<br/>- Size Score (Revenue)<br/>- Adoption Score (Hardware/Printer)<br/>- Relationship Score (Software)]
-        WeightOptimization[Weight Optimization Process<br/>- run_optimization.py<br/>- optimize_weights.py<br/>- Uses Optuna for ML Optimization]
+        ScoringLogic[src/icp/scoring.py<br/>Centralized Scoring Functions<br/>- Vertical (Industry)
+- Size (Revenue)
+- Adoption (Assets/Profit or Printers/Revenue)
+- Relationship (Software Profit/Revenue)]
+        OptimizationCLI[src/icp/cli/optimize_weights.py]
+        OptimizationCore[src/icp/optimization.py<br/>Optuna Objective]
     end
 
     subgraph "Analytics & Visualization"
-        Dashboard[streamlit_icp_dashboard.py<br/>Interactive Web Dashboard<br/>- Real-time Weight Adjustment<br/>- Customer Segmentation<br/>- Interactive Charts & Metrics<br/>- Export Functionality]
-        VisualOutputs[Generated Visualizations<br/>- ICP Score Distribution<br/>- Segment Analysis<br/>- Industry Performance<br/>- Revenue Correlation Charts]
+        Dashboard[apps/streamlit/app.py<br/>Interactive Dashboard + Call List Builder]
+        VisualOutputs[reports/figures/*.png]
     end
 
     subgraph "Configuration & Storage"
-        ConfigFiles[Configuration Files<br/>- config.toml<br/>- strategic_industry_tiers.json<br/>- requirements.txt]
-        OptimizedWeights[optimized_weights.json<br/>Stores ML-Optimized Scoring Weights]
-        IndustryWeights[industry_weights.json<br/>Stores Data-Driven Industry Scores]
-        ScoredData[icp_scored_accounts.csv<br/>Final Scored Customer Dataset]
+        ConfigFiles[configs/default.toml<br/>artifacts/industry/strategic_industry_tiers.json]
+        OptimizedWeights[artifacts/weights/optimized_weights.json]
+        IndustryWeights[artifacts/weights/industry_weights.json]
+        ScoredData[data/processed/icp_scored_accounts.csv]
     end
 
-    %% Define data flow connections
-    CustomerData --> NameCleaning
-    SalesData --> NameCleaning
-    RevenueData --> NameCleaning
-    IndustryData --> IndustryCleanup
+    %% Data flow connections
+    AzureCustomers --> MainPipeline
+    AzureProfitGoal --> MainPipeline
+    AzureProfitRollup --> MainPipeline
+    AzureQuarterly --> MainPipeline
+    AzureAssets --> MainPipeline
+    IndustryCSV --> MainPipeline
 
-    NameCleaning --> DataAggregation
-    IndustryCleanup --> IndustryScoring
-    IndustryScoring --> DataAggregation
-    IndustryScoring --> IndustryWeights
+    MainPipeline --> IndustryBuilder
+    IndustryBuilder --> IndustryWeights
+    IndustryWeights --> ScoringLogic
+    ScoringLogic --> MainPipeline
 
-    DataAggregation --> ScoredData
+    MainPipeline --> ScoredData
+    MainPipeline --> VisualOutputs
     ScoredData --> Dashboard
-    ScoredData --> WeightOptimization
+    ScoredData --> OptimizationCLI
 
-    WeightOptimization --> OptimizedWeights
+    OptimizationCLI --> OptimizationCore --> OptimizedWeights
     OptimizedWeights --> ScoringLogic
     OptimizedWeights --> Dashboard
-
-    ScoringLogic --> DataAggregation
-    ScoringLogic --> Dashboard
-
     Dashboard --> VisualOutputs
 
-    %% Style definitions
+    %% Styles
     classDef dataSource fill:#e1f5fe,stroke:#01579b,stroke-width:2px
     classDef processing fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
     classDef scoring fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
     classDef analytics fill:#fff3e0,stroke:#e65100,stroke-width:2px
     classDef storage fill:#fce4ec,stroke:#880e4f,stroke-width:2px
 
-    %% Apply styles
-    class CustomerData,SalesData,RevenueData,IndustryData dataSource
-    class NameCleaning,IndustryCleanup,IndustryScoring,DataAggregation processing
-    class ScoringLogic,WeightOptimization scoring
+    class AzureCustomers,AzureProfitGoal,AzureProfitRollup,AzureQuarterly,AzureAssets,IndustryCSV dataSource
+    class MainPipeline,IndustryBuilder,SchemaValidation processing
+    class ScoringLogic,OptimizationCLI,OptimizationCore scoring
     class Dashboard,VisualOutputs analytics
     class ConfigFiles,OptimizedWeights,IndustryWeights,ScoredData storage
 ```
 
 ## System Overview
 
-This architecture represents a comprehensive **Customer Segmentation and ICP (Ideal Customer Profile) Scoring System** for GoEngineer Digital Manufacturing. The system processes customer data through multiple stages to generate actionable insights for sales and marketing teams.
+This architecture represents the updated **ICP Scoring System**. It assembles data directly from Azure SQL, enriches industry classifications (optional CSV), computes scores via centralized logic, and surfaces results in a Streamlit dashboard with a Call List Builder.
 
 ### Key Features:
 - **Data-Driven Scoring**: Uses historical revenue data to calculate industry performance weights
@@ -85,11 +88,11 @@ This architecture represents a comprehensive **Customer Segmentation and ICP (Id
 - **Automated Pipeline**: End-to-end processing from raw data to scored accounts
 
 ### Architecture Layers:
-1. **Data Sources**: Raw Excel and CSV files containing customer information
-2. **Data Processing**: Name standardization, industry classification, and data aggregation
-3. **Scoring Engine**: Core ICP calculation logic with ML-optimized weights
-4. **Analytics & Visualization**: Interactive dashboard with real-time analytics
-5. **Configuration & Storage**: Persistent storage of optimized weights and results
+1. **Data Sources**: Azure SQL (customers, profit, assets) + optional enrichment CSV
+2. **Processing**: Orchestrated by `src/icp/cli/score_accounts.py` (validation, enrichment, features)
+3. **Scoring Engine**: `src/icp/scoring.py` with ML‑optimized weights (`artifacts/weights`)
+4. **Analytics**: `apps/streamlit/app.py` with Call List Builder and docs integration
+5. **Storage**: `data/processed`, `reports/figures`, `artifacts/weights`, configs in `configs/`
 
 ### Data Flow:
 1. Raw data is cleaned and standardized

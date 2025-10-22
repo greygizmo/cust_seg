@@ -4,7 +4,8 @@
 graph TD
     %% Define the optimization workflow
     subgraph "Optimization Setup"
-        ScoredDataInput[icp_scored_accounts.csv<br/>Contains scored customer data with<br/>- Component scores (vertical, size, adoption, relationship)<br/>- Historical revenue data (target variable)<br/>- Customer segmentation data]
+        ScoredDataInput[data/processed/icp_scored_accounts.csv<br/>Contains scored customer data with<br/>- Component scores (vertical, size, adoption, relationship)<br/>- Historical revenue/profit (targets)
+- Optional segment metadata]
         OptimizationConfig[Optimization Configuration<br/>- Number of trials (default: 5000)<br/>- Lambda parameter (0.0-1.0 trade-off)<br/>- Include size flag (true/false)<br/>- Search space constraints]
     end
 
@@ -49,7 +50,8 @@ graph TD
     end
 
     subgraph "Output Storage"
-        WeightsJSON[Save optimized_weights.json<br/>Contains optimized weights and metadata<br/>Used by dashboard and scoring engine<br/>Includes optimization parameters]
+        WeightsJSON[artifacts/weights/optimized_weights.json<br/>Optimized weights + metadata
+Used by dashboard and scoring engine]
         ResultsDisplay[Display Optimization Results<br/>- Final optimized weights<br/>- Optimization statistics<br/>- Trade-off achieved<br/>- Performance metrics]
     end
 
