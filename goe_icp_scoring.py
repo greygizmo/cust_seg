@@ -1,4 +1,4 @@
-"""
+﻿"""
 goe_icp_scoring.py
 ---------------------------------
 End-to-end script to score GoEngineer Digital-Manufacturing accounts
@@ -19,8 +19,8 @@ Files expected in the SAME directory:
   3) enrichment_progress.csv (contains enriched annual revenue data)
 
 Outputs:
-  • icp_scored_accounts.csv
-  • vis1_… vis10_… PNG charts
+    icp_scored_accounts.csv
+    vis1_  vis10_  PNG charts
 
 Requires: pandas, numpy, matplotlib, python-dateutil, scikit-learn, scipy
 ---------------------------------
@@ -45,7 +45,7 @@ from industry_scoring import build_industry_weights, save_industry_weights, load
 import data_access as da
 
 # ---------------------------
-# 0.  CONFIG – file names & weights
+# 0.  CONFIG   file names & weights
 # ---------------------------
 
 INDUSTRY_ENRICHMENT_FILE = "TR - Industry Enrichment.csv"  # Updated industry data
@@ -75,7 +75,7 @@ def load_weights():
             weights['relationship'] = max(0.0, 1.0 - total_so_far)
             
             print(f"[INFO] Loaded optimized weights from optimized_weights.json")
-            print(f"  - Optimization details: {data.get('n_trials', 'Unknown')} trials, λ={data.get('lambda_param', 'Unknown')}")
+            print("  - Optimization details: " + str(data.get("n_trials","Unknown")) + " trials")
             print(f"  - Converted weights: vertical={weights['vertical']:.3f}, size={weights['size']:.3f}, adoption={weights['adoption']:.3f}, relationship={weights['relationship']:.3f}")
             return weights
     except FileNotFoundError:
@@ -190,8 +190,8 @@ def load_revenue() -> pd.DataFrame:
         
         return df[["key", "reliable_revenue", "revenue_source"]]
     except Exception as e:
-        print(f"[WARN] Error loading revenue file: {e}")
-        return pd.DataFrame()
+        print("\nAn error occurred - see traceback above.\n")
+        raise
 
 
 def load_industry_enrichment() -> pd.DataFrame:
@@ -227,15 +227,19 @@ def load_industry_enrichment() -> pd.DataFrame:
         if missing_cols:
             print(f"[WARN] Missing required columns in industry enrichment: {missing_cols}")
             return pd.DataFrame()
-        
+
         print(f"[INFO] Loaded industry enrichment data for {len(df)} customers")
-        
-        # Include Reasoning column if it exists
+
+        # Include Reasoning and CRM Full Name (Customer) if they exist
         cols_to_return = ["Customer ID", "Industry", "Industry Sub List"]
         if "Reasoning" in df.columns:
             cols_to_return.append("Reasoning")
             print(f"[INFO] Including 'Reasoning' column from industry enrichment")
-        
+        if "Customer" in df.columns:
+            # Preserve the CRM string for name-based matching (e.g., "439775 Compusult Limited")
+            df = df.rename(columns={"Customer": "CRM Full Name"})
+            cols_to_return.append("CRM Full Name")
+
         return df[cols_to_return]
     except Exception as e:
         print(f"[WARN] Error loading industry enrichment file: {e}")
@@ -252,10 +256,22 @@ def apply_industry_enrichment(df: pd.DataFrame, enrichment_df: pd.DataFrame) -> 
     
     print(f"[INFO] Applying industry enrichment to {len(df)} customers...")
     
-    # Ensure Customer ID columns have matching data types
-    # Convert Excel floats to integers first, then to strings to avoid .0 suffix
-    df["Customer ID"] = df["Customer ID"].fillna(0).astype(int).astype(str)
-    enrichment_df["Customer ID"] = enrichment_df["Customer ID"].astype(str)
+    # Ensure Customer ID columns have matching canonical string form (strip trailing '.0')
+    def _canon_id(s):
+        s = s.astype(str).str.strip()
+        # Remove trailing .0 and cast numeric strings to int
+        def fix(x: str) -> str:
+            try:
+                if x.endswith('.0'):
+                    x = x[:-2]
+                # If numeric, cast to int to drop any leading decimals
+                return str(int(float(x)))
+            except Exception:
+                return x
+        return s.map(fix)
+
+    df["Customer ID"] = _canon_id(df["Customer ID"])
+    enrichment_df["Customer ID"] = _canon_id(enrichment_df["Customer ID"])
     
     # Merge on Customer ID to update industry data
     updated = df.merge(
@@ -282,10 +298,40 @@ def apply_industry_enrichment(df: pd.DataFrame, enrichment_df: pd.DataFrame) -> 
         reasoning_matches = updated["Industry_Reasoning"].notna().sum()
         print(f"[INFO] Added reasoning for {reasoning_matches} customers")
     
+    # Secondary match by CRM Full Name for any rows still missing Industry
+    if 'Industry' in updated.columns and 'CRM Full Name' in enrichment_df.columns:
+        # Prepare a slim enrichment frame keyed by CRM Full Name
+        slim = enrichment_df[['CRM Full Name', 'Industry', 'Industry Sub List']].rename(
+            columns={
+                'Industry': 'Industry_by_name',
+                'Industry Sub List': 'Industry Sub List_by_name'
+            }
+        )
+        # Normalize strings for exact match after stripping
+        def _norm(s):
+            return s.astype(str).str.strip()
+        if 'CRM Full Name' not in updated.columns and 'CRM Full Name_original' in updated.columns:
+            updated['CRM Full Name'] = updated['CRM Full Name_original']
+        if 'CRM Full Name' in updated.columns:
+            updated['CRM Full Name'] = _norm(updated['CRM Full Name'])
+            slim['CRM Full Name'] = _norm(slim['CRM Full Name'])
+            # Merge by name
+            updated = updated.merge(slim, on='CRM Full Name', how='left')
+            # Fill only where still missing
+            if 'Industry' in updated.columns and 'Industry_by_name' in updated.columns:
+                missing = updated['Industry'].isna()
+                updated.loc[missing, 'Industry'] = updated.loc[missing, 'Industry_by_name']
+            if 'Industry Sub List' in updated.columns and 'Industry Sub List_by_name' in updated.columns:
+                missing = updated['Industry Sub List'].isna()
+                updated.loc[missing, 'Industry Sub List'] = updated.loc[missing, 'Industry Sub List_by_name']
+
     # Clean up temporary columns
-    cols_to_drop = [col for col in updated.columns if col.endswith(("_original", "_enriched")) or col == "Reasoning"]
-    updated = updated.drop(columns=cols_to_drop)
-    
+    cols_to_drop = [
+        col for col in updated.columns 
+        if col.endswith(("_original", "_enriched")) or col in ("Reasoning", "Industry_by_name", "Industry Sub List_by_name")
+    ]
+    updated = updated.drop(columns=[c for c in cols_to_drop if c in updated.columns])
+
     return updated
 
 # ---------------------------
@@ -310,6 +356,16 @@ def assemble_master_from_db() -> pd.DataFrame:
 
     customers = da.get_customers_since_2023(engine)
 
+    def _canon_id_series(s):
+        s = s.astype(str).str.strip()
+        return s.str.replace(r"\.0$", "", regex=True)
+
+    # Canonicalize IDs and derive Company Name from CRM Full Name (strip leading numeric ID)
+    if 'Customer ID' in customers.columns:
+        customers['Customer ID'] = _canon_id_series(customers['Customer ID'])
+    if 'CRM Full Name' in customers.columns:
+        customers['Company Name'] = customers['CRM Full Name'].astype(str).str.replace(r'^\d+\s+', '', regex=True).str.strip()
+
     # Profit aggregates
     profit_goal = da.get_profit_since_2023_by_goal(engine)
     profit_rollup = da.get_profit_since_2023_by_rollup(engine)
@@ -318,7 +374,7 @@ def assemble_master_from_db() -> pd.DataFrame:
     # Assets & seats
     assets = da.get_assets_and_seats(engine)
 
-    # Apply industry enrichment (CSV)
+    # Apply industry enrichment (CSV) to update Industry fields (enrichment is sole source)
     industry_enrichment = load_industry_enrichment()
     if not industry_enrichment.empty:
         customers = apply_industry_enrichment(customers, industry_enrichment)
@@ -330,12 +386,14 @@ def assemble_master_from_db() -> pd.DataFrame:
             .reset_index()
             .rename_axis(None, axis=1)
         )
+        if 'Customer ID' in p_goal.columns: p_goal['Customer ID'] = _canon_id_series(p_goal['Customer ID'])
     else:
         p_goal = pd.DataFrame()
 
     # Merge into base
     master = customers.copy()
-    if not p_goal.empty:
+    if 'Customer ID' in master.columns:
+        master['Customer ID'] = _canon_id_series(master['Customer ID'])
         master = master.merge(p_goal, on="Customer ID", how="left")
 
     # Compute total profit since 2023 across all Goals
@@ -344,7 +402,7 @@ def assemble_master_from_db() -> pd.DataFrame:
         if c not in ("Customer ID", "Company Name", "Industry", "Industry Sub List", "Industry_Reasoning")
     ]
     if value_cols:
-        master["Profit_Since_2023_Total"] = pd.to_numeric(master[value_cols], errors="coerce").fillna(0).sum(axis=1)
+        master["Profit_Since_2023_Total"] = master[value_cols].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
     else:
         master["Profit_Since_2023_Total"] = 0.0
 
@@ -368,17 +426,24 @@ def assemble_master_from_db() -> pd.DataFrame:
         # Last quarter per customer
         lastq = cust_q[cust_q['_qkey'] == latest_qkey].set_index("Customer ID")["Profit"].rename("Profit_LastQ_Total")
         # Trailing 4 quarters per customer
+        lastq = lastq.reset_index()
+        lastq['Customer ID'] = lastq['Customer ID'].astype(str)
         t4q_keys = sorted(cust_q['_qkey'].unique())[-4:]
         t4q = cust_q[cust_q['_qkey'].isin(t4q_keys)].groupby("Customer ID")["Profit"].sum().rename("Profit_T4Q_Total")
         master = master.merge(lastq, on="Customer ID", how="left")
+        t4q = t4q.reset_index()
+        t4q['Customer ID'] = t4q['Customer ID'].astype(str)
         master = master.merge(t4q, on="Customer ID", how="left")
         # Previous quarter per customer (for QoQ growth)
         keys_sorted = sorted(cust_q['_qkey'].unique())
         if len(keys_sorted) >= 2:
             prev_key = keys_sorted[-2]
             prevq = cust_q[cust_q['_qkey'] == prev_key].set_index("Customer ID")["Profit"].rename("Profit_PrevQ_Total")
-            master = master.merge(prevq, on="Customer ID", how="left")
+
+            prevq = prevq.reset_index()
+            prevq['Customer ID'] = prevq['Customer ID'].astype(str)
             # QoQ growth as percent change, guard divide by zero
+            master = master.merge(prevq, on="Customer ID", how="left")
             prev_safe = master["Profit_PrevQ_Total"].fillna(0)
             last_safe = master["Profit_LastQ_Total"].fillna(0)
             denom = prev_safe.replace(0, np.nan)
@@ -395,29 +460,54 @@ def assemble_master_from_db() -> pd.DataFrame:
 
     # Aggregate assets/seats totals and per-goal seats for filters/signals
     if isinstance(assets, pd.DataFrame) and not assets.empty:
-        agg = assets.groupby("Customer ID").agg(
-            active_assets_total=("active_assets", "sum"),
-            seats_sum_total=("seats_sum", "sum"),
-            EarliestPurchaseDate=("first_purchase_date", "min"),
-            LatestExpirationDate=("last_expiration_date", "max"),
-            Portfolio_Breadth=("item_rollup", pd.Series.nunique)
-        )
-        master = master.merge(agg, on="Customer ID", how="left")
+        a = assets.copy()
+        # Normalize types
+        if 'Customer ID' in a.columns:
+            a['Customer ID'] = _canon_id_series(a['Customer ID'])
+        for _dc in ["first_purchase_date", "last_expiration_date"]:
+            if _dc in a.columns:
+                a[_dc] = pd.to_datetime(a[_dc], errors="coerce")
+
+        # Compute aggregates separately to avoid dtype issues
+        parts = []
+        if 'active_assets' in a.columns:
+            s = a.groupby('Customer ID')['active_assets'].sum().rename('active_assets_total')
+            parts.append(s)
+        if 'seats_sum' in a.columns:
+            s = a.groupby('Customer ID')['seats_sum'].sum().rename('seats_sum_total')
+            parts.append(s)
+        if 'first_purchase_date' in a.columns:
+            s = a.groupby('Customer ID')['first_purchase_date'].min().rename('EarliestPurchaseDate')
+            parts.append(s)
+        if 'last_expiration_date' in a.columns:
+            s = a.groupby('Customer ID')['last_expiration_date'].max().rename('LatestExpirationDate')
+            parts.append(s)
+        if 'item_rollup' in a.columns:
+            s = a.groupby('Customer ID')['item_rollup'].nunique().rename('Portfolio_Breadth')
+            parts.append(s)
+        if parts:
+            agg = pd.concat(parts, axis=1).reset_index()
+            master = master.merge(agg, on="Customer ID", how="left")
+
         # Seats by Goal → pivot columns Seats_<Goal>
-        seats_by_goal = assets.pivot_table(index="Customer ID", columns="Goal", values="seats_sum", aggfunc="sum").fillna(0)
-        # Rename columns
-        seats_by_goal.columns = [f"Seats_{str(c)}" for c in seats_by_goal.columns]
-        seats_by_goal = seats_by_goal.reset_index()
-        master = master.merge(seats_by_goal, on="Customer ID", how="left")
+        if 'Goal' in a.columns and 'seats_sum' in a.columns:
+            seats_by_goal = a.pivot_table(index="Customer ID", columns="Goal", values="seats_sum", aggfunc="sum").fillna(0)
+            seats_by_goal.columns = [f"Seats_{str(c)}" for c in seats_by_goal.columns]
+            seats_by_goal = seats_by_goal.reset_index()
+            master = master.merge(seats_by_goal, on="Customer ID", how="left")
     else:
         master["active_assets_total"] = 0
         master["seats_sum_total"] = 0
-
     # Attach assets and rollup profit for feature engineering
     master._assets_raw = assets
     master._profit_rollup_raw = profit_rollup
 
     return master
+
+def check_files_exist():
+    """Backward-compatible wrapper that now just checks env and enrichment availability."""
+    check_env()
+
 
 # ---------------------------
 # 2.  Load & clean data sets
@@ -532,10 +622,12 @@ def engineer_features(df: pd.DataFrame, asset_weights: dict) -> pd.DataFrame:
       - relationship_profit: profit for software goals (CAD, CPE, Specialty Software)
       - printer_count: compatibility metric from Printer assets
     """
+    # Preserve access to any attached raw attributes before copying
+    _base_df = df
     df = df.copy()
 
-    assets = getattr(df, "_assets_raw", pd.DataFrame())
-    profit_roll = getattr(df, "_profit_rollup_raw", pd.DataFrame())
+    assets = getattr(_base_df, "_assets_raw", pd.DataFrame())
+    profit_roll = getattr(_base_df, "_profit_rollup_raw", pd.DataFrame())
 
     # Default zeros
     df["adoption_assets"] = 0.0
@@ -576,8 +668,19 @@ def engineer_features(df: pd.DataFrame, asset_weights: dict) -> pd.DataFrame:
 
         df = df.merge(adoption_assets, on="Customer ID", how="left")
         df = df.merge(printer_counts, on="Customer ID", how="left")
-        df["adoption_assets"] = df["adoption_assets"].fillna(0.0)
-        df["printer_count"] = df["printer_count"].fillna(0.0)
+        # Resolve potential suffixes from merge
+        if 'adoption_assets' not in df.columns:
+            if 'adoption_assets_y' in df.columns:
+                df['adoption_assets'] = df['adoption_assets_y']
+                drop_cols = [c for c in ['adoption_assets_x','adoption_assets_y'] if c in df.columns]
+                df = df.drop(columns=drop_cols)
+        if 'printer_count' not in df.columns:
+            if 'printer_count_y' in df.columns:
+                df['printer_count'] = df['printer_count_y']
+                drop_cols = [c for c in ['printer_count_x','printer_count_y'] if c in df.columns]
+                df = df.drop(columns=drop_cols)
+        df["adoption_assets"] = df.get("adoption_assets", 0).fillna(0.0)
+        df["printer_count"] = df.get("printer_count", 0).fillna(0.0)
 
     # Build adoption_profit from profit_rollup: focus goals + 3DP Training rollup
     if isinstance(profit_roll, pd.DataFrame) and not profit_roll.empty:
@@ -595,7 +698,11 @@ def engineer_features(df: pd.DataFrame, asset_weights: dict) -> pd.DataFrame:
             .rename("adoption_profit")
         )
         df = df.merge(adoption_profit, on="Customer ID", how="left")
-        df["adoption_profit"] = df["adoption_profit"].fillna(0.0)
+        if 'adoption_profit' not in df.columns and 'adoption_profit_y' in df.columns:
+            df['adoption_profit'] = df['adoption_profit_y']
+            drop_cols = [c for c in ['adoption_profit_x','adoption_profit_y'] if c in df.columns]
+            df = df.drop(columns=drop_cols)
+        df["adoption_profit"] = df.get("adoption_profit", 0).fillna(0.0)
 
     # Relationship: software goals CAD, CPE, Specialty Software from goal-level pivot already merged
     sw_cols = [c for c in df.columns if c in ("CAD", "CPE", "Specialty Software")]
@@ -609,7 +716,11 @@ def engineer_features(df: pd.DataFrame, asset_weights: dict) -> pd.DataFrame:
                 .groupby("Customer ID")["Profit_Since_2023"].sum().rename("relationship_profit")
             )
             df = df.merge(rel, on="Customer ID", how="left")
-            df["relationship_profit"] = df["relationship_profit"].fillna(0.0)
+            if 'relationship_profit' not in df.columns and 'relationship_profit_y' in df.columns:
+                df['relationship_profit'] = df['relationship_profit_y']
+                drop_cols = [c for c in ['relationship_profit_x','relationship_profit_y'] if c in df.columns]
+                df = df.drop(columns=drop_cols)
+            df["relationship_profit"] = df.get("relationship_profit", 0).fillna(0.0)
 
     # Flag for scaling
     df["scaling_flag"] = (df["printer_count"] >= 4).astype(int)
@@ -649,11 +760,11 @@ def build_visuals(df: pd.DataFrame):
     # 2: Total Profit since 2023 by industry vertical
     plt.figure()
     if "Industry" in df.columns and "Profit_Since_2023_Total" in df.columns:
-        df.groupby("Industry")["Profit_Since_2023_Total"].sum().nlargest(10).plot(kind="bar")
-    plt.title("Total Profit Since 2023 by Vertical (Top 10)")
-    plt.ylabel("Profit ($)")
-    save_fig("vis2_gp24_vertical.png")
-    
+        s = df.groupby("Industry")["Profit_Since_2023_Total"].sum()
+        if not s.empty:
+            s.nlargest(10).plot(kind="bar")
+        else:
+            print("[INFO] Skipping Profit by Vertical (Top 10): no data.")
     # 3: Scatter plot of printer count vs GP24
     plt.figure()
     if "Profit_Since_2023_Total" in df.columns:
@@ -680,21 +791,21 @@ def build_visuals(df: pd.DataFrame):
         print("[INFO] Skipping 'GP24 by CAD Tier' visual: 'cad_tier' column not suitable for plotting.")
     
     # 5: Average ICP score by industry vertical
-    plt.figure()
-    df.groupby("Industry")["ICP_score"].mean().nlargest(10).plot(kind="bar")
-    plt.title("Average ICP Score by Vertical (Top 10)")
-    plt.ylabel("Mean ICP Score")
+    if "Industry" in df.columns and "ICP_score" in df.columns:
+        s3 = df.groupby("Industry")["ICP_score"].mean()
+        if not s3.empty:
+            s3.nlargest(10).plot(kind="bar")
     save_fig("vis5_icp_vertical.png")
     
     # 6: Count of scaling accounts (>=4 printers) by vertical
     plt.figure()
-    (
-        df[df["scaling_flag"] == 1]
-        .groupby("Industry")["Customer ID"]
-        .count()
-        .nlargest(10)
-        .plot(kind="bar")
-    )
+    if "Industry" in df.columns and "Customer ID" in df.columns:
+        s4 = df[df["scaling_flag"] == 1].groupby("Industry")["Customer ID"].count()
+        if not s4.empty:
+            s4.nlargest(10).plot(kind="bar")
+        else:
+            print("[INFO] Skipping scaling accounts chart: no data.")
+
     plt.title("Scaling Accounts (>=4 Printers) per Vertical")
     plt.ylabel("Account Count")
     save_fig("vis6_scaling_vertical.png")
@@ -719,11 +830,11 @@ def build_visuals(df: pd.DataFrame):
     # 9: Total Profit since 2023 by industry vertical (duplicate view)
     plt.figure()
     if "Industry" in df.columns and "Profit_Since_2023_Total" in df.columns:
-        df.groupby("Industry")["Profit_Since_2023_Total"].sum().nlargest(10).plot(kind="bar")
-    plt.title("Total Profit Since 2023 by Vertical (Top 10)")
-    plt.ylabel("Profit ($)")
-    save_fig("vis9_rev24_vertical.png")
-    
+        s2 = df.groupby("Industry")["Profit_Since_2023_Total"].sum()
+        if not s2.empty:
+            s2.nlargest(10).plot(kind="bar")
+        else:
+            print("[INFO] Skipping Profit by Vertical (Top 10): no data.")
     # 10: Customer count by CAD tier
     plt.figure()
     df["cad_tier"].value_counts().plot(kind="bar")
@@ -737,34 +848,25 @@ def build_visuals(df: pd.DataFrame):
 # ---------------------------
 
 def main():
-    """Main function to execute the entire scoring pipeline."""
-    check_files_exist()
-    
-    print("Loading spreadsheets…")
-    customers = load_customers()
-    sales = load_sales()
-    
-    print("Aggregating GP24…")
-    gp24 = aggregate_gp24(sales)
-    
-    print("Merging data sets…")
-    revenue = load_revenue()
-    master = merge_master(customers, gp24, revenue)
-    
-    print("Generating data-driven industry weights…")
-    # Build or load industry weights based on historical performance
+    """Main function to execute the scoring pipeline using Azure SQL inputs."""
+    check_env()
+
+    print("Loading data from Azure SQL...")
+    master = assemble_master_from_db()
+
+    print("Generating data-driven industry weights...")
     if not os.path.exists("industry_weights.json"):
-        print("[INFO] Building new industry weights from historical data")
+        print("[INFO] Building new industry weights from historical profit since 2023")
         industry_weights = build_industry_weights(master)
         save_industry_weights(industry_weights)
     else:
         print("[INFO] Loading existing industry weights")
-        industry_weights_data = load_industry_weights()
-        # We'll pass this to scoring_logic via a global or parameter
-    
-    print("Engineering features & scores…")
-    scored = engineer_features(master)
-    
+        _ = load_industry_weights()
+
+    print("Engineering features & scores...")
+    asset_weights = load_asset_weights()
+    scored = engineer_features(master, asset_weights)
+
     # Define the columns for the final output CSV
     out_cols = [
         "Customer ID",
@@ -830,8 +932,13 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        print("\n⚠ An error occurred – details below.\n")
+        print("\nAn error occurred - see traceback above.\n")
         raise
+
+
+
+
+
 
 
 

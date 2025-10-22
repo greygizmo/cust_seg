@@ -1,4 +1,4 @@
-"""
+﻿"""
 Data access layer for Azure SQL.
 
 Loads connection settings from environment (.env) and exposes helpers to
@@ -49,7 +49,7 @@ def _build_connection_url() -> str:
         )
         return f"mssql+pyodbc:///?odbc_connect={quote_plus(odbc)}"
     else:
-        # AAD interactive or MSI — rely on ODBC authentication parameter
+        # AAD interactive or MSI â€” rely on ODBC authentication parameter
         # Note: some environments require 'Authentication=ActiveDirectoryInteractive'
         # and omit UID/PWD entirely.
         return (
@@ -75,21 +75,23 @@ def get_customers_since_2023(engine=None) -> pd.DataFrame:
 
     Returns columns:
       - Customer ID
-      - Company Name
+      - CRM Full Name (New_Business) — e.g., "439775 Compusult Limited"
     """
     engine = engine or get_engine()
     sql = text(
         """
-        SELECT DISTINCT
-            s.CompanyId       AS [Customer ID],
-            s.[New Business]  AS [Company Name]
+        SELECT 
+            s.CompanyId AS [Customer ID],
+            MAX(CAST(s.New_Business AS varchar(500))) AS [CRM Full Name]
         FROM dbo.table_saleslog_detail s
         WHERE s.Rec_Date >= :since_date
+        GROUP BY s.CompanyId
         """
     )
     return pd.read_sql(sql, engine, params={"since_date": SINCE_DATE})
 
 
+# Removed master/fallback industry access per requirements: enrichment CSV is sole source of industry data
 def get_profit_since_2023_by_goal(engine=None) -> pd.DataFrame:
     """
     Profit (GP + Term_GP) since 2023-01-01 grouped by customer and Goal.
