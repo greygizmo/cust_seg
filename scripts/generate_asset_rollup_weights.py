@@ -10,6 +10,7 @@ Requires: valid .env for Azure SQL connection.
 """
 
 import os
+from pathlib import Path
 import json
 from collections import defaultdict
 
@@ -31,7 +32,12 @@ except Exception:
                     k = k.strip().lstrip("\ufeff")
                     os.environ.setdefault(k, v.strip())
 
-import data_access as da
+import sys
+ROOT = Path(__file__).resolve().parents[1]
+SRC_DIR = ROOT / 'src'
+if str(SRC_DIR) not in sys.path:
+    sys.path.append(str(SRC_DIR))
+import icp.data_access as da
 
 FOCUS_GOALS = [
     "Printer",
@@ -65,9 +71,11 @@ def main():
         "weights": weights,
     }
 
-    with open("asset_rollup_weights.json", "w", encoding="utf-8") as f:
+    out_path = ROOT / 'artifacts' / 'weights' / 'asset_rollup_weights.json'
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as f:
         json.dump(output, f, indent=2)
-    print("Wrote asset_rollup_weights.json with evenly balanced sub-division weights")
+    print(f"Wrote {out_path} with evenly balanced sub-division weights")
 
 
 if __name__ == "__main__":

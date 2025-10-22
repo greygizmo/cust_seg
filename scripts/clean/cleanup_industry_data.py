@@ -20,16 +20,20 @@ from difflib import SequenceMatcher
 from collections import defaultdict
 import shutil
 import os
+from pathlib import Path
 import argparse
 
 
-def parse_industry_fields(filename="industry_fields.txt"):
+def parse_industry_fields(filename=None):
     """
     Parse the target industry categories from industry_fields.txt
     
     Returns:
         tuple: (industries_list, industry_sublist_mapping)
     """
+    ROOT = Path(__file__).resolve().parents[2]
+    if filename is None:
+        filename = ROOT / 'artifacts' / 'industry' / 'industry_fields.txt'
     print(f"[INFO] Parsing target categories from {filename}")
     
     with open(filename, 'r', encoding='utf-8') as f:
@@ -401,7 +405,8 @@ def apply_mappings(df, analysis_results, min_confidence=0.6, backup=True):
     """
     if backup:
         backup_file = f"TR - Industry Enrichment_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-        shutil.copy2("TR - Industry Enrichment.csv", backup_file)
+        ROOT = Path(__file__).resolve().parents[2]
+        shutil.copy2(ROOT / "data" / "raw" / "TR - Industry Enrichment.csv", backup_file)
         print(f"[INFO] Created backup: {backup_file}")
     
     df_updated = df.copy()
@@ -469,7 +474,8 @@ def main():
     print("=" * 60)
     
     # Check required files
-    required_files = ["TR - Industry Enrichment.csv", "industry_fields.txt"]
+    ROOT = Path(__file__).resolve().parents[2]
+    required_files = [ROOT / "data" / "raw" / "TR - Industry Enrichment.csv", ROOT / "artifacts" / "industry" / "industry_fields.txt"]
     for file in required_files:
         if not os.path.exists(file):
             print(f"[ERROR] Required file not found: {file}")
@@ -481,7 +487,7 @@ def main():
         
         # Step 2: Load current data
         print("[INFO] Loading current industry data...")
-        df = pd.read_csv("TR - Industry Enrichment.csv")
+        df = pd.read_csv(ROOT / "data" / "raw" / "TR - Industry Enrichment.csv")
         print(f"[INFO] Loaded {len(df)} records")
         
         # Step 3: Analyze and create mappings
@@ -508,7 +514,7 @@ def main():
             df_updated = apply_mappings(df, analysis_results, min_confidence=0.6, backup=True)
             
             # Step 7: Save updated file
-            output_file = "TR - Industry Enrichment.csv"
+            output_file = ROOT / "data" / "raw" / "TR - Industry Enrichment.csv"
             df_updated.to_csv(output_file, index=False)
             print(f"[INFO] Updated file saved: {output_file}")
             
@@ -520,7 +526,7 @@ def main():
             print(f"✓ {output_file} updated with standardized categories")
             print(f"✓ Mapping report available in 'mapping_report.txt'")
             print("\nNext steps:")
-            print("1. Delete the old industry_weights.json to force regeneration")
+            print("1. Delete the old artifacts/weights/industry_weights.json to force regeneration")
             print("2. Re-run goe_icp_scoring.py to update scores with cleaned data")
             
         else:

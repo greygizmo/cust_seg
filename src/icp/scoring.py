@@ -11,6 +11,7 @@ import pandas as pd
 import numpy as np
 import json
 import os
+from pathlib import Path
 from scipy.stats import norm
 
 # --- Constants and Configurations ---
@@ -77,22 +78,26 @@ def load_dynamic_industry_weights():
     Returns:
         dict: Industry name -> score mapping
     """
-    industry_weights_file = "industry_weights.json"
-    
-    if os.path.exists(industry_weights_file):
-        try:
-            with open(industry_weights_file, 'r') as f:
-                data = json.load(f)
-            weights = data.get('weights', PERFORMANCE_VERTICAL_WEIGHTS)
-            print(f"[INFO] Loaded {len(weights)} dynamic industry weights")
-            return weights
-        except Exception as e:
-            print(f"[WARN] Error loading dynamic industry weights: {e}")
-            print("[WARN] Falling back to static weights")
-            return PERFORMANCE_VERTICAL_WEIGHTS
-    else:
-        print("[INFO] No dynamic industry weights found, using static weights")
-        return PERFORMANCE_VERTICAL_WEIGHTS
+    # Resolve repository root and candidate paths
+    ROOT = Path(__file__).resolve().parents[2]
+    candidates = [
+        ROOT / 'artifacts' / 'weights' / 'industry_weights.json',
+        Path.cwd() / 'industry_weights.json'
+    ]
+    for industry_weights_file in candidates:
+        if industry_weights_file.exists():
+            try:
+                with open(industry_weights_file, 'r') as f:
+                    data = json.load(f)
+                weights = data.get('weights', PERFORMANCE_VERTICAL_WEIGHTS)
+                print(f"[INFO] Loaded {len(weights)} dynamic industry weights from {industry_weights_file}")
+                return weights
+            except Exception as e:
+                print(f"[WARN] Error loading dynamic industry weights: {e}")
+                print("[WARN] Falling back to static weights")
+                return PERFORMANCE_VERTICAL_WEIGHTS
+    print("[INFO] No dynamic industry weights found, using static weights")
+    return PERFORMANCE_VERTICAL_WEIGHTS
 
 def calculate_grades(scores):
     """

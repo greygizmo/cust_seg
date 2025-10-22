@@ -65,71 +65,16 @@ This dashboard allows you to:
 ## Setup Instructions
 
 1.  **Install Dependencies**
-    ```bash
-    pip install -r requirements.txt
     ```
-
-2.  **Generate Base Data**
-    Run the scoring script to process the raw data files and generate `icp_scored_accounts.csv`.
-    ```bash
-    python goe_icp_scoring.py
-    ```
-
-3.  **Optimize Weights (Recommended)**
-    Run the optimization script to find the best weights based on historical revenue data. This creates the `optimized_weights.json` file, which the dashboard will use automatically.
-    ```bash
-    python run_optimization.py
-    ```
-
-4.  **Launch Dashboard**
-    ```bash
-    streamlit run streamlit_icp_dashboard.py
-    ```
-
-## Scoring Methodology
-
-The scoring logic is centralized in `scoring_logic.py` and uses a data-driven approach.
-
-### Individual Component Scores (0-1)
-
-Component scores are calculated based on empirical data and then normalized.
-
--   **Vertical Score**: Mapped from a dictionary (`PERFORMANCE_VERTICAL_WEIGHTS`) based on the historical revenue performance of different industries.
--   **Size Score**: Determined by tiers of reliable, enriched annual revenue data. Higher revenue generally leads to a higher score.
--   **Adoption Score**: A composite score derived from `log1p`-transformed printer count and consumable revenue, which are then combined and scaled.
--   **Relationship Score**: A score derived from the `log1p`-transformed sum of all software-related revenue (licenses, SaaS, maintenance), which is then scaled.
-
-### Final ICP Score Calculation
-
-1.  **Raw Score**: The component scores are multiplied by their respective weights (from the dashboard sliders or `optimized_weights.json`) and summed.
-    ```
-    Raw Score = (Vertical * W_v) + (Size * W_s) + (Adoption * W_a) + (Relationship * W_r)
-    ```
-2.  **Normalization**: The raw scores are converted to a percentile rank and then mapped to a normal (bell curve) distribution using the inverse of the cumulative distribution function (`norm.ppf`). This creates a more intuitive and statistically robust final `ICP_score` between 0 and 100.
-3.  **Grading**: Customers are assigned an A-F grade based on their percentile rank in the final score distribution.
-
-## Weight Optimization
-
-The script `run_optimization.py` uses the `optuna` library to find the ideal set of weights. Its goal is to solve a multi-objective problem:
-
-1.  **Maximize Revenue Correlation**: It tries to find weights that make the final ICP score as predictive of historical customer revenue as possible (measured by Spearman correlation).
-2.  **Match Target Distribution**: It simultaneously tries to shape the final scores into a predefined A-F grade distribution (e.g., 10% A's, 20% B's, etc.), measured by KL Divergence.
-
-The `lambda_param` in the script controls the trade-off between these two goals. The best-performing set of weights is saved to `optimized_weights.json`.
-
-## File Structure
-
-```
-├── streamlit_icp_dashboard.py    # Main dashboard application
-├── goe_icp_scoring.py           # Generates the base icp_scored_accounts.csv
-├── scoring_logic.py             # Centralized, data-driven scoring functions
-├── run_optimization.py          # Runs the weight optimization
-├── optimize_weights.py          # The optimization objective function
-├── optimized_weights.json       # Output of the optimization, used by the dashboard
-├── industry_scoring.py          # Generates industry performance weights
-├── cleanup_industry_data.py     # Standardizes industry classifications
-├── requirements.txt             # Python dependencies
-└── README.md                    # This file
+apps/streamlit/app.py          # Streamlit dashboard
+src/icp/cli/score_accounts.py  # Generate icp_scored_accounts.csv
+src/icp/scoring.py             # Centralized scoring logic
+src/icp/cli/optimize_weights.py# Run weight optimization
+artifacts/weights/*.json       # Optimized and industry weights
+src/icp/industry.py            # Industry weights builder
+scripts/clean/*                # Data cleanup utilities
+configs/default.toml           # App/pipeline config
+README.md                      # Project overview
 ```
 
 ## Data Processing Pipeline
@@ -153,3 +98,4 @@ The `lambda_param` in the script controls the trade-off between these two goals.
 - **Before**: Standard deviation of 0.008 (extremely compressed)
 - **After**: Standard deviation of 0.116 (14x better distribution)
 - **Result**: Much more granular and predictive adoption scoring
+

@@ -17,13 +17,21 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import os
+import sys
+from pathlib import Path
 import re
 import json
 from scipy.stats import norm
 
+# Ensure `src` is on the path for imports
+ROOT = Path(__file__).resolve().parents[2]
+SRC_DIR = ROOT / 'src'
+if str(SRC_DIR) not in sys.path:
+    sys.path.append(str(SRC_DIR))
+
 # Import the centralized scoring logic and constants
-from scoring_logic import calculate_scores, LICENSE_COL, DEFAULT_WEIGHTS
-from normalize_names import normalize_name_for_matching
+from icp.scoring import calculate_scores, LICENSE_COL, DEFAULT_WEIGHTS
+from icp.utils.normalize import normalize_name_for_matching
 
 # Page configuration
 st.set_page_config(
@@ -45,7 +53,8 @@ def load_optimized_weights():
         tuple: A tuple containing the weights dictionary and the optimization data dictionary.
     """
     try:
-        with open('optimized_weights.json', 'r') as f:
+        weights_path = ROOT / 'artifacts' / 'weights' / 'optimized_weights.json'
+        with open(weights_path, 'r') as f:
             data = json.load(f)
             weights = data.get('weights', {})
             
@@ -392,11 +401,11 @@ def load_data():
     This cached function ensures data is loaded only once.
     """
     try:
-        df = pd.read_csv('icp_scored_accounts.csv')
+        df = pd.read_csv(ROOT / 'data' / 'processed' / 'icp_scored_accounts.csv')
         
         # Attempt to load and merge enriched revenue data.
         try:
-            revenue_df = pd.read_csv('enrichment_progress.csv')
+            revenue_df = pd.read_csv(ROOT / 'data' / 'raw' / 'enrichment_progress.csv')
             # ... (Hybrid matching logic is omitted for brevity)
             
         except FileNotFoundError:
@@ -409,7 +418,7 @@ def load_data():
         return df
         
     except FileNotFoundError:
-        st.error(" Could not find 'icp_scored_accounts.csv'. Please run `goe_icp_scoring.py` first.")
+        st.error(" Could not find 'data/processed/icp_scored_accounts.csv'. Please run `python -m icp.cli.score_accounts` first.")
         st.stop()
 
 def main():
@@ -796,7 +805,7 @@ def show_documentation():
     # Find the selected chart
     selected_index = chart_options.index(selected_chart_option)
     chart_file, title, description, category = all_charts[selected_index]
-    chart_path = f"documentation/mermaid-charts/{chart_file}"
+    chart_path = ROOT / 'docs' / 'mermaid-charts' / chart_file
 
     # Display the selected chart
     st.markdown(f"##  {title}")
@@ -835,7 +844,7 @@ def show_documentation():
 
     except FileNotFoundError:
         st.error(f" Documentation file not found: {chart_file}")
-        st.info("Please ensure all Mermaid chart files are present in the `documentation/mermaid-charts/` directory.")
+        st.info("Please ensure Mermaid chart files are present in the `docs/mermaid-charts/` directory.")
     except Exception as e:
         st.error(f" Error loading documentation: {str(e)}")
         st.info("Check the file format and encoding. The file should be a valid Markdown file with Mermaid diagram.")

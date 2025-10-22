@@ -25,11 +25,12 @@ Outputs:
 Requires: pandas, numpy, matplotlib, python-dateutil, scikit-learn, scipy
 ---------------------------------
 Usage:
-  $ python goe_icp_scoring.py
+  $ python -m icp.cli.score_accounts
 """
 
 import os
 import sys
+from pathlib import Path
 from datetime import datetime
 import shutil
 import numpy as np
@@ -38,18 +39,24 @@ import matplotlib.pyplot as plt
 import json
 from scipy.stats import norm
 
+# Make sure package imports work when running as a module
+ROOT = Path(__file__).resolve().parents[3]
+SRC_DIR = ROOT / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.append(str(SRC_DIR))
+
 # Import the centralized scoring logic
-from scoring_logic import calculate_scores, LICENSE_COL, DEFAULT_WEIGHTS
+from icp.scoring import calculate_scores, LICENSE_COL, DEFAULT_WEIGHTS
 # Import the new industry scoring module
-from industry_scoring import build_industry_weights, save_industry_weights, load_industry_weights
-import data_access as da
+from icp.industry import build_industry_weights, save_industry_weights, load_industry_weights
+import icp.data_access as da
 
 # ---------------------------
 # 0.  CONFIG   file names & weights
 # ---------------------------
 
-INDUSTRY_ENRICHMENT_FILE = "TR - Industry Enrichment.csv"  # Updated industry data
-ASSET_WEIGHTS_FILE = "asset_rollup_weights.json"
+INDUSTRY_ENRICHMENT_FILE = ROOT / "data" / "raw" / "TR - Industry Enrichment.csv"  # Updated industry data
+ASSET_WEIGHTS_FILE = ROOT / "artifacts" / "weights" / "asset_rollup_weights.json"
 
 
 def load_weights():
@@ -60,7 +67,11 @@ def load_weights():
     optimizer's format to the format expected by the scoring script.
     """
     try:
-        with open('optimized_weights.json', 'r') as f:
+        weights_path = ROOT / 'artifacts' / 'weights' / 'optimized_weights.json'
+        if not weights_path.exists():
+            # Fallback to legacy location if not found
+            weights_path = ROOT / 'optimized_weights.json'
+        with open(weights_path, 'r') as f:
             data = json.load(f)
             raw_weights = data.get('weights', {})
             
@@ -74,7 +85,7 @@ def load_weights():
             total_so_far = weights['vertical'] + weights['size'] + weights['adoption']
             weights['relationship'] = max(0.0, 1.0 - total_so_far)
             
-            print(f"[INFO] Loaded optimized weights from optimized_weights.json")
+            print(f"[INFO] Loaded optimized weights from {weights_path}")
             print("  - Optimization details: " + str(data.get("n_trials","Unknown")) + " trials")
             print(f"  - Converted weights: vertical={weights['vertical']:.3f}, size={weights['size']:.3f}, adoption={weights['adoption']:.3f}, relationship={weights['relationship']:.3f}")
             return weights
@@ -120,7 +131,7 @@ def check_env():
     missing = [k for k in required if not os.getenv(k)]
     if missing:
         print(f"[WARN] Missing environment variables: {missing}. Ensure .env is configured.")
-    if not os.path.exists(INDUSTRY_ENRICHMENT_FILE):
+    if not Path(INDUSTRY_ENRICHMENT_FILE).exists():
         print(f"[INFO] Industry enrichment file '{INDUSTRY_ENRICHMENT_FILE}' not found. Proceeding without it.")
 
 
@@ -199,12 +210,18 @@ def load_industry_enrichment() -> pd.DataFrame:
     Loads updated industry data from the industry enrichment CSV file.
     This provides more accurate and up-to-date industry classifications.
     """
-    if not os.path.exists(INDUSTRY_ENRICHMENT_FILE):
-        print(f"[INFO] Industry enrichment file '{INDUSTRY_ENRICHMENT_FILE}' not found. Using original industry data.")
-        return pd.DataFrame()
+    enrichment_path = Path(INDUSTRY_ENRICHMENT_FILE)
+    if not enrichment_path.exists():
+        # Fallback to legacy root location if file hasn't been moved yet
+        legacy = ROOT / "TR - Industry Enrichment.csv"
+        if legacy.exists():
+            enrichment_path = legacy
+        else:
+            print(f"[INFO] Industry enrichment file not found in '{INDUSTRY_ENRICHMENT_FILE}' or legacy root. Using original industry data.")
+            return pd.DataFrame()
     
     try:
-        df = pd.read_csv(INDUSTRY_ENRICHMENT_FILE)
+        df = pd.read_csv(enrichment_path)
         
         # Handle different Customer ID column names
         customer_id_col = None
@@ -338,7 +355,7 @@ def apply_industry_enrichment(df: pd.DataFrame, enrichment_df: pd.DataFrame) -> 
 # 2b. Azure SQL assembly
 # ---------------------------
 
-ASSET_WEIGHTS_FILE = "asset_rollup_weights.json"
+ASSET_WEIGHTS_FILE = ROOT / "artifacts" / "weights" / "asset_rollup_weights.json"
 
 
 def load_asset_weights():
@@ -770,10 +787,13 @@ def engineer_features(df: pd.DataFrame, asset_weights: dict) -> pd.DataFrame:
 # 5.  Visual builder
 # ---------------------------
 
-def save_fig(path):
-    """Saves the current matplotlib figure to a file."""
+def save_fig(filename: str):
+    """Saves the current matplotlib figure to reports/figures."""
+    out_dir = ROOT / "reports" / "figures"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / filename
     plt.tight_layout()
-    plt.savefig(path, dpi=120)
+    plt.savefig(out_path, dpi=120)
     plt.close()
 
 
@@ -886,13 +906,15 @@ def main():
     master = assemble_master_from_db()
 
     print("Generating data-driven industry weights...")
-    if not os.path.exists("industry_weights.json"):
+    industry_weights_path = ROOT / "artifacts" / "weights" / "industry_weights.json"
+    if not industry_weights_path.exists():
         print("[INFO] Building new industry weights from historical profit since 2023")
         industry_weights = build_industry_weights(master)
-        save_industry_weights(industry_weights)
+        industry_weights_path.parent.mkdir(parents=True, exist_ok=True)
+        save_industry_weights(industry_weights, filepath=str(industry_weights_path))
     else:
         print("[INFO] Loading existing industry weights")
-        _ = load_industry_weights()
+        _ = load_industry_weights(filepath=str(industry_weights_path))
 
     print("Engineering features & scores...")
     asset_weights = load_asset_weights()
@@ -943,13 +965,16 @@ def main():
             out_cols.append(col)
     
     # Backup existing CSV then save the new scored data
-    out_path = "icp_scored_accounts.csv"
-    if os.path.exists(out_path):
-        backup_path = f"icp_scored_accounts_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    out_path = ROOT / "data" / "processed" / "icp_scored_accounts.csv"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    if out_path.exists():
+        backup_dir = ROOT / "archive" / "outputs"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        backup_path = backup_dir / f"icp_scored_accounts_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         shutil.copy2(out_path, backup_path)
         print(f"Backed up previous CSV to {backup_path}")
     scored[out_cols].to_csv(out_path, index=False)
-    print("Saved icp_scored_accounts.csv")
+    print(f"Saved {out_path}")
 
     print("Creating visualisations...")
     build_visuals(scored)

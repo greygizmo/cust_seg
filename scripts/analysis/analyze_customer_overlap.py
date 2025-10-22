@@ -7,6 +7,7 @@ and identifies multi-location company issues.
 
 import pandas as pd
 import numpy as np
+from pathlib import Path
 
 def analyze_customer_overlap():
     """Analyze overlap between revenue estimates and ICP scoring datasets"""
@@ -14,15 +15,16 @@ def analyze_customer_overlap():
     print("🔍 Loading datasets...")
     
     # Load both datasets
+    ROOT = Path(__file__).resolve().parents[2]
     try:
-        enrichment_df = pd.read_csv('enrichment_progress.csv')
+        enrichment_df = pd.read_csv(ROOT / 'data' / 'raw' / 'enrichment_progress.csv')
         print(f"   ✅ Loaded enrichment_progress.csv: {len(enrichment_df):,} rows")
     except FileNotFoundError:
         print("   ❌ enrichment_progress.csv not found")
         return
     
     try:
-        icp_df = pd.read_csv('icp_scored_accounts.csv')
+        icp_df = pd.read_csv(ROOT / 'data' / 'processed' / 'icp_scored_accounts.csv')
         print(f"   ✅ Loaded icp_scored_accounts.csv: {len(icp_df):,} rows")
     except FileNotFoundError:
         print("   ❌ icp_scored_accounts.csv not found")

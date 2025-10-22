@@ -2,7 +2,8 @@ import pandas as pd
 import optuna
 import json
 from functools import partial
-from optimize_weights import objective
+from pathlib import Path
+from icp.optimization import objective
 
 def run_optimization(n_trials=5000, lambda_param=0.50, include_size=True):
     """
@@ -20,12 +21,13 @@ def run_optimization(n_trials=5000, lambda_param=0.50, include_size=True):
         include_size (bool): Whether to include the 'size_score' in the optimization.
                              If False, its weight is locked to 0.
     """
+    ROOT = Path(__file__).resolve().parents[3]
     print("Loading scored accounts data...")
     try:
-        df = pd.read_csv('icp_scored_accounts.csv')
+        df = pd.read_csv(ROOT / 'data' / 'processed' / 'icp_scored_accounts.csv')
     except FileNotFoundError:
-        print("Error: `icp_scored_accounts.csv` not found.")
-        print("Please run `goe_icp_scoring.py` first to generate the necessary file.")
+        print("Error: `data/processed/icp_scored_accounts.csv` not found.")
+        print("Please run `python -m icp.cli.score_accounts` first to generate the necessary file.")
         return
 
     print(f"Loaded {len(df)} total accounts.")
@@ -104,12 +106,12 @@ def run_optimization(n_trials=5000, lambda_param=0.50, include_size=True):
         'include_size': include_size,
     }
 
-    with open('optimized_weights.json', 'w') as f:
+    out_path = ROOT / 'artifacts' / 'weights' / 'optimized_weights.json'
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(out_path, 'w') as f:
         json.dump(output_data, f, indent=4)
-    
-    print("\n✅ Saved optimized weights to `optimized_weights.json`")
 
-if __name__ == '__main__':
+    print(f"\nSaved optimized weights to {out_path}")if __name__ == '__main__':
     # --- Configuration ---
     # You can adjust these parameters before running the script.
     N_TRIALS = 5000  # Number of optimization rounds. More is better but slower.

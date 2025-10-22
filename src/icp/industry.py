@@ -12,6 +12,7 @@ import pandas as pd
 import numpy as np
 import json
 import os
+from pathlib import Path
 
 
 def calculate_industry_performance(df: pd.DataFrame) -> pd.DataFrame:
@@ -162,8 +163,10 @@ def build_industry_weights(df: pd.DataFrame, min_sample: int = 10, k: int = 20, 
 
 
     # Step 2: Load strategic scores from config
-    print("[INFO] Loading strategic tiers from strategic_industry_tiers.json")
-    with open('strategic_industry_tiers.json', 'r') as f:
+    ROOT = Path(__file__).resolve().parents[2]
+    strategic_path = ROOT / 'artifacts' / 'industry' / 'strategic_industry_tiers.json'
+    print(f"[INFO] Loading strategic tiers from {strategic_path}")
+    with open(strategic_path, 'r') as f:
         strategic_config = json.load(f)
     tier_scores = strategic_config['tier_scores']
     blend_weights = strategic_config['blend_weight']
@@ -200,7 +203,7 @@ def build_industry_weights(df: pd.DataFrame, min_sample: int = 10, k: int = 20, 
     return weights
 
 
-def save_industry_weights(weights: dict, filepath: str = "industry_weights.json"):
+def save_industry_weights(weights: dict, filepath: str = None):
     """
     Save industry weights to JSON file with metadata.
     
@@ -218,13 +221,18 @@ def save_industry_weights(weights: dict, filepath: str = "industry_weights.json"
         }
     }
     
+    if filepath is None:
+        ROOT = Path(__file__).resolve().parents[2]
+        filepath = ROOT / 'artifacts' / 'weights' / 'industry_weights.json'
+    filepath = Path(filepath)
+    filepath.parent.mkdir(parents=True, exist_ok=True)
     with open(filepath, 'w') as f:
         json.dump(output_data, f, indent=4)
     
     print(f"[INFO] Saved industry weights to {filepath}")
 
 
-def load_industry_weights(filepath: str = "industry_weights.json") -> dict:
+def load_industry_weights(filepath: str = None) -> dict:
     """
     Load industry weights from JSON file.
     
@@ -234,7 +242,10 @@ def load_industry_weights(filepath: str = "industry_weights.json") -> dict:
     Returns:
         dict: Industry weights, or empty dict if file not found
     """
-    if not os.path.exists(filepath):
+    if filepath is None:
+        ROOT = Path(__file__).resolve().parents[2]
+        filepath = ROOT / 'artifacts' / 'weights' / 'industry_weights.json'
+    if not Path(filepath).exists():
         print(f"[WARN] Industry weights file {filepath} not found")
         return {}
     
