@@ -19,12 +19,12 @@ weeks_year = 52
 k_neighbors   = 25
 # Blocks to include
 use_text      = true
-use_als       = false  # optional; requires 'implicit' package to be installed
+use_als       = true   # enable ALS by default (built from Azure SQL profit rollup)
 # Block weights
 w_numeric     = 0.50
 w_categorical = 0.15
-w_text        = 0.35
-w_als         = 0.00
+w_text        = 0.25
+w_als         = 0.10
 # Numeric transforms
 winsor_pct    = 0.01
 log1p_cols    = [

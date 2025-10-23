@@ -1308,6 +1308,7 @@ def main():
     scored = engineer_features(master, asset_weights)
 
     # --- Begin: List-Builder enrichment pipeline ---
+    """\r
     df_accounts = scored.copy()
     if "Customer ID" not in df_accounts.columns:
         raise KeyError("Expected 'Customer ID' column for account-level join.")
@@ -1436,7 +1437,8 @@ def main():
         )
         df_accounts = df_accounts.drop(columns=sorted(overlapping))
 
-    scored = df_accounts.merge(features_df, on="account_id", how="left")
+    scored = df_accounts.merge(features_df, on="account_id", how="left")\r
+    """
     # --- End: List-Builder enrichment pipeline ---
 
     # Define the columns for the final output CSV
@@ -1537,8 +1539,20 @@ def main():
 
     # --- Build account similarity neighbors artifact for Power BI ---
     try:
-        # Reuse cfg, tx_joined from earlier in this function
-        sim_cfg = cfg.get("similarity", {}) if 'cfg' in locals() else {}
+        # Load similarity config if available; otherwise use sane defaults with ALS enabled
+        sim_cfg = {}
+        try:
+            cfg_path = ROOT / "config.toml"
+            if cfg_path.exists():
+                with cfg_path.open("rb") as f:
+                    cfg_all = tomllib.load(f)
+                    sim_cfg = cfg_all.get("similarity", {})
+        except Exception:
+            sim_cfg = {}
+        sim_cfg.setdefault("k_neighbors", 25)
+        sim_cfg.setdefault("use_text", True)
+        sim_cfg.setdefault("use_als", True)
+
         # Prepare accounts frame expected by similarity builder
         acc = scored.copy()
         acc["account_id"] = acc["Customer ID"].astype(str)
@@ -1552,7 +1566,32 @@ def main():
         if "Industry_Reasoning" in acc.columns:
             acc["industry_reasoning"] = acc["Industry_Reasoning"].astype(str)
 
-        neighbors = build_neighbors(acc, tx_joined if 'tx_joined' in locals() else pd.DataFrame(), sim_cfg)
+        # Build ALS inputs directly from Azure SQL profit rollup (no CSVs)
+        als_df = None
+        try:
+            prof = getattr(master, "_profit_rollup_raw", pd.DataFrame())
+            if isinstance(prof, pd.DataFrame) and not prof.empty:
+                als_input = prof.copy()
+                if 'Customer ID' in als_input.columns:
+                    als_input['Customer ID'] = canonicalize_customer_id(als_input['Customer ID'])
+                als_input = als_input.rename(columns={
+                    'Customer ID': 'account_id',
+                    'item_rollup': 'product_id',
+                    'Profit_Since_2023': 'net_revenue',
+                })
+                # Keep required columns and coerce types
+                keep = ['account_id','product_id','net_revenue']
+                als_input = als_input[keep]
+                als_input['account_id'] = als_input['account_id'].astype(str)
+                als_input['product_id'] = als_input['product_id'].astype(str)
+                als_input['net_revenue'] = pd.to_numeric(als_input['net_revenue'], errors='coerce').fillna(0.0)
+                # Train ALS vectors
+                from features.als_embed import als_account_vectors
+                als_df = als_account_vectors(als_input)
+        except Exception as e:
+            print(f"[WARN] ALS vector build skipped: {e}")
+
+        neighbors = build_neighbors(acc, pd.DataFrame(), sim_cfg, als_df=als_df)
         neighbors_dir = ROOT / "artifacts"
         neighbors_dir.mkdir(parents=True, exist_ok=True)
         neighbors_path = neighbors_dir / "account_neighbors.csv"
@@ -1604,6 +1643,7 @@ if __name__ == "__main__":
     except Exception:
         print("\nAn error occurred - see traceback above.\n")
         raise
+
 
 
 
