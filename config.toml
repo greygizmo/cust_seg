@@ -13,3 +13,33 @@ w_cadence = 0.1
 weeks_short = 13
 months_ltm = 12
 weeks_year = 52
+
+[similarity]
+# Top-K neighbors to compute per account
+k_neighbors   = 25
+# Blocks to include
+use_text      = true
+use_als       = false  # optional; requires 'implicit' package to be installed
+# Block weights
+w_numeric     = 0.50
+w_categorical = 0.15
+w_text        = 0.35
+w_als         = 0.00
+# Numeric transforms
+winsor_pct    = 0.01
+log1p_cols    = [
+  "GP_Since_2023_Total",
+  "GP_T4Q_Total",
+  "GP_LastQ_Total",
+  "GP_PrevQ_Total",
+  "Total Software License Revenue",
+]
+logit_cols    = [
+  "hw_share_12m",
+  "sw_share_12m",
+  "recency_score",
+  "magnitude_score",
+  "cadence_score",
+  "breadth_score_hw",
+]
+text_column   = "industry_reasoning"

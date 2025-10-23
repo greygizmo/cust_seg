@@ -71,6 +71,7 @@ from icp.industry import build_industry_weights, save_industry_weights, load_ind
 import icp.data_access as da
 
 from features.product_taxonomy import validate_and_join_products
+from features.similarity_build import build_neighbors
 from features.spend_dynamics import compute_spend_dynamics
 from features.adoption_and_mix import compute_adoption_and_mix
 from features.health_concentration import month_hhi_12m, discount_pct
@@ -1533,6 +1534,32 @@ def main():
 
     scored[out_cols].to_csv(out_path, index=False)
     print(f"Saved {out_path}")
+
+    # --- Build account similarity neighbors artifact for Power BI ---
+    try:
+        # Reuse cfg, tx_joined from earlier in this function
+        sim_cfg = cfg.get("similarity", {}) if 'cfg' in locals() else {}
+        # Prepare accounts frame expected by similarity builder
+        acc = scored.copy()
+        acc["account_id"] = acc["Customer ID"].astype(str)
+        acc["account_name"] = acc.get("Company Name", acc["account_id"]).astype(str)
+        if "Industry" in acc.columns:
+            acc["industry"] = acc["Industry"].astype(str)
+        if "activity_segment" in acc.columns:
+            acc["segment"] = acc["activity_segment"].astype(str)
+        if "AM_Territory" in acc.columns:
+            acc["territory"] = acc["AM_Territory"].astype(str)
+        if "Industry_Reasoning" in acc.columns:
+            acc["industry_reasoning"] = acc["Industry_Reasoning"].astype(str)
+
+        neighbors = build_neighbors(acc, tx_joined if 'tx_joined' in locals() else pd.DataFrame(), sim_cfg)
+        neighbors_dir = ROOT / "artifacts"
+        neighbors_dir.mkdir(parents=True, exist_ok=True)
+        neighbors_path = neighbors_dir / "account_neighbors.csv"
+        neighbors.to_csv(neighbors_path, index=False)
+        print(f"Saved neighbors artifact: {neighbors_path}")
+    except Exception as e:
+        print(f"[WARN] Could not generate neighbors artifact: {e}")
 
     print("Creating visualisations...")
     build_visuals(scored)
