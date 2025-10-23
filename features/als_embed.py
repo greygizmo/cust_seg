@@ -5,7 +5,14 @@ import pandas as pd
 from scipy.sparse import coo_matrix
 
 
-def als_account_vectors(tx: pd.DataFrame, factors: int = 64, alpha: float = 40.0, use_bm25: bool = True) -> pd.DataFrame:
+def als_account_vectors(
+    tx: pd.DataFrame,
+    factors: int = 64,
+    alpha: float = 40.0,
+    reg: float = 0.01,
+    iterations: int = 20,
+    use_bm25: bool = True,
+) -> pd.DataFrame:
     """
     Train an implicit ALS model on an account x product matrix derived from
     transactions and return L2-normalized account vectors.
@@ -19,6 +26,13 @@ def als_account_vectors(tx: pd.DataFrame, factors: int = 64, alpha: float = 40.0
     except Exception as e:
         raise RuntimeError("Install 'implicit' to enable ALS embeddings (pip install implicit).") from e
 
+    # Limit BLAS threadpools to avoid oversubscription
+    try:
+        from threadpoolctl import threadpool_limits  # type: ignore
+        threadpool_limits(1, "blas")
+    except Exception:
+        pass
+
     # Map ids to contiguous indices
     acc_ids = {a: i for i, a in enumerate(tx["account_id"].astype(str).unique())}
     prod_ids = {p: i for i, p in enumerate(tx["product_id"].astype(str).unique())}
@@ -28,13 +42,24 @@ def als_account_vectors(tx: pd.DataFrame, factors: int = 64, alpha: float = 40.0
     data = pd.to_numeric(tx["net_revenue"], errors="coerce").fillna(0.0).astype("float32").values
     X = coo_matrix((data, (rows, cols)), shape=(len(acc_ids), len(prod_ids))).tocsr()
 
-    Xw = bm25_weight(X).tocsr() if use_bm25 else tfidf_weight(X).tocsr()
-    Xc = Xw * float(alpha)
+    def _fit_with(weight_fn):
+        Xw_local = weight_fn(X).tocsr()
+        Xc_local = Xw_local * float(alpha)
+        model_local = implicit.als.AlternatingLeastSquares(
+            factors=int(factors), regularization=float(reg), iterations=int(iterations)
+        )
+        model_local.fit(Xc_local)
+        U_local = model_local.user_factors.astype("float32")
+        # Sanitize any non-finite values
+        U_local[~np.isfinite(U_local)] = 0.0
+        return U_local
 
-    model = implicit.als.AlternatingLeastSquares(factors=int(factors), regularization=0.01, iterations=20)
-    model.fit(Xc)
-
-    U = model.user_factors.astype("float32")
+    try:
+        Xw = bm25_weight if use_bm25 else tfidf_weight
+        U = _fit_with(Xw)
+    except Exception:
+        # Fallback to TF-IDF weighting if BM25 path fails
+        U = _fit_with(tfidf_weight)
     U /= (np.linalg.norm(U, axis=1, keepdims=True) + 1e-12)
 
     inv_acc = [None] * len(acc_ids)
@@ -49,6 +74,8 @@ def als_concat_account_vectors(
     accounts: list[str] | None = None,
     factors: dict | None = None,
     alpha: float = 40.0,
+    reg: float = 0.01,
+    iterations: int = 20,
     use_bm25: bool = True,
     component_weights: dict | None = None,
 ) -> pd.DataFrame:
@@ -66,6 +93,13 @@ def als_concat_account_vectors(
         from implicit.nearest_neighbours import bm25_weight, tfidf_weight  # type: ignore
     except Exception as e:
         raise RuntimeError("Install 'implicit' for ALS embeddings (pip install implicit).") from e
+
+    # Limit BLAS threadpools to avoid oversubscription
+    try:
+        from threadpoolctl import threadpool_limits  # type: ignore
+        threadpool_limits(1, "blas")
+    except Exception:
+        pass
 
     labels = [lbl for lbl, _ in components]
     if not components:
@@ -94,11 +128,26 @@ def als_concat_account_vectors(
         cols = df["item_id"].astype(str).map(item_ids).values
         data = pd.to_numeric(df["value"], errors="coerce").fillna(0.0).astype("float32").values
         X = coo_matrix((data, (rows, cols)), shape=(len(acc_ids), len(item_ids))).tocsr()
-        Xw = bm25_weight(X).tocsr() if use_bm25 else tfidf_weight(X).tocsr()
-        Xc = Xw * float(alpha)
-        model = implicit.als.AlternatingLeastSquares(factors=f, regularization=0.01, iterations=20)
-        model.fit(Xc)
-        U_local = model.user_factors.astype("float32")
+        def _fit_with(weight_fn):
+            Xw_local = weight_fn(X).tocsr()
+            Xc_local = Xw_local * float(alpha)
+            model_local = implicit.als.AlternatingLeastSquares(
+                factors=f, regularization=float(reg), iterations=int(iterations)
+            )
+            model_local.fit(Xc_local)
+            U_l = model_local.user_factors.astype("float32")
+            U_l[~np.isfinite(U_l)] = 0.0
+            return U_l
+
+        try:
+            try:
+                weight_fn = bm25_weight if use_bm25 else tfidf_weight
+                U_local = _fit_with(weight_fn)
+            except Exception:
+                U_local = _fit_with(tfidf_weight)
+        except Exception:
+            # Skip this component if both weightings fail
+            continue
         U_local /= (np.linalg.norm(U_local, axis=1, keepdims=True) + 1e-12)
         # Align to master account list
         block = np.zeros((len(accounts), f), dtype="float32")
@@ -114,4 +163,3 @@ def als_concat_account_vectors(
     V = np.concatenate(vec_blocks, axis=1)
     V /= (np.linalg.norm(V, axis=1, keepdims=True) + 1e-12)
     return pd.DataFrame({"account_id": accounts, "als_vec": list(V)})
-

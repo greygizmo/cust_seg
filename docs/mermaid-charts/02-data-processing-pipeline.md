@@ -67,6 +67,13 @@ graph TD
         MetadataStorage[artifacts/weights/*.json]
     end
 
+    subgraph "Stage 9: Neighbors (Exact)"
+        BuildVectors[Build blocks: numeric/categorical/text]
+        BuildALS[Train ALS (rollup + goal) vectors]
+        BlockwiseTopK[Compute Top-K with blockwise exact cosine]
+        NeighborsOut[artifacts/account_neighbors.csv]
+    end
+
     %% Flow
     AzureCustomers --> LoadCustomers --> IDCanonicalize
     AzureProfitGoal --> LoadProfit
@@ -94,6 +101,12 @@ graph TD
     CalculateScores --> ApplyWeights --> ScoredDataset
     CalculateScores --> VisualizationGeneration
     SaveWeights --> MetadataStorage
+
+    %% Neighbors flow (separate step)
+    ScoredDataset --> BuildVectors --> BlockwiseTopK --> NeighborsOut
+    LoadAssets --> BuildALS
+    LoadProfit --> BuildALS
+    BuildALS --> BlockwiseTopK
 
     %% Styles
     classDef inputData fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
@@ -142,6 +155,17 @@ This pipeline assembles data from Azure SQL, applies optional industry enrichmen
 - Scored dataset: data/processed/icp_scored_accounts.csv
 - Visualizations: reports/figures/*.png
 - Weights & metadata: artifacts/weights/*.json
+
+### Stage 9: Neighbors (Exact, blockwise)
+- Inputs: scored dataset; optional Azure SQL aggregates for ALS vectors
+- Blocks: numeric, categorical, text, ALS (configurable weights)
+- Exact cosine Top‑K computed blockwise to avoid NxN memory
+- Output: artifacts/account_neighbors.csv
+
+Config knobs (config.toml):
+- [similarity] k_neighbors, use_text, use_als, w_* block weights
+- [similarity] max_dense_accounts, row_block_size (memory/scale)
+- [als] alpha, reg, iterations, use_bm25, composite weights
 
 ### Key Quality Controls:
 - **Minimum Sample Sizes**: Ensures statistical significance

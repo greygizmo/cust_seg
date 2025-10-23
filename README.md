@@ -1,118 +1,31 @@
-# ICP Scoring and Segmentation Dashboard
+# ICP Scoring and Neighbors
 
-An interactive Streamlit dashboard for real-time customer segmentation and analysis, featuring a data-driven, optimizable scoring model for GoEngineer Digital Manufacturing accounts.
+End-to-end pipeline to score GoEngineer Digital Manufacturing accounts from Azure SQL, plus an exact (blockwise) neighbors artifact with optional ALS embeddings.
 
-## Overview
+## Outputs
+- `data/processed/icp_scored_accounts.csv` — baseline scored accounts with component scores and grades
+- `reports/figures/*.png` — batch visuals
+- `artifacts/account_neighbors.csv` — exact Top‑K neighbors per account (optional step)
 
-This dashboard allows you to:
-- **Analyze customer segments** based on configurable revenue thresholds (Small Business, Mid-Market, Enterprise).
-- **Adjust scoring weights** in real-time, with defaults provided by an automated optimization process.
-- **Visualize the impact** of weight changes on customer ICP scores and segment performance.
-- **Identify high-value customers** with dynamic filtering and data-driven recommendations.
-- **Export updated scores** and segment data for further analysis.
+## Quick start
+- Baseline scoring (no neighbors/visuals):
+  - `python -m icp.cli.score_accounts --skip-neighbors --skip-visuals`
+- Build neighbors later from the saved CSV (exact, blockwise):
+  - `python -m icp.cli.score_accounts --neighbors-only --in-scored data/processed/icp_scored_accounts.csv`
+- Disable ALS in neighbors (override config):
+  - `python -m icp.cli.score_accounts --neighbors-only --no-als`
 
-## Recent Major Update: List-Builder Feature Pipeline
+## Configuration
+Edit `config.toml`:
+- `[similarity]` — `k_neighbors` (default 15), `use_text`, `use_als`, block weights, and memory controls `max_dense_accounts`, `row_block_size`
+- `[als]` — `alpha`, `reg`, `iterations`, `use_bm25`, and composite strength weights
 
-**As of July 2025, `goe_icp_scoring.py` now computes the full list-builder feature set and writes a single enriched `icp_scored_accounts.csv` ready for BI consumption.**
+## Notes on features
+- The main pipeline computes vertical/size/adoption/relationship and writes an ICP score and grade.
+- Time-series “List‑Builder” features (spend dynamics, momentum, POV/whitespace) exist in `/features` but are currently disabled in the default run to keep laptop memory headroom. If enabled later, those columns will be appended.
 
-- **In-repo feature factory:** Dedicated modules in `/features` generate spend dynamics, velocity, seasonality, momentum, adoption & mix, health, concentration, and POV tags before the CSV is written.
-- **Hardware adoption via taxonomy integrity:** Adoption is now driven by Hardware vs. Software spend share, breadth of Hardware sub-divisions, and Hardware recency—aligned to Super-Division / Division / Sub-Division mapping.
-- **POV tags & whitespace:** Rule-based POV tagging (including SW→HW whitespace) is computed upstream so dashboards only display columns—no DAX measures or calculated fields required.
-- **Transparent configuration:** `config.toml` controls data sources, analytic windows, and momentum weights so analytics and dashboard teams can adjust inputs without touching code.
-- **Zero Power BI logic:** The enriched CSV already carries spend dynamics, adoption, concentration, and POV outputs. Report authors only bind visuals to columns.
-- **Consistent taxonomy:** Hardware breadth and adoption calculations depend on the product hierarchy (Super/Division/Sub-Division), eliminating Big/Small box assumptions.
-- **Faster feature iteration:** Feature logic lives in version-controlled Python modules, making peer review and regression testing straightforward.
-- Revenue, cadence, momentum, and whitespace signals are available for every account row, giving GTM teams immediate prioritization levers.
-- Adoption scores blend Hardware share, breadth, and recency so hardware specialists can spot breadth/recency gaps without printer counts.
-> **Note:** All List-Builder features are computed in-repo and emitted in `icp_scored_accounts.csv` for Power BI consumption. No DAX measures or calculated columns are required downstream.
+## Documentation
+All docs are in `docs/` and reflect the current behavior:
+- `docs/METRICS_OVERVIEW.md` — what the pipeline outputs, neighbors details, and config keys
+- `docs/mermaid-charts/` — architecture and pipeline diagrams (include neighbors stage)
 
-- **Hardware share weighting**: 50% of the adoption score comes from a customer's Hardware share of total HW+SW revenue over the trailing 12 months.
-- **Breadth factor**: 30% reflects how many distinct Hardware sub-divisions (Super/Division/Sub-Division taxonomy) the customer has purchased from during the last 12 months.
-- **Recency signal**: 20% rewards recent Hardware activity by mapping days since last Hardware order to a smooth 0–1 score.
-- **No printer assumptions**: Adoption no longer relies on Big-/Small-box counts—only observed revenue patterns, breadth, and recency.
-
-- Adoption components are continuous features computed for every account, producing a wide, interpretable spread rather than capped printer tiers.
-- Breadth and recency inputs keep scores responsive as customers expand into new Hardware sub-divisions or lapse.
-
-  - Inputs: `hw_share_12m`, `breadth_score_hw`, and `recency_score_hw` generated by the feature pipeline using the Super-Division / Division / Sub-Division taxonomy.
-  - Formula: `0.5 * hw_share_12m + 0.3 * breadth_score_hw + 0.2 * recency_score_hw` (missing inputs default to 0).
-  - Behavior: accounts with no Hardware spend receive 0 Hardware share; breadth reflects active Hardware sub-divisions; recency smoothly decays as days since last Hardware order increase.
-  - Data sources: transactions joined to `products.csv` ensure accurate Hardware vs. Software attribution—no printer count assumptions.
-  - Inputs (preferred): relationship_profit (sum of profits for software-related goals)
-
-  - Grade: AF assigned by target percentile cutoffs
-
-1.  **Install Dependencies**
-    ```
-apps/streamlit/app.py          # Streamlit dashboard
-src/icp/cli/score_accounts.py  # Generate icp_scored_accounts.csv
-src/icp/scoring.py             # Centralized scoring logic
-src/icp/cli/optimize_weights.py# Run weight optimization
-artifacts/weights/*.json       # Optimized and industry weights
-src/icp/industry.py            # Industry weights builder
-scripts/clean/*                # Data cleanup utilities
-configs/default.toml           # App/pipeline config
-README.md                      # Project overview
-```
-
-## Data Processing Pipeline
-
-1. **Industry Data Cleanup**: `cleanup_industry_data.py` standardizes industry classifications using fuzzy matching
-2. **Industry Scoring**: `industry_scoring.py` calculates performance-based weights for each industry
-3. **ICP Scoring**: `goe_icp_scoring.py` processes all data and generates scored accounts
-4. **Weight Optimization**: `run_optimization.py` finds optimal component weights
-5. **Dashboard**: `streamlit_icp_dashboard.py` provides interactive analysis
-
-## Key Improvements
-
-### Adoption Score Algorithm (Latest)
-- **Percentile Scaling Fix**: Excludes zero-value customers from percentile calculations to prevent distribution compression
-- **Square Root Scaling**: Revenue-only customers use square root curve for better distribution within 0.0-0.5 range
-- **Heavy Fleet Bonus**: Customers with 10+ weighted printers receive +0.05 bonus
-- **60/40 Blend**: Printer customers use 60% printer percentile + 40% revenue percentile
-- **Zero-Everything Rule**: Customers with no printers AND no revenue get 0.0 adoption score
-
-### Distribution Quality
-- **Before**: Standard deviation of 0.008 (extremely compressed)
-- **After**: Standard deviation of 0.116 (14x better distribution)
-- **Result**: Much more granular and predictive adoption scoring
-## Scoring Reference
-
-- Adoption Score
-  - Inputs (preferred): doption_assets and doption_profit (profit since 2023 for focus divisions)
-  - Inputs (fallback): Big Box Count, Small Box Count, Total Hardware Revenue, Total Consumable Revenue
-  - Scaling helpers
-    - Percentile scale P/R: ranks only among non-zero values; zero values stay 0.0; if all values identical, returns 0.5 for all
-  - Preferred (DB) mode
-    - P = percentile(adoption_assets)
-    - R = percentile(adoption_profit)
-    - If adoption_assets == 0 and adoption_profit > 0: adoption = 0.5 * sqrt(R)
-    - If adoption_assets > 0: adoption = (0.6 * P) + (0.4 * R)
-    - If both are 0: adoption = 0.0
-  - Legacy fallback
-    - WeightedPrinters = (2.0 * Big Box Count) + (1.0 * Small Box Count)
-    - TotalAdoptionRevenue = Total Hardware Revenue + Total Consumable Revenue (both clamped at >= 0)
-    - P = percentile(WeightedPrinters)
-    - R = percentile(TotalAdoptionRevenue)
-    - If WeightedPrinters == 0 and TotalAdoptionRevenue > 0: adoption = 0.5 * sqrt(R)
-    - If WeightedPrinters > 0: adoption = (0.6 * P) + (0.4 * R)
-    - Heavy fleet bonus: if WeightedPrinters >= 10, add +0.05 and clip to [0, 1]
-
-- Relationship Score
-  - Inputs (preferred): elationship_profit (sum of profits for software-related goals)
-  - Inputs (fallback): Total Software License Revenue, Total SaaS Revenue, Total Maintenance Revenue
-  - Transform
-    - Compute feature = relationship_profit (preferred), else sum of software revenues (all clamped at >= 0)
-    - Apply log1p(feature)
-    - Min-max scale to [0, 1] across the dataset
-
-- Final ICP Score
-  - Raw = (vertical_score * Wv) + (size_score * Ws) + (adoption_score * Wa) + (relationship_score * Wr)
-  - Normalize: rank ? percentile ? inverse normal (ppf) ? scaled to mean 50, std 15, clipped to [0, 100]
-  - Grade: A–F assigned by target percentile cutoffs
-
-
-
-## Neighbors Artifact
-A separate artifact is generated at rtifacts/account_neighbors.csv containing top-K nearest neighbors per account (with component similarity scores). This powers account-level look-alike search in Power BI without changing the main CSV contract.
-See documentation/METRICS_OVERVIEW.md for full details.

@@ -33,10 +33,11 @@ graph TB
     end
 
     subgraph "Configuration & Storage"
-        ConfigFiles[configs/default.toml<br/>artifacts/industry/strategic_industry_tiers.json]
+        ConfigFiles[config.toml<br/>artifacts/industry/strategic_industry_tiers.json]
         OptimizedWeights[artifacts/weights/optimized_weights.json]
         IndustryWeights[artifacts/weights/industry_weights.json]
         ScoredData[data/processed/icp_scored_accounts.csv]
+        NeighborsCSV[artifacts/account_neighbors.csv]
     end
 
     %% Data flow connections
@@ -57,6 +58,18 @@ graph TB
     ScoredData --> Dashboard
     ScoredData --> OptimizationCLI
 
+    %% Similarity & Neighbors
+    subgraph "Similarity & Neighbors"
+        SimilarityBuilder[features/similarity_build.py<br/>Exact blockwise Top-K]
+        ALSVectors[features/als_prep.py + als_embed.py<br/>Rollup + Goal vectors]
+    end
+
+    ScoredData --> SimilarityBuilder
+    AzureProfitRollup --> ALSVectors
+    AzureAssets --> ALSVectors
+    ALSVectors --> SimilarityBuilder
+    SimilarityBuilder --> NeighborsCSV
+
     OptimizationCLI --> OptimizationCore --> OptimizedWeights
     OptimizedWeights --> ScoringLogic
     OptimizedWeights --> Dashboard
@@ -73,7 +86,8 @@ graph TB
     class MainPipeline,IndustryBuilder,SchemaValidation processing
     class ScoringLogic,OptimizationCLI,OptimizationCore scoring
     class Dashboard,VisualOutputs analytics
-    class ConfigFiles,OptimizedWeights,IndustryWeights,ScoredData storage
+    class ConfigFiles,OptimizedWeights,IndustryWeights,ScoredData,NeighborsCSV storage
+    class SimilarityBuilder,ALSVectors processing
 ```
 
 ## System Overview

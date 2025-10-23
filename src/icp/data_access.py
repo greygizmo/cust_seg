@@ -264,6 +264,43 @@ def get_assets_and_seats(engine=None) -> pd.DataFrame:
     return pd.read_sql(sql, engine)
 
 
+def get_tx_for_features(engine=None, months_back: int = 18) -> pd.DataFrame:
+    """
+    Transaction-like daily aggregates for feature engineering from SalesLog.
+
+    Returns columns suitable for feature builders (lowercase after caller renames):
+      - [Customer ID], [date], invoice_id (synthetic per-day ID), item_rollup as product_id
+      - Goal, super_division (Software for CAD/CPE/Specialty Software, else Hardware)
+      - division (Goal proxy), sub_division (item_rollup proxy)
+      - net_revenue (using GP+Term_GP as a stable proxy)
+
+    Note: Uses profit as a proxy for spend to avoid requiring external revenue columns.
+    """
+    engine = engine or get_engine()
+    sql = text(
+        """
+        SELECT
+            s.CompanyId                                   AS [Customer ID],
+            CAST(s.Rec_Date AS date)                      AS [date],
+            CONCAT('D', CONVERT(varchar(10), CAST(s.Rec_Date AS date), 23)) AS invoice_id,
+            icl.Item_Rollup                               AS item_rollup,
+            t.Goal                                        AS Goal,
+            CASE WHEN t.Goal IN ('CAD','CPE','Specialty Software') THEN 'Software' ELSE 'Hardware' END AS super_division,
+            t.Goal                                        AS division,
+            icl.Item_Rollup                               AS sub_division,
+            SUM(COALESCE(s.GP,0) + COALESCE(s.Term_GP,0)) AS net_revenue
+        FROM dbo.table_saleslog_detail s
+        INNER JOIN dbo.items_category_limited icl
+            ON s.Item_internalid = icl.internalId
+        LEFT JOIN dbo.analytics_product_tags t
+            ON icl.Item_Rollup = t.item_rollup
+        WHERE s.Rec_Date >= DATEADD(MONTH, -:months_back, GETDATE())
+        GROUP BY s.CompanyId, CAST(s.Rec_Date AS date), icl.Item_Rollup, t.Goal
+        """
+    )
+    return pd.read_sql(sql, engine, params={"months_back": int(months_back)})
+
+
 def get_customer_headers(engine=None) -> pd.DataFrame:
     """
     Fetch customer header attributes from NetSuite cleaned headers.

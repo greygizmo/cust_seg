@@ -1,10 +1,10 @@
 # System Documentation
 
-This directory contains comprehensive Mermaid diagrams documenting the entire ICP Scoring System for GoEngineer.
+This directory contains Mermaid diagrams and reference docs for the ICP Scoring and Neighbors pipeline.
 
 ##  Documentation Overview
 
-The documentation is organized into **9 detailed Mermaid diagrams** covering all aspects of the system:
+The documentation is organized into Mermaid diagrams and topical guides:
 
 ###  System Architecture (3 charts)
 - **01-overall-architecture.md**: Complete system overview and data flow
@@ -12,33 +12,20 @@ The documentation is organized into **9 detailed Mermaid diagrams** covering all
 - **08-component-interaction.md**: Python module interactions
 - **09-file-relationships.md**: Import/export relationships
 
-###  Data Processing (1 chart)
-- **02-data-processing-pipeline.md**: 8-stage data processing workflow
+###  Data Processing (and Neighbors)
+- **02-data-processing-pipeline.md**: 8-stage scoring workflow plus Stage 9 exact neighbors
 
 ###  Scoring System (3 charts)
 - **03-scoring-methodology.md**: 4-component ICP scoring system
 - **04-weight-optimization.md**: ML optimization with Optuna
 - **06-industry-scoring.md**: Data-driven industry weights
 
-###  User Interface (1 chart)
-- **05-dashboard-workflow.md**: User interaction and experience
+###  Guides
+- `../METRICS_OVERVIEW.md` — metrics and artifacts, config keys, CLI
+- `../guides/INSTRUCTIONS_CSV_ENRICHMENT.md` — optional industry enrichment CSV
 
-##  Accessing Documentation in Dashboard
-
-The documentation is now integrated into the Streamlit dashboard:
-
-1. **Navigate to the dashboard**: Run `streamlit run streamlit_icp_dashboard.py`
-2. **Use the sidebar navigation**: Select " System Documentation"
-3. **Choose a category**: Select from the 4 main categories
-4. **Browse charts**: Expand individual charts to view Mermaid diagrams and explanations
-
-##  Additional Information
-
-The documentation is also available as a separate page called " Scoring Details" which provides:
-- Detailed explanations of each scoring component
-- Current weight values and optimization status
-- Mathematical formulas and business rules
-- Grade assignment criteria
+##  Viewing the diagrams
+Open the markdown files in this folder in your editor or a Mermaid-enabled renderer.
 
 ##  Chart Categories
 
@@ -46,7 +33,7 @@ The documentation is also available as a separate page called " Scoring Details"
 Complete technical overview of how all components work together, including data flow, dependencies, and interactions between Python modules.
 
 ### Data Processing
-Detailed 8-stage pipeline showing how raw data is transformed into actionable insights, from data loading to final score calculation.
+Detailed pipeline showing how raw data is transformed into scored accounts, plus an exact, blockwise neighbors stage.
 
 ### Scoring System
 Deep dive into the 4-component scoring methodology, ML optimization process, and industry-specific weight calculations.

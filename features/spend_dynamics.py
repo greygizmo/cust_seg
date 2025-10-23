@@ -154,8 +154,9 @@ def compute_spend_dynamics(
             g.drop_duplicates(["account_id", "invoice_id"])["date"].sort_values().to_list()
         )
         if len(inv_dates) >= 2:
-            diffs = np.diff(inv_dates) / np.timedelta64(1, "D")
-            median_interpurchase_days = float(np.median(diffs))
+            inv_arr = np.array(inv_dates, dtype="datetime64[ns]")
+            diffs = np.diff(inv_arr) / np.timedelta64(1, "D")
+            median_interpurchase_days = float(np.median(diffs.astype(float)))
         else:
             median_interpurchase_days = np.nan
 

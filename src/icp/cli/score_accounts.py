@@ -39,6 +39,17 @@ import matplotlib.pyplot as plt
 import json
 from scipy.stats import norm
 
+# Performance/UX environment defaults (Windows-friendly)
+# Limit BLAS threadpools to avoid oversubscription and reduce memory contention
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("NUMEXPR_MAX_THREADS", "1")
+# Quiet HF symlink warning on Windows cache
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+# Reduce noisy tokenizer parallelism warnings if transformers get pulled in
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+
 try:
     import tomllib
 except ModuleNotFoundError:  # pragma: no cover - Python <3.11 fallback
@@ -78,6 +89,9 @@ from features.health_concentration import month_hhi_12m, discount_pct
 from features.sw_hw_whitespace import sw_dominance_and_whitespace
 from features.pov_tags import make_pov_tags
 from features.als_prep import build_als_input_from_signals
+
+# Module-level CLI options for cross-function access
+CLI_OPTS: dict = {}
 
 FEATURE_COLUMN_ORDER = [
     "account_id",
@@ -1309,56 +1323,51 @@ def main():
     scored = engineer_features(master, asset_weights)
 
     # --- Begin: List-Builder enrichment pipeline ---
-    """\r
     df_accounts = scored.copy()
     if "Customer ID" not in df_accounts.columns:
         raise KeyError("Expected 'Customer ID' column for account-level join.")
     df_accounts["account_id"] = df_accounts["Customer ID"].astype(str)
 
+    # Prefer Azure SQL sources (no CSVs required)
     cfg_path = ROOT / "config.toml"
-    if not cfg_path.exists():
-        raise FileNotFoundError(
-            "Missing config.toml. The enrichment pipeline requires data source paths."
-        )
-    with cfg_path.open("rb") as f:
-        cfg = tomllib.load(f)
+    cfg = {}
+    if cfg_path.exists():
+        with cfg_path.open("rb") as f:
+            cfg = tomllib.load(f)
 
-    data_cfg = cfg.get("data_sources", {})
-    if not data_cfg:
-        raise KeyError("config.toml is missing the [data_sources] section.")
+    print("[INFO] Loading transactions from Azure SQL for feature enrichment")
+    engine = da.get_engine()
+    tx_db = da.get_tx_for_features(engine, months_back=int(cfg.get("windows", {}).get("months_ltm", 12)) + 6)
+    # Normalize schema to feature expectations
+    tx = tx_db.rename(columns={
+        "Customer ID": "account_id",
+        "item_rollup": "product_id",
+    }).copy()
+    # Ensure dtypes
+    tx["date"] = pd.to_datetime(tx["date"], errors="coerce")
+    tx["account_id"] = tx["account_id"].astype(str)
+    for col in ("super_division", "division", "sub_division"):
+        if col not in tx.columns:
+            tx[col] = ""
+        tx[col] = tx[col].astype(str)
+    if "invoice_id" not in tx.columns:
+        tx["invoice_id"] = tx["date"].dt.strftime("%Y-%m-%d")
+    tx["net_revenue"] = pd.to_numeric(tx["net_revenue"], errors="coerce").fillna(0.0)
 
-    sales_path_str = data_cfg.get("sales_path")
-    products_path_str = data_cfg.get("products_path")
-    if not sales_path_str:
-        raise KeyError("config.toml[data_sources][sales_path] is required.")
-    if not products_path_str:
-        raise KeyError("config.toml[data_sources][products_path] is required.")
-
-    sales_path = Path(sales_path_str).expanduser()
-    products_path = Path(products_path_str).expanduser()
-    if not sales_path.is_absolute():
-        sales_path = ROOT / sales_path
-    if not products_path.is_absolute():
-        products_path = ROOT / products_path
-
-    print(f"[INFO] Loading transactions from {sales_path}")
-    tx = pd.read_csv(sales_path)
-    print(f"[INFO] Loading product taxonomy from {products_path}")
-    prod = pd.read_csv(products_path)
-
-    prod_norm = prod.copy()
-    prod_norm.columns = [c.lower() for c in prod_norm.columns]
-
-    tx_joined = validate_and_join_products(tx, prod)
-
-    as_of_raw = data_cfg.get("as_of_date")
-    as_of_date = pd.to_datetime(as_of_raw) if as_of_raw else pd.to_datetime(tx_joined["date"]).max()
+    # Build hardware sub-division list from DB taxonomy
+    prod_norm = tx[["super_division", "sub_division"]].dropna().rename(columns=str.lower)
+    hardware_mask = prod_norm.get("super_division", pd.Series(dtype=str)).str.lower() == "hardware"
+    products_hw_subdiv = (
+        prod_norm.loc[hardware_mask, "sub_division"].dropna().astype(str).unique().tolist()
+    )
+    as_of_raw = cfg.get("data_sources", {}).get("as_of_date") if cfg else ""
+    as_of_date = pd.to_datetime(as_of_raw) if as_of_raw else pd.to_datetime(tx["date"]).max()
     if pd.isna(as_of_date):
         as_of_date = pd.Timestamp.utcnow().normalize()
     else:
         as_of_date = as_of_date.normalize()
 
-    window_cfg = cfg.get("windows", {})
+    window_cfg = cfg.get("windows", {}) if cfg else {}
     weeks_short = int(window_cfg.get("weeks_short", 13))
     months_ltm = int(window_cfg.get("months_ltm", 12))
     weeks_year = int(window_cfg.get("weeks_year", 52))
@@ -1370,22 +1379,15 @@ def main():
     w_cadence = float(weight_cfg.get("w_cadence", 0.1))
 
     dyn = compute_spend_dynamics(
-        tx=tx_joined,
+        tx=tx,
         as_of=as_of_date,
         weeks_short=weeks_short,
         months_ltm=months_ltm,
         weeks_year=weeks_year,
     )
 
-    hardware_mask = prod_norm.get("super_division", pd.Series(dtype=str)).str.lower() == "hardware"
-    products_hw_subdiv = (
-        prod_norm.loc[hardware_mask, "sub_division"].dropna().astype(str).unique().tolist()
-        if "super_division" in prod_norm.columns
-        else []
-    )
-
     mix = compute_adoption_and_mix(
-        tx=tx_joined,
+        tx=tx,
         products_hw_subdiv=products_hw_subdiv,
         as_of=as_of_date,
         months_ltm=months_ltm,
@@ -1394,10 +1396,10 @@ def main():
     if "spend_12m" in mix.columns:
         mix = mix.drop(columns=["spend_12m"])
 
-    hhi = month_hhi_12m(tx=tx_joined, as_of=as_of_date)
-    disc = discount_pct(tx=tx_joined)
+    hhi = month_hhi_12m(tx=tx, as_of=as_of_date)
+    disc = discount_pct(tx=tx)
     whitespace = sw_dominance_and_whitespace(
-        tx=tx_joined,
+        tx=tx,
         as_of=as_of_date,
         weeks_short=weeks_short,
     )
@@ -1438,8 +1440,7 @@ def main():
         )
         df_accounts = df_accounts.drop(columns=sorted(overlapping))
 
-    scored = df_accounts.merge(features_df, on="account_id", how="left")\r
-    """
+    scored = df_accounts.merge(features_df, on="account_id", how="left")
     # --- End: List-Builder enrichment pipeline ---
 
     # Define the columns for the final output CSV
@@ -1535,73 +1536,123 @@ def main():
             + ", ".join(missing_features)
         )
 
-    scored[out_cols].to_csv(out_path, index=False)
+    # Coerce newly added feature columns to numeric where applicable and round for BI friendliness
+    numeric_like = set([
+        # dynamic spend/momentum
+        "spend_13w","spend_13w_prior","delta_13w","delta_13w_pct","spend_12m","spend_52w","yoy_13w_pct",
+        "days_since_last_order","active_weeks_13w","purchase_streak_months","median_interpurchase_days",
+        "slope_13w","slope_13w_prior","acceleration_13w","volatility_13w","seasonality_factor_13w",
+        "trend_score","recency_score","magnitude_score","cadence_score","momentum_score",
+        "w_trend","w_recency","w_magnitude","w_cadence",
+        # adoption/mix
+        "hw_spend_12m","sw_spend_12m","hw_share_12m","sw_share_12m","breadth_hw_subdiv_12m","max_hw_subdiv",
+        "breadth_score_hw","days_since_last_hw_order","recency_score_hw","hardware_adoption_score",
+        "consumables_to_hw_ratio","top_subdivision_share_12m",
+        # health, whitespace, pov scores
+        "discount_pct","month_conc_hhi_12m","sw_dominance_score","sw_to_hw_whitespace_score",
+        # existing numeric headline columns (safe no-ops if absent)
+        "ICP_score","vertical_score","size_score","ICP_score_raw",
+        "GP_PrevQ_Total","GP_QoQ_Growth","GP_T4Q_Total","GP_Since_2023_Total",
+        "Seats_CAD","GP_CAD","Seats_CPE","GP_CPE","Seats_Specialty Software","GP_Specialty Software",
+        "active_assets_total","seats_sum_total","Portfolio_Breadth","scaling_flag",
+        "Days_Since_First_Purchase","Days_Since_Last_Purchase","Days_Since_Last_Expiration",
+    ])
+    for col in numeric_like:
+        if col in scored.columns:
+            scored[col] = pd.to_numeric(scored[col], errors="coerce")
+    # Replace infinities with NaN to avoid Text import in BI
+    scored.replace([np.inf, -np.inf], np.nan, inplace=True)
+    # Round most floats to 4 decimals for BI usability (counts and days can remain integers)
+    round_cols = [c for c in numeric_like if c in scored.columns and scored[c].dtype.kind in "fc"]
+    if round_cols:
+        scored[round_cols] = scored[round_cols].round(4)
+
+    scored[out_cols].to_csv(out_path, index=False, float_format="%.4f")
     print(f"Saved {out_path}")
 
     # --- Build account similarity neighbors artifact for Power BI ---
-    try:
-        # Load similarity config if available; otherwise use sane defaults with ALS enabled
-        sim_cfg = {}
+    if not CLI_OPTS.get("skip_neighbors", False):
         try:
-            cfg_path = ROOT / "config.toml"
-            if cfg_path.exists():
-                with cfg_path.open("rb") as f:
-                    cfg_all = tomllib.load(f)
-                    sim_cfg = cfg_all.get("similarity", {})
-        except Exception:
+            # Load similarity config if available; otherwise use sane defaults with ALS enabled
             sim_cfg = {}
-        sim_cfg.setdefault("k_neighbors", 25)
-        sim_cfg.setdefault("use_text", True)
-        sim_cfg.setdefault("use_als", True)
+            try:
+                cfg_path = ROOT / "config.toml"
+                if cfg_path.exists():
+                    with cfg_path.open("rb") as f:
+                        cfg_all = tomllib.load(f)
+                        sim_cfg = cfg_all.get("similarity", {})
+            except Exception:
+                sim_cfg = {}
+            sim_cfg.setdefault("k_neighbors", 25)
+            sim_cfg.setdefault("use_text", True)
+            sim_cfg.setdefault("use_als", True)
+            sim_cfg.setdefault("max_dense_accounts", 5000)
+            sim_cfg.setdefault("row_block_size", 512)
 
-        # Prepare accounts frame expected by similarity builder
-        acc = scored.copy()
-        acc["account_id"] = acc["Customer ID"].astype(str)
-        acc["account_name"] = acc.get("Company Name", acc["account_id"]).astype(str)
-        if "Industry" in acc.columns:
-            acc["industry"] = acc["Industry"].astype(str)
-        if "activity_segment" in acc.columns:
-            acc["segment"] = acc["activity_segment"].astype(str)
-        if "AM_Territory" in acc.columns:
-            acc["territory"] = acc["AM_Territory"].astype(str)
-        if "Industry_Reasoning" in acc.columns:
-            acc["industry_reasoning"] = acc["Industry_Reasoning"].astype(str)
+            # CLI overrides
+            if CLI_OPTS.get("no_als", False):
+                sim_cfg["use_als"] = False
 
-        # Build ALS inputs directly from Azure SQL profit rollup (no CSVs)
-        als_df = None
-        try:
-            prof = getattr(master, "_profit_rollup_raw", pd.DataFrame())
-            assets_src = getattr(master, "_assets_raw", pd.DataFrame())
-            # Canonicalize IDs
-            if isinstance(prof, pd.DataFrame) and not prof.empty and 'Customer ID' in prof.columns:
-                prof = prof.copy(); prof['Customer ID'] = canonicalize_customer_id(prof['Customer ID'])
-            if isinstance(assets_src, pd.DataFrame) and not assets_src.empty and 'Customer ID' in assets_src.columns:
-                assets_src = assets_src.copy(); assets_src['Customer ID'] = canonicalize_customer_id(assets_src['Customer ID'])
-            # Build multiple ALS components (rollup and goal)
-            als_components = build_multi_als_inputs(prof, assets_src, cfg.get('als', {}) if 'cfg' in locals() else {})
-            # Train per-component ALS and concatenate vectors
-            from features.als_embed import als_concat_account_vectors
-            comp_factors = {
-                'rollup': int((cfg.get('als', {}) if 'cfg' in locals() else {}).get('factors_rollup', 64)),
-                'goal': int((cfg.get('als', {}) if 'cfg' in locals() else {}).get('factors_goal', 32)),
-            }
-            comp_weights = {
-                'rollup': float((cfg.get('als', {}) if 'cfg' in locals() else {}).get('w_rollup_vec', 1.0)),
-                'goal': float((cfg.get('als', {}) if 'cfg' in locals() else {}).get('w_goal_vec', 1.0)),
-            }
-            account_list = acc['account_id'].astype(str).tolist()
-            als_df = als_concat_account_vectors(als_components, accounts=account_list, factors=comp_factors, component_weights=comp_weights)
+            # Prepare accounts frame expected by similarity builder
+            acc = scored.copy()
+            acc["account_id"] = acc["Customer ID"].astype(str)
+            acc["account_name"] = acc.get("Company Name", acc["account_id"]).astype(str)
+            if "Industry" in acc.columns:
+                acc["industry"] = acc["Industry"].astype(str)
+            if "activity_segment" in acc.columns:
+                acc["segment"] = acc["activity_segment"].astype(str)
+            if "AM_Territory" in acc.columns:
+                acc["territory"] = acc["AM_Territory"].astype(str)
+            if "Industry_Reasoning" in acc.columns:
+                acc["industry_reasoning"] = acc["Industry_Reasoning"].astype(str)
+
+            # Build ALS inputs directly from Azure SQL profit rollup (no CSVs)
+            als_df = None
+            try:
+                prof = getattr(master, "_profit_rollup_raw", pd.DataFrame())
+                assets_src = getattr(master, "_assets_raw", pd.DataFrame())
+                # Canonicalize IDs
+                if isinstance(prof, pd.DataFrame) and not prof.empty and 'Customer ID' in prof.columns:
+                    prof = prof.copy(); prof['Customer ID'] = canonicalize_customer_id(prof['Customer ID'])
+                if isinstance(assets_src, pd.DataFrame) and not assets_src.empty and 'Customer ID' in assets_src.columns:
+                    assets_src = assets_src.copy(); assets_src['Customer ID'] = canonicalize_customer_id(assets_src['Customer ID'])
+                # Build multiple ALS components (rollup and goal)
+                als_components = build_multi_als_inputs(prof, assets_src, cfg.get('als', {}) if 'cfg' in locals() else {})
+                # Train per-component ALS and concatenate vectors
+                from features.als_embed import als_concat_account_vectors
+                comp_factors = {
+                    'rollup': int((cfg.get('als', {}) if 'cfg' in locals() else {}).get('factors_rollup', 64)),
+                    'goal': int((cfg.get('als', {}) if 'cfg' in locals() else {}).get('factors_goal', 32)),
+                }
+                comp_weights = {
+                    'rollup': float((cfg.get('als', {}) if 'cfg' in locals() else {}).get('w_rollup_vec', 1.0)),
+                    'goal': float((cfg.get('als', {}) if 'cfg' in locals() else {}).get('w_goal_vec', 1.0)),
+                }
+                account_list = acc['account_id'].astype(str).tolist()
+                als_cfg = (cfg.get('als', {}) if 'cfg' in locals() else {})
+                als_df = als_concat_account_vectors(
+                    als_components,
+                    accounts=account_list,
+                    factors=comp_factors,
+                    alpha=float(als_cfg.get('alpha', 40.0)),
+                    reg=float(als_cfg.get('reg', 0.05)),
+                    iterations=int(als_cfg.get('iterations', 20)),
+                    use_bm25=bool(als_cfg.get('use_bm25', True)),
+                    component_weights=comp_weights,
+                )
+            except Exception as e:
+                print(f"[WARN] ALS vector build skipped: {e}")
+
+            neighbors = build_neighbors(acc, pd.DataFrame(), sim_cfg, als_df=als_df)
+            neighbors_dir = ROOT / "artifacts"
+            neighbors_dir.mkdir(parents=True, exist_ok=True)
+            neighbors_path = neighbors_dir / "account_neighbors.csv"
+            neighbors.to_csv(neighbors_path, index=False)
+            print(f"Saved neighbors artifact: {neighbors_path}")
         except Exception as e:
-            print(f"[WARN] ALS vector build skipped: {e}")
-
-        neighbors = build_neighbors(acc, pd.DataFrame(), sim_cfg, als_df=als_df)
-        neighbors_dir = ROOT / "artifacts"
-        neighbors_dir.mkdir(parents=True, exist_ok=True)
-        neighbors_path = neighbors_dir / "account_neighbors.csv"
-        neighbors.to_csv(neighbors_path, index=False)
-        print(f"Saved neighbors artifact: {neighbors_path}")
-    except Exception as e:
-        print(f"[WARN] Could not generate neighbors artifact: {e}")
+            print(f"[WARN] Could not generate neighbors artifact: {e}")
+    else:
+        print("[INFO] Skipping neighbors artifact (requested by CLI)")
 
     print("Creating visualisations...")
     build_visuals(scored)
@@ -1620,6 +1671,10 @@ if __name__ == "__main__":
     parser.add_argument("--industry-weights", type=str, default=None, help="Path to industry_weights.json")
     parser.add_argument("--asset-weights", type=str, default=None, help="Path to asset_rollup_weights.json")
     parser.add_argument("--skip-visuals", action="store_true", help="Skip generating visuals")
+    parser.add_argument("--skip-neighbors", action="store_true", help="Skip building account neighbors artifact")
+    parser.add_argument("--no-als", action="store_true", help="Disable ALS vectors in neighbors (override config)")
+    parser.add_argument("--neighbors-only", action="store_true", help="Only build neighbors from an existing scored CSV")
+    parser.add_argument("--in-scored", type=str, default=None, help="Path to existing icp_scored_accounts.csv for --neighbors-only")
     args, unknown = parser.parse_known_args()
 
     # Note: core script uses fixed paths; we allow overrides via env-like globals where feasible.
@@ -1631,8 +1686,94 @@ if __name__ == "__main__":
             os.environ["ICP_INDUSTRY_WEIGHTS_PATH"] = args.industry_weights
         if args.asset_weights:
             os.environ["ICP_ASSET_WEIGHTS_PATH"] = args.asset_weights
-        # Run main
-        main()
+        # Capture CLI opts for use in main()
+        CLI_OPTS["skip_neighbors"] = bool(args.skip_neighbors)
+        CLI_OPTS["no_als"] = bool(args.no_als)
+
+        # Neighbors-only mode: load scored CSV and build neighbors without re-running pipeline
+        if args.neighbors_only:
+            # Load config for similarity
+            sim_cfg = {}
+            try:
+                cfg_path = ROOT / "config.toml"
+                if cfg_path.exists():
+                    with cfg_path.open("rb") as f:
+                        cfg_all = tomllib.load(f)
+                        sim_cfg = cfg_all.get("similarity", {})
+            except Exception:
+                sim_cfg = {}
+            sim_cfg.setdefault("k_neighbors", 25)
+            sim_cfg.setdefault("use_text", True)
+            sim_cfg.setdefault("use_als", True)
+            sim_cfg.setdefault("max_dense_accounts", 5000)
+            sim_cfg.setdefault("row_block_size", 512)
+            if args.no_als:
+                sim_cfg["use_als"] = False
+
+            # Resolve input path
+            in_path = Path(args.in_scored) if args.in_scored else (ROOT / "data" / "processed" / "icp_scored_accounts.csv")
+            if not in_path.exists():
+                raise FileNotFoundError(f"Scored CSV not found at {in_path}. Provide --in-scored path.")
+            scored = pd.read_csv(in_path)
+            acc = scored.copy()
+            acc["account_id"] = acc["Customer ID"].astype(str)
+            acc["account_name"] = acc.get("Company Name", acc["account_id"]).astype(str)
+            if "Industry" in acc.columns:
+                acc["industry"] = acc["Industry"].astype(str)
+            if "activity_segment" in acc.columns:
+                acc["segment"] = acc["activity_segment"].astype(str)
+            if "AM_Territory" in acc.columns:
+                acc["territory"] = acc["AM_Territory"].astype(str)
+            if "Industry_Reasoning" in acc.columns:
+                acc["industry_reasoning"] = acc["Industry_Reasoning"].astype(str)
+
+            als_df = None
+            if sim_cfg.get("use_als", False):
+                try:
+                    # Build ALS inputs from Azure SQL aggregates
+                    engine = da.get_engine()
+                    prof = da.get_profit_since_2023_by_rollup(engine)
+                    assets_src = da.get_assets_and_seats(engine)
+                    # Canonicalize IDs
+                    if isinstance(prof, pd.DataFrame) and not prof.empty and 'Customer ID' in prof.columns:
+                        prof = prof.copy(); prof['Customer ID'] = canonicalize_customer_id(prof['Customer ID'])
+                    if isinstance(assets_src, pd.DataFrame) and not assets_src.empty and 'Customer ID' in assets_src.columns:
+                        assets_src = assets_src.copy(); assets_src['Customer ID'] = canonicalize_customer_id(assets_src['Customer ID'])
+                    from features.als_prep import build_multi_als_inputs
+                    from features.als_embed import als_concat_account_vectors
+                    als_components = build_multi_als_inputs(prof, assets_src, cfg_all.get('als', {}) if 'cfg_all' in locals() else {})
+                    comp_factors = {
+                        'rollup': int((cfg_all.get('als', {}) if 'cfg_all' in locals() else {}).get('factors_rollup', 64)),
+                        'goal': int((cfg_all.get('als', {}) if 'cfg_all' in locals() else {}).get('factors_goal', 32)),
+                    }
+                    comp_weights = {
+                        'rollup': float((cfg_all.get('als', {}) if 'cfg_all' in locals() else {}).get('w_rollup_vec', 1.0)),
+                        'goal': float((cfg_all.get('als', {}) if 'cfg_all' in locals() else {}).get('w_goal_vec', 1.0)),
+                    }
+                    account_list = acc['account_id'].astype(str).tolist()
+                    als_df = als_concat_account_vectors(
+                        als_components,
+                        accounts=account_list,
+                        factors=comp_factors,
+                        alpha=float(cfg_all.get('als', {}).get('alpha', 40.0)) if 'cfg_all' in locals() else 40.0,
+                        reg=float(cfg_all.get('als', {}).get('reg', 0.05)) if 'cfg_all' in locals() else 0.05,
+                        iterations=int(cfg_all.get('als', {}).get('iterations', 20)) if 'cfg_all' in locals() else 20,
+                        use_bm25=bool(cfg_all.get('als', {}).get('use_bm25', True)) if 'cfg_all' in locals() else True,
+                        component_weights=comp_weights,
+                    )
+                except Exception as e:
+                    print(f"[WARN] ALS vector build skipped in --neighbors-only: {e}")
+
+            # Build neighbors
+            neighbors = build_neighbors(acc, pd.DataFrame(), sim_cfg, als_df=als_df)
+            neighbors_dir = ROOT / "artifacts"
+            neighbors_dir.mkdir(parents=True, exist_ok=True)
+            neighbors_path = neighbors_dir / "account_neighbors.csv"
+            neighbors.to_csv(neighbors_path, index=False)
+            print(f"Saved neighbors artifact: {neighbors_path}")
+        else:
+            # Run full pipeline
+            main()
         # If custom out was requested and default out exists, copy it
         if args.out:
             src = ROOT / "data" / "processed" / "icp_scored_accounts.csv"

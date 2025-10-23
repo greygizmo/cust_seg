@@ -40,7 +40,7 @@ def build_als_input_from_signals(
     recency_half_life = float(cfg.get("recency_half_life_days", 180))
 
     # Normalize column names for merge
-    prof = (profit_rollup or pd.DataFrame()).copy()
+    prof = profit_rollup.copy() if isinstance(profit_rollup, pd.DataFrame) else pd.DataFrame()
     if isinstance(prof, pd.DataFrame) and not prof.empty:
         if "Customer ID" in prof.columns:
             prof["Customer ID"] = prof["Customer ID"].astype(str)
@@ -54,7 +54,7 @@ def build_als_input_from_signals(
     else:
         prof = pd.DataFrame(columns=["account_id", "product_id", "profit_since_2023"])
 
-    assets = (assets_rollup or pd.DataFrame()).copy()
+    assets = assets_rollup.copy() if isinstance(assets_rollup, pd.DataFrame) else pd.DataFrame()
     if isinstance(assets, pd.DataFrame) and not assets.empty:
         if "Customer ID" in assets.columns:
             assets["Customer ID"] = assets["Customer ID"].astype(str)
@@ -96,11 +96,16 @@ def build_als_input_from_signals(
         .fillna(0.0)
     )
     # Compose strength with log1p profit & seats, additive assets/active, and multiplicative recency boost
+    # Clip negatives to avoid log1p warnings/NaNs and ensure non-negative implicit signals
+    p = np.clip(combined["profit_since_2023"].to_numpy(dtype=float), 0.0, None)
+    s = np.clip(combined.get("seats_sum", 0.0), 0.0, None)
+    a = np.clip(combined.get("asset_count", 0.0), 0.0, None)
+    act = np.clip(combined.get("active_assets", 0.0), 0.0, None)
     strength = (
-        w_rev * np.log1p(combined["profit_since_2023"]) +
-        w_seats * np.log1p(combined.get("seats_sum", 0.0)) +
-        w_assets * combined.get("asset_count", 0.0) +
-        w_active * combined.get("active_assets", 0.0)
+        w_rev * np.log1p(p) +
+        w_seats * np.log1p(s) +
+        w_assets * a +
+        w_active * act
     )
     # Apply recency as a (1 + w_recency*recency_weight) multiplier
     rec = combined.get("recency_weight", 0.0)
@@ -136,7 +141,7 @@ def build_multi_als_inputs(
 
     # Build goal-level inputs using similar composite logic
     # Profit by Goal
-    prof_goal = (profit_rollup or pd.DataFrame()).copy()
+    prof_goal = profit_rollup.copy() if isinstance(profit_rollup, pd.DataFrame) else pd.DataFrame()
     if isinstance(prof_goal, pd.DataFrame) and not prof_goal.empty:
         if "Customer ID" in prof_goal.columns:
             prof_goal["Customer ID"] = prof_goal["Customer ID"].astype(str)
@@ -151,7 +156,7 @@ def build_multi_als_inputs(
         prof_goal = pd.DataFrame(columns=["account_id", "item_id", "profit_since_2023"])
 
     # Assets by Goal (aggregate rollup assets to Goal)
-    assets_goal = (assets_rollup or pd.DataFrame()).copy()
+    assets_goal = assets_rollup.copy() if isinstance(assets_rollup, pd.DataFrame) else pd.DataFrame()
     if isinstance(assets_goal, pd.DataFrame) and not assets_goal.empty:
         if "Customer ID" in assets_goal.columns:
             assets_goal["Customer ID"] = assets_goal["Customer ID"].astype(str)
@@ -205,11 +210,16 @@ def build_multi_als_inputs(
     w_active = float(cfg.get("w_active", 0.1))
     w_recency = float(cfg.get("w_recency", 0.3))
 
+    # Clip negatives at goal level as well
+    gp = np.clip(goal_comb["profit_since_2023"].to_numpy(dtype=float), 0.0, None)
+    gs = np.clip(goal_comb.get("seats_sum", 0.0), 0.0, None)
+    ga = np.clip(goal_comb.get("asset_count", 0.0), 0.0, None)
+    gact = np.clip(goal_comb.get("active_assets", 0.0), 0.0, None)
     goal_strength = (
-        w_rev * np.log1p(goal_comb["profit_since_2023"]) +
-        w_seats * np.log1p(goal_comb.get("seats_sum", 0.0)) +
-        w_assets * goal_comb.get("asset_count", 0.0) +
-        w_active * goal_comb.get("active_assets", 0.0)
+        w_rev * np.log1p(gp) +
+        w_seats * np.log1p(gs) +
+        w_assets * ga +
+        w_active * gact
     )
     goal_strength = goal_strength * (1.0 + w_recency * goal_comb.get("recency_weight", 0.0))
 
