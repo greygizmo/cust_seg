@@ -111,3 +111,8 @@ README.md                      # Project overview
   - Normalize: rank ? percentile ? inverse normal (ppf) ? scaled to mean 50, std 15, clipped to [0, 100]
   - Grade: A–F assigned by target percentile cutoffs
 
+
+
+## Neighbors Artifact
+A separate artifact is generated at rtifacts/account_neighbors.csv containing top-K nearest neighbors per account (with component similarity scores). This powers account-level look-alike search in Power BI without changing the main CSV contract.
+See documentation/METRICS_OVERVIEW.md for full details.

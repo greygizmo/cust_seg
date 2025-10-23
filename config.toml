@@ -43,3 +43,12 @@ logit_cols    = [
   "breadth_score_hw",
 ]
 text_column   = "industry_reasoning"
+
+[als]
+# Weighting for composite ALS strength (account x item_rollup)
+w_rev = 1.0         # log1p(profit_since_2023)
+w_seats = 0.3       # log1p(seats_sum)
+w_assets = 0.2      # asset_count
+w_active = 0.1      # active_assets
+w_recency = 0.3     # multiplicative boost from recency_weight
+recency_half_life_days = 180

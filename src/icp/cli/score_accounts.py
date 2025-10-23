@@ -77,6 +77,7 @@ from features.adoption_and_mix import compute_adoption_and_mix
 from features.health_concentration import month_hhi_12m, discount_pct
 from features.sw_hw_whitespace import sw_dominance_and_whitespace
 from features.pov_tags import make_pov_tags
+from features.als_prep import build_als_input_from_signals
 
 FEATURE_COLUMN_ORDER = [
     "account_id",
@@ -1570,24 +1571,19 @@ def main():
         als_df = None
         try:
             prof = getattr(master, "_profit_rollup_raw", pd.DataFrame())
-            if isinstance(prof, pd.DataFrame) and not prof.empty:
-                als_input = prof.copy()
-                if 'Customer ID' in als_input.columns:
-                    als_input['Customer ID'] = canonicalize_customer_id(als_input['Customer ID'])
-                als_input = als_input.rename(columns={
-                    'Customer ID': 'account_id',
-                    'item_rollup': 'product_id',
-                    'Profit_Since_2023': 'net_revenue',
-                })
-                # Keep required columns and coerce types
-                keep = ['account_id','product_id','net_revenue']
-                als_input = als_input[keep]
-                als_input['account_id'] = als_input['account_id'].astype(str)
-                als_input['product_id'] = als_input['product_id'].astype(str)
-                als_input['net_revenue'] = pd.to_numeric(als_input['net_revenue'], errors='coerce').fillna(0.0)
-                # Train ALS vectors
+            assets_src = getattr(master, "_assets_raw", pd.DataFrame())
+            # Canonicalize IDs
+            if isinstance(prof, pd.DataFrame) and not prof.empty and 'Customer ID' in prof.columns:
+                prof = prof.copy()
+                prof['Customer ID'] = canonicalize_customer_id(prof['Customer ID'])
+            if isinstance(assets_src, pd.DataFrame) and not assets_src.empty and 'Customer ID' in assets_src.columns:
+                assets_src = assets_src.copy()
+                assets_src['Customer ID'] = canonicalize_customer_id(assets_src['Customer ID'])
+            # Build composite ALS input from multiple signals
+            als_input = build_als_input_from_signals(prof, assets_src, cfg.get('als', {}) if 'cfg' in locals() else {})
+            if not als_input.empty:
                 from features.als_embed import als_account_vectors
-                als_df = als_account_vectors(als_input)
+                als_df = als_account_vectors(als_input.rename(columns={'net_revenue':'net_revenue'}))
         except Exception as e:
             print(f"[WARN] ALS vector build skipped: {e}")
 
