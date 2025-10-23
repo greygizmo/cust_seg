@@ -1574,16 +1574,23 @@ def main():
             assets_src = getattr(master, "_assets_raw", pd.DataFrame())
             # Canonicalize IDs
             if isinstance(prof, pd.DataFrame) and not prof.empty and 'Customer ID' in prof.columns:
-                prof = prof.copy()
-                prof['Customer ID'] = canonicalize_customer_id(prof['Customer ID'])
+                prof = prof.copy(); prof['Customer ID'] = canonicalize_customer_id(prof['Customer ID'])
             if isinstance(assets_src, pd.DataFrame) and not assets_src.empty and 'Customer ID' in assets_src.columns:
-                assets_src = assets_src.copy()
-                assets_src['Customer ID'] = canonicalize_customer_id(assets_src['Customer ID'])
-            # Build composite ALS input from multiple signals
-            als_input = build_als_input_from_signals(prof, assets_src, cfg.get('als', {}) if 'cfg' in locals() else {})
-            if not als_input.empty:
-                from features.als_embed import als_account_vectors
-                als_df = als_account_vectors(als_input.rename(columns={'net_revenue':'net_revenue'}))
+                assets_src = assets_src.copy(); assets_src['Customer ID'] = canonicalize_customer_id(assets_src['Customer ID'])
+            # Build multiple ALS components (rollup and goal)
+            als_components = build_multi_als_inputs(prof, assets_src, cfg.get('als', {}) if 'cfg' in locals() else {})
+            # Train per-component ALS and concatenate vectors
+            from features.als_embed import als_concat_account_vectors
+            comp_factors = {
+                'rollup': int((cfg.get('als', {}) if 'cfg' in locals() else {}).get('factors_rollup', 64)),
+                'goal': int((cfg.get('als', {}) if 'cfg' in locals() else {}).get('factors_goal', 32)),
+            }
+            comp_weights = {
+                'rollup': float((cfg.get('als', {}) if 'cfg' in locals() else {}).get('w_rollup_vec', 1.0)),
+                'goal': float((cfg.get('als', {}) if 'cfg' in locals() else {}).get('w_goal_vec', 1.0)),
+            }
+            account_list = acc['account_id'].astype(str).tolist()
+            als_df = als_concat_account_vectors(als_components, accounts=account_list, factors=comp_factors, component_weights=comp_weights)
         except Exception as e:
             print(f"[WARN] ALS vector build skipped: {e}")
 
