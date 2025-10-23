@@ -31,7 +31,7 @@ Usage:
 import os
 import sys
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 import shutil
 import numpy as np
 import pandas as pd
@@ -39,11 +39,18 @@ import matplotlib.pyplot as plt
 import json
 from scipy.stats import norm
 
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - Python <3.11 fallback
+    import tomli as tomllib  # type: ignore
+
 # Make sure package imports work when running as a module
 ROOT = Path(__file__).resolve().parents[3]
 SRC_DIR = ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.append(str(SRC_DIR))
+if str(ROOT) not in sys.path:
+    sys.path.append(str(ROOT))
 
 # Import the centralized scoring logic
 from icp.scoring import calculate_scores, LICENSE_COL, DEFAULT_WEIGHTS
@@ -62,6 +69,63 @@ from icp.schema import (
 # Import the new industry scoring module
 from icp.industry import build_industry_weights, save_industry_weights, load_industry_weights
 import icp.data_access as da
+
+from features.product_taxonomy import validate_and_join_products
+from features.spend_dynamics import compute_spend_dynamics
+from features.adoption_and_mix import compute_adoption_and_mix
+from features.health_concentration import month_hhi_12m, discount_pct
+from features.sw_hw_whitespace import sw_dominance_and_whitespace
+from features.pov_tags import make_pov_tags
+
+FEATURE_COLUMN_ORDER = [
+    "account_id",
+    "spend_13w",
+    "spend_13w_prior",
+    "delta_13w",
+    "delta_13w_pct",
+    "spend_12m",
+    "spend_52w",
+    "yoy_13w_pct",
+    "days_since_last_order",
+    "active_weeks_13w",
+    "purchase_streak_months",
+    "median_interpurchase_days",
+    "slope_13w",
+    "slope_13w_prior",
+    "acceleration_13w",
+    "volatility_13w",
+    "seasonality_factor_13w",
+    "trend_score",
+    "recency_score",
+    "magnitude_score",
+    "cadence_score",
+    "momentum_score",
+    "w_trend",
+    "w_recency",
+    "w_magnitude",
+    "w_cadence",
+    "hw_spend_12m",
+    "sw_spend_12m",
+    "hw_share_12m",
+    "sw_share_12m",
+    "breadth_hw_subdiv_12m",
+    "max_hw_subdiv",
+    "breadth_score_hw",
+    "days_since_last_hw_order",
+    "recency_score_hw",
+    "hardware_adoption_score",
+    "consumables_to_hw_ratio",
+    "top_subdivision_12m",
+    "top_subdivision_share_12m",
+    "discount_pct",
+    "month_conc_hhi_12m",
+    "sw_dominance_score",
+    "sw_to_hw_whitespace_score",
+    "pov_primary",
+    "pov_tags_all",
+    "as_of_date",
+    "run_timestamp_utc",
+]
 
 # ---------------------------
 # 0.  CONFIG   file names & weights
@@ -1242,6 +1306,138 @@ def main():
     asset_weights = load_asset_weights()
     scored = engineer_features(master, asset_weights)
 
+    # --- Begin: List-Builder enrichment pipeline ---
+    df_accounts = scored.copy()
+    if "Customer ID" not in df_accounts.columns:
+        raise KeyError("Expected 'Customer ID' column for account-level join.")
+    df_accounts["account_id"] = df_accounts["Customer ID"].astype(str)
+
+    cfg_path = ROOT / "config.toml"
+    if not cfg_path.exists():
+        raise FileNotFoundError(
+            "Missing config.toml. The enrichment pipeline requires data source paths."
+        )
+    with cfg_path.open("rb") as f:
+        cfg = tomllib.load(f)
+
+    data_cfg = cfg.get("data_sources", {})
+    if not data_cfg:
+        raise KeyError("config.toml is missing the [data_sources] section.")
+
+    sales_path_str = data_cfg.get("sales_path")
+    products_path_str = data_cfg.get("products_path")
+    if not sales_path_str:
+        raise KeyError("config.toml[data_sources][sales_path] is required.")
+    if not products_path_str:
+        raise KeyError("config.toml[data_sources][products_path] is required.")
+
+    sales_path = Path(sales_path_str).expanduser()
+    products_path = Path(products_path_str).expanduser()
+    if not sales_path.is_absolute():
+        sales_path = ROOT / sales_path
+    if not products_path.is_absolute():
+        products_path = ROOT / products_path
+
+    print(f"[INFO] Loading transactions from {sales_path}")
+    tx = pd.read_csv(sales_path)
+    print(f"[INFO] Loading product taxonomy from {products_path}")
+    prod = pd.read_csv(products_path)
+
+    prod_norm = prod.copy()
+    prod_norm.columns = [c.lower() for c in prod_norm.columns]
+
+    tx_joined = validate_and_join_products(tx, prod)
+
+    as_of_raw = data_cfg.get("as_of_date")
+    as_of_date = pd.to_datetime(as_of_raw) if as_of_raw else pd.to_datetime(tx_joined["date"]).max()
+    if pd.isna(as_of_date):
+        as_of_date = pd.Timestamp.utcnow().normalize()
+    else:
+        as_of_date = as_of_date.normalize()
+
+    window_cfg = cfg.get("windows", {})
+    weeks_short = int(window_cfg.get("weeks_short", 13))
+    months_ltm = int(window_cfg.get("months_ltm", 12))
+    weeks_year = int(window_cfg.get("weeks_year", 52))
+
+    weight_cfg = cfg.get("momentum_weights", {})
+    w_trend = float(weight_cfg.get("w_trend", 0.4))
+    w_recency = float(weight_cfg.get("w_recency", 0.3))
+    w_magnitude = float(weight_cfg.get("w_magnitude", 0.2))
+    w_cadence = float(weight_cfg.get("w_cadence", 0.1))
+
+    dyn = compute_spend_dynamics(
+        tx=tx_joined,
+        as_of=as_of_date,
+        weeks_short=weeks_short,
+        months_ltm=months_ltm,
+        weeks_year=weeks_year,
+    )
+
+    hardware_mask = prod_norm.get("super_division", pd.Series(dtype=str)).str.lower() == "hardware"
+    products_hw_subdiv = (
+        prod_norm.loc[hardware_mask, "sub_division"].dropna().astype(str).unique().tolist()
+        if "super_division" in prod_norm.columns
+        else []
+    )
+
+    mix = compute_adoption_and_mix(
+        tx=tx_joined,
+        products_hw_subdiv=products_hw_subdiv,
+        as_of=as_of_date,
+        months_ltm=months_ltm,
+    )
+
+    if "spend_12m" in mix.columns:
+        mix = mix.drop(columns=["spend_12m"])
+
+    hhi = month_hhi_12m(tx=tx_joined, as_of=as_of_date)
+    disc = discount_pct(tx=tx_joined)
+    whitespace = sw_dominance_and_whitespace(
+        tx=tx_joined,
+        as_of=as_of_date,
+        weeks_short=weeks_short,
+    )
+
+    features_df = (
+        dyn
+        .merge(mix, on="account_id", how="left")
+        .merge(hhi, on="account_id", how="left")
+        .merge(disc, on="account_id", how="left")
+        .merge(whitespace, on="account_id", how="left")
+    )
+
+    features_df["momentum_score"] = (
+        w_trend * features_df["trend_score"].fillna(0)
+        + w_recency * features_df["recency_score"].fillna(0)
+        + w_magnitude * features_df["magnitude_score"].fillna(0)
+        + w_cadence * features_df["cadence_score"].fillna(0)
+    )
+
+    features_df["w_trend"] = w_trend
+    features_df["w_recency"] = w_recency
+    features_df["w_magnitude"] = w_magnitude
+    features_df["w_cadence"] = w_cadence
+
+    tags = make_pov_tags(features_df)
+    features_df = features_df.merge(tags, on="account_id", how="left")
+
+    features_df["as_of_date"] = as_of_date.date().isoformat()
+    features_df["run_timestamp_utc"] = datetime.now(tz=timezone.utc).isoformat(timespec="seconds")
+
+    features_df["account_id"] = features_df["account_id"].astype(str)
+
+    overlapping = set(df_accounts.columns) & (set(features_df.columns) - {"account_id"})
+    if overlapping:
+        print(
+            "[INFO] Replacing existing columns with enriched feature outputs: "
+            + ", ".join(sorted(overlapping))
+        )
+        df_accounts = df_accounts.drop(columns=sorted(overlapping))
+
+    scored = df_accounts.merge(features_df, on="account_id", how="left")
+    # --- End: List-Builder enrichment pipeline ---
+
     # Define the columns for the final output CSV
     printer_rollup_cols = []
     for roll in PRINTER_SUBDIVISIONS:
@@ -1322,7 +1518,19 @@ def main():
             scored[gp] = pd.to_numeric(scored[prof], errors='coerce').fillna(0.0)
 
     # Build final column order by intersecting with available columns
+    feature_cols = [
+        c for c in FEATURE_COLUMN_ORDER if c in scored.columns and c not in desired_order
+    ]
     out_cols = [c for c in desired_order if c in scored.columns]
+    out_cols.extend([c for c in feature_cols if c not in out_cols])
+
+    missing_features = [c for c in FEATURE_COLUMN_ORDER if c not in scored.columns]
+    if missing_features:
+        print(
+            "[WARN] The following enrichment columns were not present in the final dataset: "
+            + ", ".join(missing_features)
+        )
+
     scored[out_cols].to_csv(out_path, index=False)
     print(f"Saved {out_path}")
 

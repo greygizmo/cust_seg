@@ -11,58 +11,36 @@ This dashboard allows you to:
 - **Identify high-value customers** with dynamic filtering and data-driven recommendations.
 - **Export updated scores** and segment data for further analysis.
 
-## Recent Major Update: Hardware Adoption Score Algorithm
+## Recent Major Update: List-Builder Feature Pipeline
 
-**As of July 2025, the Hardware Adoption Score logic has been significantly improved for more accurate and business-aligned ICP scoring.**
+**As of July 2025, `goe_icp_scoring.py` now computes the full list-builder feature set and writes a single enriched `icp_scored_accounts.csv` ready for BI consumption.**
 
-### 🚀 What Changed?
-- **Weighted Printer Score:**
-  - Big Box printers are now valued at 2x the weight of Small Box printers, reflecting their higher investment and engagement.
-- **Comprehensive Revenue:**
-  - The adoption score now includes both `Total Hardware Revenue` and `Total Consumable Revenue` for a complete picture of hardware engagement.
-- **Percentile-Based Scaling:**
-  - Both the weighted printer score and total hardware+consumable revenue are converted to percentile ranks (0-1) across all customers, ensuring fair comparison between different units.
-- **Business Rules for True Adoption:**
-  - **If a customer has zero printers AND zero hardware/consumable revenue, their adoption score is set to 0.0.**
-  - **If a customer has revenue but no printers, their adoption score is capped at 0.4.**
-  - **Only customers with actual printer investment can achieve high adoption scores.**
-- **50/50 Weighting:**
-  - The final adoption score is a 50/50 blend of the printer percentile and the revenue percentile (subject to the above business rules).
+- **In-repo feature factory:** Dedicated modules in `/features` generate spend dynamics, velocity, seasonality, momentum, adoption & mix, health, concentration, and POV tags before the CSV is written.
+- **Hardware adoption via taxonomy integrity:** Adoption is now driven by Hardware vs. Software spend share, breadth of Hardware sub-divisions, and Hardware recency—aligned to Super-Division / Division / Sub-Division mapping.
+- **POV tags & whitespace:** Rule-based POV tagging (including SW→HW whitespace) is computed upstream so dashboards only display columns—no DAX measures or calculated fields required.
+- **Transparent configuration:** `config.toml` controls data sources, analytic windows, and momentum weights so analytics and dashboard teams can adjust inputs without touching code.
+- **Zero Power BI logic:** The enriched CSV already carries spend dynamics, adoption, concentration, and POV outputs. Report authors only bind visuals to columns.
+- **Consistent taxonomy:** Hardware breadth and adoption calculations depend on the product hierarchy (Super/Division/Sub-Division), eliminating Big/Small box assumptions.
+- **Faster feature iteration:** Feature logic lives in version-controlled Python modules, making peer review and regression testing straightforward.
+- Revenue, cadence, momentum, and whitespace signals are available for every account row, giving GTM teams immediate prioritization levers.
+- Adoption scores blend Hardware share, breadth, and recency so hardware specialists can spot breadth/recency gaps without printer counts.
+> **Note:** All List-Builder features are computed in-repo and emitted in `icp_scored_accounts.csv` for Power BI consumption. No DAX measures or calculated columns are required downstream.
 
-### 💡 Why This Matters
-- **No more "phantom adopters":** Customers with no printers and no spend now get a true zero for adoption.
-- **Revenue-only customers are recognized, but capped:** They can't outrank true hardware adopters.
-- **Big Box investment is rewarded:** Customers with more significant hardware investment are prioritized.
-- **ICP grades are now highly predictive of hardware sales potential.**
+- **Hardware share weighting**: 50% of the adoption score comes from a customer's Hardware share of total HW+SW revenue over the trailing 12 months.
+- **Breadth factor**: 30% reflects how many distinct Hardware sub-divisions (Super/Division/Sub-Division taxonomy) the customer has purchased from during the last 12 months.
+- **Recency signal**: 20% rewards recent Hardware activity by mapping days since last Hardware order to a smooth 0–1 score.
+- **No printer assumptions**: Adoption no longer relies on Big-/Small-box counts—only observed revenue patterns, breadth, and recency.
 
-### 🔑 Impact on Sales Prioritization
-- Hardware sales teams can now trust that high ICP grades reflect real, tangible hardware engagement.
-- The adoption score is now the dominant factor in the optimized ICP model (50% weight), with industry and software relationship as supporting factors.
+- Adoption components are continuous features computed for every account, producing a wide, interpretable spread rather than capped printer tiers.
+- Breadth and recency inputs keep scores responsive as customers expand into new Hardware sub-divisions or lapse.
 
-## Features
+  - Inputs: `hw_share_12m`, `breadth_score_hw`, and `recency_score_hw` generated by the feature pipeline using the Super-Division / Division / Sub-Division taxonomy.
+  - Formula: `0.5 * hw_share_12m + 0.3 * breadth_score_hw + 0.2 * recency_score_hw` (missing inputs default to 0).
+  - Behavior: accounts with no Hardware spend receive 0 Hardware share; breadth reflects active Hardware sub-divisions; recency smoothly decays as days since last Hardware order increase.
+  - Data sources: transactions joined to `products.csv` ensure accurate Hardware vs. Software attribution—no printer count assumptions.
+  - Inputs (preferred): relationship_profit (sum of profits for software-related goals)
 
-### 🏢 Customer Segmentation
-- **Configurable Thresholds**: Define segments by annual revenue.
-- **Segment Selector**: Filter the entire dashboard view by segment (All, Small Business, Mid-Market, Large Enterprise).
-- **Comparison Analytics**: View charts comparing key metrics like average ICP score, customer count, and revenue across segments.
-- **Segment-Specific Insights**: Get tailored metrics and strategic recommendations for each segment.
-
-### 🎛️ Interactive Weight Controls
-- **Optimized Defaults**: Weights are pre-loaded from `optimized_weights.json` for a data-driven starting point.
-- **Real-time Adjustment**: Sliders for four main criteria:
-    - **Vertical Weight**: Importance of customer's industry.
-    - **Size Weight**: Importance of customer's annual revenue.
-    - **Adoption Weight**: Importance of technology adoption (printer count, consumable revenue).
-    - **Relationship Weight**: Importance of software revenue.
-
-### 📊 Real-time Visualizations
-1. **ICP Score Distribution**: Enhanced histogram and box plot showing the spread of scores and key statistical markers.
-2. **Segment Comparison**: Multi-panel chart comparing performance across segments.
-3. **Weight Distribution Radar**: Visual representation of the current scoring weights.
-4. **Score by Industry**: Bar chart of average scores across top industry verticals.
-5. **Diagnostic Plots**: Scatter plots to ensure normalized scores correlate with raw data inputs.
-
-## Setup Instructions
+  - Grade: AF assigned by target percentile cutoffs
 
 1.  **Install Dependencies**
     ```
@@ -131,5 +109,5 @@ README.md                      # Project overview
 - Final ICP Score
   - Raw = (vertical_score * Wv) + (size_score * Ws) + (adoption_score * Wa) + (relationship_score * Wr)
   - Normalize: rank ? percentile ? inverse normal (ppf) ? scaled to mean 50, std 15, clipped to [0, 100]
-  - Grade: A�F assigned by target percentile cutoffs
+  - Grade: A–F assigned by target percentile cutoffs
 

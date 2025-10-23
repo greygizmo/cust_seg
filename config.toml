@@ -1,0 +1,15 @@
+[data_sources]
+sales_path = "data/sales_transactions.csv"
+products_path = "data/products.csv"
+as_of_date = ""
+
+[momentum_weights]
+w_trend = 0.4
+w_recency = 0.3
+w_magnitude = 0.2
+w_cadence = 0.1
+
+[windows]
+weeks_short = 13
+months_ltm = 12
+weeks_year = 52
