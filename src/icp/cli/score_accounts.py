@@ -1412,6 +1412,40 @@ def main():
         .merge(whitespace, on="account_id", how="left")
     )
 
+    # Printer-only 13W/12M dynamics (division == 'Printers') with suffixed columns
+    try:
+        if "division" in tx.columns:
+            tx_pr = tx[tx["division"].astype(str).str.lower() == "printers"].copy()
+        else:
+            tx_pr = tx.iloc[0:0].copy()
+        dyn_pr = compute_spend_dynamics(
+            tx=tx_pr,
+            as_of=as_of_date,
+            weeks_short=weeks_short,
+            months_ltm=months_ltm,
+            weeks_year=weeks_year,
+        )
+        rename_map = {
+            "spend_13w":"spend_13w_printers",
+            "spend_13w_prior":"spend_13w_prior_printers",
+            "delta_13w":"delta_13w_printers",
+            "delta_13w_pct":"delta_13w_pct_printers",
+            "spend_12m":"spend_12m_printers",
+            "spend_52w":"spend_52w_printers",
+            "yoy_13w_pct":"yoy_13w_pct_printers",
+            "days_since_last_order":"days_since_last_order_printers",
+            "active_weeks_13w":"active_weeks_13w_printers",
+            "slope_13w":"slope_13w_printers",
+            "slope_13w_prior":"slope_13w_prior_printers",
+            "acceleration_13w":"acceleration_13w_printers",
+            "volatility_13w":"volatility_13w_printers",
+            "seasonality_factor_13w":"seasonality_factor_13w_printers",
+        }
+        dyn_pr = dyn_pr.rename(columns=rename_map)
+        features_df = features_df.merge(dyn_pr[[c for c in dyn_pr.columns if c=="account_id" or c in rename_map.values()]], on="account_id", how="left")
+    except Exception as e:
+        print(f"[WARN] Printer-only dynamics unavailable: {e}")
+
     features_df["momentum_score"] = (
         w_trend * features_df["trend_score"].fillna(0)
         + w_recency * features_df["recency_score"].fillna(0)
@@ -1423,6 +1457,27 @@ def main():
     features_df["w_recency"] = w_recency
     features_df["w_magnitude"] = w_magnitude
     features_df["w_cadence"] = w_cadence
+
+    # Percentile ranks (0–100) for BI-friendly interpretation
+    def pct_rank(s: pd.Series) -> pd.Series:
+        try:
+            return (s.rank(pct=True, ascending=True) * 100.0).round(2)
+        except Exception:
+            return pd.Series(np.nan, index=s.index)
+
+    rank_cols = [
+        # Core dynamics
+        "spend_12m","spend_13w","delta_13w_pct","yoy_13w_pct","slope_13w","acceleration_13w",
+        # Printer-only
+        "spend_12m_printers","spend_13w_printers","delta_13w_pct_printers","yoy_13w_pct_printers","slope_13w_printers","acceleration_13w_printers",
+        # Mix/adoption and health
+        "hw_spend_12m","sw_spend_12m","hw_share_12m","sw_share_12m","hardware_adoption_score","month_conc_hhi_12m",
+        # Whitespace/dominance
+        "sw_dominance_score","sw_to_hw_whitespace_score",
+    ]
+    for rc in rank_cols:
+        if rc in features_df.columns:
+            features_df[f"{rc}_pctl"] = pct_rank(pd.to_numeric(features_df[rc], errors="coerce"))
 
     tags = make_pov_tags(features_df)
     features_df = features_df.merge(tags, on="account_id", how="left")
@@ -1566,6 +1621,25 @@ def main():
     round_cols = [c for c in numeric_like if c in scored.columns and scored[c].dtype.kind in "fc"]
     if round_cols:
         scored[round_cols] = scored[round_cols].round(4)
+
+    # Normalize EDU assets to Yes/No strings for BI
+    if "edu_assets" in scored.columns:
+        def _yes_no(v):
+            try:
+                if pd.isna(v):
+                    return "No"
+            except Exception:
+                pass
+            s = str(v).strip().lower()
+            if s in ("1","true","yes","y","t"):
+                return "Yes"
+            try:
+                if float(s) != 0.0:
+                    return "Yes"
+            except Exception:
+                pass
+            return "No"
+        scored["edu_assets"] = scored["edu_assets"].apply(_yes_no)
 
     scored[out_cols].to_csv(out_path, index=False, float_format="%.4f")
     print(f"Saved {out_path}")

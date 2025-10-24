@@ -128,4 +128,20 @@ def make_pov_tags(accounts: pd.DataFrame) -> pd.DataFrame:
         return "General ICP Match"
 
     df["pov_primary"] = df.apply(primary_tag, axis=1)
+
+    # Sanitize any corrupted characters for BI rendering and normalize key labels
+    def _sanitize_label(text: str) -> str:
+        if not isinstance(text, str):
+            return ""
+        t = text.encode("ascii", "ignore").decode("ascii")
+        t = t.replace("New Hardware Buyer (90d)", "New Hardware Buyer (<=90d)")
+        t = t.replace("SW-Dominant  HW Whitespace", "SW-Dominant + HW Whitespace")
+        t = t.replace("SW-Dominant +  HW Whitespace", "SW-Dominant + HW Whitespace")
+        return t
+
+    df["pov_primary"] = df["pov_primary"].apply(_sanitize_label)
+    df["pov_tags_all"] = df["pov_tags_all"].apply(
+        lambda s: ", ".join(_sanitize_label(part.strip()) for part in s.split(",")) if isinstance(s, str) and s else ""
+    )
+
     return df[["account_id", "pov_primary", "pov_tags_all"]]
