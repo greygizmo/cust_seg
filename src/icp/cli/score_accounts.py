@@ -35,7 +35,16 @@ from datetime import datetime, timezone
 import shutil
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+try:
+    import matplotlib.pyplot as plt
+except ModuleNotFoundError:  # pragma: no cover - optional dependency for tests
+    class _MatplotlibStub:
+        def __getattr__(self, name):
+            raise ModuleNotFoundError(
+                "matplotlib is required for visualization features but is not installed"
+            )
+
+    plt = _MatplotlibStub()
 import json
 from scipy.stats import norm
 
@@ -65,6 +74,7 @@ if str(ROOT) not in sys.path:
 
 # Import the centralized scoring logic
 from icp.scoring import calculate_scores, LICENSE_COL, DEFAULT_WEIGHTS
+from icp.divisions import DivisionConfig, get_division_config, available_divisions
 from icp.validation import ensure_columns, ensure_non_negative, log_validation
 from icp.schema import (
     COL_CUSTOMER_ID,
@@ -866,7 +876,11 @@ def _normalize_goal_name(x: str) -> str:
     return str(x).strip().lower()
 
 
-def engineer_features(df: pd.DataFrame, asset_weights: dict) -> pd.DataFrame:
+def engineer_features(
+    df: pd.DataFrame,
+    asset_weights: dict,
+    division: str | DivisionConfig | None = None,
+) -> pd.DataFrame:
     """
     Engineers features for scoring using assets/seats and profit.
 
@@ -880,6 +894,8 @@ def engineer_features(df: pd.DataFrame, asset_weights: dict) -> pd.DataFrame:
     _base_df = df
     df = df.copy()
 
+    division_config = division if isinstance(division, DivisionConfig) else get_division_config(division)
+
     assets = getattr(_base_df, "_assets_raw", pd.DataFrame())
     profit_roll = getattr(_base_df, "_profit_rollup_raw", pd.DataFrame())
 
@@ -890,6 +906,9 @@ def engineer_features(df: pd.DataFrame, asset_weights: dict) -> pd.DataFrame:
     df["adoption_assets"] = 0.0
     df["adoption_profit"] = 0.0
     df["relationship_profit"] = 0.0
+    df["cre_adoption_assets"] = 0.0
+    df["cre_adoption_profit"] = 0.0
+    df["cre_relationship_profit"] = 0.0
     df["printer_count"] = 0.0
 
     # Build adoption_assets from assets table with weights
@@ -936,6 +955,25 @@ def engineer_features(df: pd.DataFrame, asset_weights: dict) -> pd.DataFrame:
 
         df = df.merge(adoption_assets, on="Customer ID", how="left")
         df = df.merge(printer_counts, on="Customer ID", how="left")
+
+        # CRE (software) adoption assets from CAD/CPE goals
+        cre_goals = {_normalize_goal_name("CAD"), _normalize_goal_name("CPE")}
+        a_cre = a[a["Goal"].isin(cre_goals)].copy()
+        if not a_cre.empty:
+            def _cre_measure(row) -> float:
+                seats_sum = row.get("seats_sum", 0) or 0
+                active_assets = row.get("active_assets", 0) or 0
+                base = seats_sum if seats_sum and seats_sum > 0 else active_assets
+                if not base:
+                    base = row.get("asset_count", 0) or 0
+                return float(base)
+
+            a_cre.loc[:, "cre_weighted"] = a_cre.apply(_cre_measure, axis=1)
+            cre_assets = (
+                a_cre.groupby("Customer ID")["cre_weighted"].sum().rename("cre_adoption_assets")
+            )
+            df = df.merge(cre_assets, on="Customer ID", how="left")
+
         # Resolve potential suffixes from merge: always prefer merged values when present
         if 'adoption_assets_y' in df.columns:
             if 'adoption_assets' in df.columns:
@@ -953,6 +991,14 @@ def engineer_features(df: pd.DataFrame, asset_weights: dict) -> pd.DataFrame:
             df = df.drop(columns=drop_cols)
         df["adoption_assets"] = df.get("adoption_assets", 0).fillna(0.0)
         df["printer_count"] = df.get("printer_count", 0).fillna(0.0)
+        if 'cre_adoption_assets_y' in df.columns:
+            if 'cre_adoption_assets' in df.columns:
+                df['cre_adoption_assets'] = df['cre_adoption_assets_y'].combine_first(df['cre_adoption_assets'])
+            else:
+                df['cre_adoption_assets'] = df['cre_adoption_assets_y']
+            drop_cols = [c for c in ['cre_adoption_assets_x','cre_adoption_assets_y'] if c in df.columns]
+            df = df.drop(columns=drop_cols)
+        df["cre_adoption_assets"] = df.get("cre_adoption_assets", 0).fillna(0.0)
 
     # Build adoption_profit from profit_rollup: focus goals + 3DP Training rollup
     if isinstance(profit_roll, pd.DataFrame) and not profit_roll.empty:
@@ -973,6 +1019,17 @@ def engineer_features(df: pd.DataFrame, asset_weights: dict) -> pd.DataFrame:
             .rename("adoption_profit")
         )
         df = df.merge(adoption_profit, on="Customer ID", how="left")
+
+        # CRE adoption profit from CAD/CPE goals
+        mask_cre = pr["Goal"].isin({_normalize_goal_name("CAD"), _normalize_goal_name("CPE")})
+        cre_profit = (
+            pr[mask_cre]
+            .groupby("Customer ID")["Profit_Since_2023"]
+            .sum()
+            .rename("cre_adoption_profit")
+        )
+        if not cre_profit.empty:
+            df = df.merge(cre_profit, on="Customer ID", how="left")
         if 'adoption_profit_y' in df.columns:
             if 'adoption_profit' in df.columns:
                 df['adoption_profit'] = df['adoption_profit_y'].combine_first(df['adoption_profit'])
@@ -981,6 +1038,14 @@ def engineer_features(df: pd.DataFrame, asset_weights: dict) -> pd.DataFrame:
             drop_cols = [c for c in ['adoption_profit_x','adoption_profit_y'] if c in df.columns]
             df = df.drop(columns=drop_cols)
         df["adoption_profit"] = df.get("adoption_profit", 0).fillna(0.0)
+        if 'cre_adoption_profit_y' in df.columns:
+            if 'cre_adoption_profit' in df.columns:
+                df['cre_adoption_profit'] = df['cre_adoption_profit_y'].combine_first(df['cre_adoption_profit'])
+            else:
+                df['cre_adoption_profit'] = df['cre_adoption_profit_y']
+            drop_cols = [c for c in ['cre_adoption_profit_x','cre_adoption_profit_y'] if c in df.columns]
+            df = df.drop(columns=drop_cols)
+        df["cre_adoption_profit"] = df.get("cre_adoption_profit", 0).fillna(0.0)
 
     # Relationship: software goals CAD, CPE, Specialty Software from goal-level pivot already merged
     sw_cols = [c for c in df.columns if c in ("CAD", "CPE", "Specialty Software")]
@@ -1003,6 +1068,35 @@ def engineer_features(df: pd.DataFrame, asset_weights: dict) -> pd.DataFrame:
                 df = df.drop(columns=drop_cols)
             df["relationship_profit"] = df.get("relationship_profit", 0).fillna(0.0)
 
+    # CRE relationship: Specialty Software + CAD-focused Training/Services
+    if isinstance(profit_roll, pd.DataFrame) and not profit_roll.empty:
+        pr_cre = profit_roll.copy()
+        pr_cre["Goal"] = pr_cre["Goal"].map(_normalize_goal_name)
+        specialty_mask = pr_cre["Goal"] == _normalize_goal_name("Specialty Software")
+        training_mask = pr_cre["Goal"] == _normalize_goal_name("Training/Services")
+        if "item_rollup" in pr_cre.columns:
+            cad_training_mask = pr_cre["item_rollup"].astype(str).str.contains("cad", case=False, na=False)
+        else:
+            cad_training_mask = pd.Series(False, index=pr_cre.index)
+        include_mask = specialty_mask | (training_mask & cad_training_mask)
+        rel_cre = (
+            pr_cre[include_mask]
+            .groupby("Customer ID")["Profit_Since_2023"]
+            .sum()
+            .rename("cre_relationship_profit")
+        )
+        if not rel_cre.empty:
+            df = df.merge(rel_cre, on="Customer ID", how="left")
+
+    if 'cre_relationship_profit_y' in df.columns:
+        if 'cre_relationship_profit' in df.columns:
+            df['cre_relationship_profit'] = df['cre_relationship_profit_y'].combine_first(df['cre_relationship_profit'])
+        else:
+            df['cre_relationship_profit'] = df['cre_relationship_profit_y']
+        drop_cols = [c for c in ['cre_relationship_profit_x','cre_relationship_profit_y'] if c in df.columns]
+        df = df.drop(columns=drop_cols)
+    df["cre_relationship_profit"] = df.get("cre_relationship_profit", 0).fillna(0.0)
+
     # Flag for scaling
     df["scaling_flag"] = (df["printer_count"] >= 4).astype(int)
 
@@ -1013,7 +1107,7 @@ def engineer_features(df: pd.DataFrame, asset_weights: dict) -> pd.DataFrame:
         df[LICENSE_COL] = 0.0
 
     # Calculate all component and final scores via scoring_logic
-    df = calculate_scores(df, WEIGHTS)
+    df = calculate_scores(df, WEIGHTS, division=division_config)
 
     # --- Per-goal quantity (assets) and GP (transactions) totals ---
     def safe_label(s: str) -> str:
@@ -1293,6 +1387,10 @@ def main():
     """Main function to execute the scoring pipeline using Azure SQL inputs."""
     check_env()
 
+    division_key = CLI_OPTS.get("division", "hardware")
+    division_config = get_division_config(division_key)
+    print(f"Scoring division: {division_config.label} ({division_config.key})")
+
     print("Loading data from Azure SQL...")
     master = assemble_master_from_db()
 
@@ -1308,19 +1406,20 @@ def main():
             master[c] = master[c].clip(lower=0)
 
     print("Generating data-driven industry weights...")
-    industry_weights_path = ROOT / "artifacts" / "weights" / "industry_weights.json"
+    override_industry_path = os.environ.get("ICP_INDUSTRY_WEIGHTS_PATH")
+    industry_weights_path = Path(override_industry_path) if override_industry_path else division_config.industry_weights_file
     if not industry_weights_path.exists():
         print("[INFO] Building new industry weights from historical profit since 2023")
-        industry_weights = build_industry_weights(master)
+        industry_weights = build_industry_weights(master, division_config)
         industry_weights_path.parent.mkdir(parents=True, exist_ok=True)
-        save_industry_weights(industry_weights, filepath=str(industry_weights_path))
+        save_industry_weights(industry_weights, division_config, filepath=industry_weights_path)
     else:
         print("[INFO] Loading existing industry weights")
-        _ = load_industry_weights(filepath=str(industry_weights_path))
+        _ = load_industry_weights(division_config, filepath=industry_weights_path)
 
     print("Engineering features & scores...")
     asset_weights = load_asset_weights()
-    scored = engineer_features(master, asset_weights)
+    scored = engineer_features(master, asset_weights, division=division_config)
 
     # --- Begin: List-Builder enrichment pipeline ---
     df_accounts = scored.copy()
@@ -1768,6 +1867,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Run ICP scoring pipeline")
     parser.add_argument("--out", type=str, default=None, help="Output CSV path (default: data/processed/icp_scored_accounts.csv)")
+    parser.add_argument("--division", type=str, default="hardware", choices=available_divisions(), help="Division key to score")
     parser.add_argument("--weights", type=str, default=None, help="Path to optimized_weights.json")
     parser.add_argument("--industry-weights", type=str, default=None, help="Path to industry_weights.json")
     parser.add_argument("--asset-weights", type=str, default=None, help="Path to asset_rollup_weights.json")
@@ -1790,6 +1890,7 @@ if __name__ == "__main__":
         # Capture CLI opts for use in main()
         CLI_OPTS["skip_neighbors"] = bool(args.skip_neighbors)
         CLI_OPTS["no_als"] = bool(args.no_als)
+        CLI_OPTS["division"] = args.division
 
         # Neighbors-only mode: load scored CSV and build neighbors without re-running pipeline
         if args.neighbors_only:
