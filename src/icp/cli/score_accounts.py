@@ -1584,6 +1584,29 @@ def main():
     out_cols = [c for c in desired_order if c in scored.columns]
     out_cols.extend([c for c in feature_cols if c not in out_cols])
 
+    # Include dynamically generated enrichment columns (printer-only and percentiles)
+    dynamic_suffixes = (
+        "_printers",
+        "_pctl",
+    )
+    dynamic_includes = {
+        # additional scalar scores that may not be in FEATURE_COLUMN_ORDER
+        "sw_dominance_score",
+        "sw_to_hw_whitespace_score",
+        "pov_primary",
+        "pov_tags_all",
+    }
+    dyn_cols = [
+        c for c in scored.columns
+        if (
+            any(c.endswith(suf) for suf in dynamic_suffixes)
+            or c in dynamic_includes
+        )
+    ]
+    for c in dyn_cols:
+        if c not in out_cols:
+            out_cols.append(c)
+
     missing_features = [c for c in FEATURE_COLUMN_ORDER if c not in scored.columns]
     if missing_features:
         print(
@@ -1612,6 +1635,10 @@ def main():
         "active_assets_total","seats_sum_total","Portfolio_Breadth","scaling_flag",
         "Days_Since_First_Purchase","Days_Since_Last_Purchase","Days_Since_Last_Expiration",
     ])
+    # Also coerce any dynamic percentile/printer-only metrics
+    for c in list(scored.columns):
+        if c.endswith("_pctl") or c.endswith("_printers"):
+            numeric_like.add(c)
     for col in numeric_like:
         if col in scored.columns:
             scored[col] = pd.to_numeric(scored[col], errors="coerce")
