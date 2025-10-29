@@ -1,0 +1,23 @@
+{
+  "component_weights": {
+    "vertical": 0.25,
+    "size": 0.0,
+    "adoption": 0.45,
+    "relationship": 0.3
+  },
+  "size_revenue_column": "revenue_estimate",
+  "adoption": {
+    "asset_column": "cre_adoption_assets",
+    "profit_column": "cre_adoption_profit",
+    "profit_goals": ["CAD", "CPE"]
+  },
+  "relationship": {
+    "profit_column": "cre_relationship_profit"
+  },
+  "performance_columns": [
+    "CAD",
+    "CPE",
+    "Specialty Software"
+  ],
+  "neutral_vertical_score": 0.35
+}

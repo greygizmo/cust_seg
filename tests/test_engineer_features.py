@@ -39,3 +39,10 @@ def test_engineer_features_training_filter_and_printer_count():
     assert row['printer_count'] == 2
     # adoption_profit should include 3DP Training (500) and Printer Accessorials (200), but exclude generic Service (300)
     assert row['adoption_profit'] == 700
+    # CRE columns should exist and default to zero for this hardware-only fixture
+    assert 'cre_adoption_assets' in out.columns
+    assert 'cre_adoption_profit' in out.columns
+    assert 'cre_relationship_profit' in out.columns
+    assert row['cre_adoption_assets'] == 0
+    assert row['cre_adoption_profit'] == 0
+    assert row['cre_relationship_profit'] == 0

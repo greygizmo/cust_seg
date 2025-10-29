@@ -13,7 +13,14 @@ import os
 from typing import Optional
 
 import pandas as pd
-from sqlalchemy import create_engine, text
+try:
+    from sqlalchemy import create_engine, text
+except ModuleNotFoundError:  # pragma: no cover - optional dependency for tests
+    def create_engine(*args, **kwargs):  # type: ignore
+        raise ModuleNotFoundError("sqlalchemy is required for database connectivity")
+
+    def text(sql: str):  # type: ignore
+        raise ModuleNotFoundError("sqlalchemy is required for database connectivity")
 
 try:
     from dotenv import load_dotenv  # type: ignore
