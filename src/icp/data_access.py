@@ -17,7 +17,16 @@ from sqlalchemy import create_engine, text
 
 try:
     from dotenv import load_dotenv  # type: ignore
-    load_dotenv()
+    from pathlib import Path
+    # load_dotenv() without arguments searches current directory and all parent directories
+    # Try explicit project root first, then fall back to recursive search
+    project_root = Path(__file__).resolve().parents[2]
+    env_in_root = project_root / ".env"
+    if env_in_root.exists():
+        load_dotenv(dotenv_path=str(env_in_root), override=True)
+    else:
+        # Default behavior: searches from current working directory up to filesystem root
+        load_dotenv(override=True)
 except Exception:
     # dotenv is optional; env vars may be provided by the host
     pass

@@ -32,6 +32,22 @@ COL_RELATIONSHIP_PROFIT = "relationship_profit"
 COL_ADOPTION_ASSETS = "adoption_assets"
 COL_ADOPTION_PROFIT = "adoption_profit"
 
+# Division-prefixed columns (Hardware)
+COL_HW_ADOPTION_ASSETS = "Hardware_adoption_assets"
+COL_HW_ADOPTION_PROFIT = "Hardware_adoption_profit"
+COL_HW_RELATIONSHIP_PROFIT = "Hardware_relationship_profit"
+COL_HW_ICP_SCORE = "Hardware_ICP_score"
+COL_HW_ICP_GRADE = "Hardware_ICP_grade"
+
+# Division-prefixed columns (CRE)
+COL_CRE_ADOPTION_ASSETS = "CRE_adoption_assets"
+COL_CRE_ADOPTION_PROFIT = "CRE_adoption_profit"
+COL_CRE_RELATIONSHIP_PROFIT = "CRE_relationship_profit"
+COL_CRE_ICP_SCORE = "CRE_ICP_score"
+COL_CRE_ICP_GRADE = "CRE_ICP_grade"
+COL_SEATS_CRE = "Seats_CRE"
+COL_GP_CRE = "GP_CRE"
+
 
 # Aliases mapping: alias -> canonical
 ALIASES: Dict[str, str] = {

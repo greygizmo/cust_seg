@@ -13,6 +13,7 @@ import numpy as np
 import json
 import os
 from pathlib import Path
+from icp.divisions import DivisionConfig
 
 
 def calculate_industry_performance(df: pd.DataFrame) -> pd.DataFrame:
@@ -138,9 +139,161 @@ def apply_empirical_bayes_shrinkage(industry_stats: pd.DataFrame, k: int = 20) -
     return industry_stats
 
 
+def calculate_industry_performance_for_division(
+    df: pd.DataFrame, 
+    profit_rollup: pd.DataFrame,
+    division_config: DivisionConfig
+) -> pd.DataFrame:
+    """
+    Calculate division-specific performance per customer from profit rollup data.
+    
+    For CRE, this filters to CAD goals only and sums profit since 2023.
+    For Hardware, this sums profit from hardware adoption goals.
+    
+    Args:
+        df: Customer dataframe with Customer ID
+        profit_rollup: Profit rollup DataFrame with columns: [Customer ID, Goal, Profit_Since_2023]
+        division_config: Division configuration specifying which goals to include
+        
+    Returns:
+        DataFrame with added 'total_performance' column for the division
+    """
+    df_result = df.copy()
+    
+    # Normalize goal names for matching
+    def normalize_goal(x):
+        return str(x).strip().lower()
+    
+    # For CRE, use adoption_goals (which is ["CAD"])
+    # For Hardware, use adoption_goals (Printers, Accessories, etc.)
+    goal_filter = {normalize_goal(g) for g in division_config.adoption_goals}
+    
+    # Filter profit rollup to division's adoption goals
+    profit_filtered = profit_rollup.copy()
+    profit_filtered['Goal_normalized'] = profit_filtered['Goal'].apply(normalize_goal)
+    profit_filtered = profit_filtered[profit_filtered['Goal_normalized'].isin(goal_filter)]
+    
+    # Aggregate profit by customer
+    division_profit = (
+        profit_filtered.groupby('Customer ID')['Profit_Since_2023']
+        .sum()
+        .reset_index()
+        .rename(columns={'Profit_Since_2023': 'total_performance'})
+    )
+    
+    # Merge back to customer dataframe
+    df_result = df_result.merge(division_profit, on='Customer ID', how='left')
+    df_result['total_performance'] = df_result['total_performance'].fillna(0)
+    
+    print(f"[INFO] Calculated {division_config.name} performance for {len(df_result)} customers")
+    print(f"[INFO] {division_config.name} performance range: ${df_result['total_performance'].min():,.0f} - ${df_result['total_performance'].max():,.0f}")
+    print(f"[INFO] Mean {division_config.name} performance per customer: ${df_result['total_performance'].mean():,.0f}")
+    print(f"[INFO] Customers with {division_config.name} adoption: {(df_result['total_performance'] > 0).sum()}")
+    
+    return df_result
+
+
+def build_industry_weights_for_division(
+    df: pd.DataFrame,
+    profit_rollup: pd.DataFrame,
+    division_config: DivisionConfig,
+    min_sample: int = 10,
+    k: int = 20,
+    neutral_score: float = 0.3
+) -> dict:
+    """
+    Build data-driven industry weights for a specific division.
+    
+    For CRE: Calculates adoption rate × mean CRE revenue among CRE adopters by industry.
+    For Hardware: Calculates adoption rate × mean hardware revenue among hardware adopters by industry.
+    
+    Args:
+        df: Customer dataframe with Customer ID and Industry columns
+        profit_rollup: Profit rollup DataFrame with Goal and Profit_Since_2023
+        division_config: Division configuration
+        min_sample: Minimum customers per industry
+        k: Shrinkage parameter
+        neutral_score: Default score for unknown industries
+        
+    Returns:
+        dict: Industry name -> score mapping
+    """
+    print(f"[INFO] Building industry weights for {division_config.name} division")
+    print(f"[INFO] Using adoption goals: {division_config.adoption_goals}")
+    
+    # Step 1: Calculate division-specific performance
+    df_with_performance = calculate_industry_performance_for_division(
+        df.copy(), profit_rollup, division_config
+    )
+    
+    # Step 2: Aggregate by industry
+    industry_stats = aggregate_by_industry(df_with_performance, min_sample)
+    
+    if len(industry_stats) > 0:
+        industry_stats = apply_empirical_bayes_shrinkage(industry_stats, k)
+        
+        # Normalize data-driven score to 0-1 range
+        min_shrunk = industry_stats['shrunk_mean'].min()
+        max_shrunk = industry_stats['shrunk_mean'].max()
+        if max_shrunk > min_shrunk:
+            industry_stats['data_driven_score'] = (industry_stats['shrunk_mean'] - min_shrunk) / (max_shrunk - min_shrunk)
+        else:
+            industry_stats['data_driven_score'] = 0.5  # Neutral if all same
+    else:
+        # Handle case with no industries meeting sample size
+        return {'unknown': neutral_score, '': neutral_score, np.nan: neutral_score}
+    
+    # Step 3: Load strategic scores from config (shared across divisions)
+    ROOT = Path(__file__).resolve().parents[2]
+    strategic_path = ROOT / 'artifacts' / 'industry' / 'strategic_industry_tiers.json'
+    print(f"[INFO] Loading strategic tiers from {strategic_path}")
+    with open(strategic_path, 'r') as f:
+        strategic_config = json.load(f)
+    tier_scores = strategic_config['tier_scores']
+    blend_weights = strategic_config['blend_weight']
+    industry_to_tier = {
+        industry: tier 
+        for tier, industries in strategic_config['industry_tiers'].items() 
+        for industry in industries
+    }
+    
+    def get_strategic_score(industry_name):
+        tier = industry_to_tier.get(industry_name, 'tier_3')
+        return tier_scores.get(tier, 0.4)
+    
+    industry_stats['strategic_score'] = industry_stats['Industry_clean'].apply(get_strategic_score)
+    
+    # Step 4: Blend data-driven and strategic scores
+    print(f"[INFO] Blending scores with weights: Data-Driven({blend_weights['data_driven']}), Strategic({blend_weights['strategic']})")
+    industry_stats['blended_score'] = (
+        blend_weights['data_driven'] * industry_stats['data_driven_score'] +
+        blend_weights['strategic'] * industry_stats['strategic_score']
+    )
+    
+    # Step 5: Apply final bucketing
+    bucketed_scores = (np.round(industry_stats['blended_score'] / 0.05) * 0.05).clip(0.0, 1.0)
+    industry_stats['final_score'] = np.maximum(neutral_score, bucketed_scores)
+    print(f"[INFO] Applied final bucketing: 0.05 increments, minimum {neutral_score:.2f}")
+    
+    # Step 6: Create final weights dictionary
+    weights = dict(zip(
+        industry_stats['Industry_clean'].str.lower().str.strip(),
+        industry_stats['final_score']
+    ))
+    weights['unknown'] = neutral_score
+    weights[''] = neutral_score
+    weights[np.nan] = neutral_score
+    
+    print(f"[INFO] Generated {division_config.name} scores for {len(weights)} industry categories")
+    return weights
+
+
 def build_industry_weights(df: pd.DataFrame, min_sample: int = 10, k: int = 20, neutral_score: float = 0.3) -> dict:
     """
     Main function to build data-driven industry weights from customer performance data.
+    Legacy function for Hardware division - uses total profit/revenue.
+    
+    For division-specific weights, use build_industry_weights_for_division() instead.
     """
     print(f"[INFO] Building hybrid industry weights with min_sample={min_sample}, k={k}, neutral={neutral_score}")
 

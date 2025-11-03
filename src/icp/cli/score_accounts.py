@@ -78,7 +78,13 @@ from icp.schema import (
     canonicalize_customer_id,
 )
 # Import the new industry scoring module
-from icp.industry import build_industry_weights, save_industry_weights, load_industry_weights
+from icp.industry import (
+    build_industry_weights, 
+    save_industry_weights, 
+    load_industry_weights,
+    build_industry_weights_for_division
+)
+from icp.divisions import load_division_config, list_available_divisions
 import icp.data_access as da
 
 from features.product_taxonomy import validate_and_join_products
@@ -866,6 +872,175 @@ def _normalize_goal_name(x: str) -> str:
     return str(x).strip().lower()
 
 
+def engineer_division_features(
+    df: pd.DataFrame, 
+    asset_weights: dict, 
+    division_config,
+    prefix: str = ""
+) -> pd.DataFrame:
+    """
+    Engineers division-specific features for scoring.
+    
+    Args:
+        df: Customer DataFrame with attached _assets_raw and _profit_rollup_raw
+        asset_weights: Asset weights configuration
+        division_config: DivisionConfig object
+        prefix: Column prefix (e.g., "CRE_", "Hardware_")
+        
+    Returns:
+        DataFrame with division-prefixed adoption and relationship features
+    """
+    _base_df = df
+    df = df.copy()
+    
+    assets = getattr(_base_df, "_assets_raw", pd.DataFrame())
+    profit_roll = getattr(_base_df, "_profit_rollup_raw", pd.DataFrame())
+    
+    if 'Customer ID' in df.columns:
+        df['Customer ID'] = canonicalize_customer_id(df['Customer ID'])
+    
+    # Initialize division-specific features
+    adoption_assets_col = f"{prefix}adoption_assets" if prefix else "adoption_assets"
+    adoption_profit_col = f"{prefix}adoption_profit" if prefix else "adoption_profit"
+    relationship_profit_col = f"{prefix}relationship_profit" if prefix else "relationship_profit"
+    
+    df[adoption_assets_col] = 0.0
+    df[adoption_profit_col] = 0.0
+    df[relationship_profit_col] = 0.0
+    
+    # Build adoption_assets from assets table with weights
+    if isinstance(assets, pd.DataFrame) and not assets.empty:
+        _raw_weights_cfg = asset_weights.get("weights", {}) or {}
+        weights_cfg = {
+            _normalize_goal_name(g): {
+                (str(k).lower() if isinstance(k, str) else k): v 
+                for k, v in (m or {}).items()
+            }
+            for g, m in _raw_weights_cfg.items()
+        }
+        
+        # Use division's adoption goals
+        adoption_goals_norm = {_normalize_goal_name(g) for g in division_config.adoption_goals}
+        
+        def weighted_measure(row) -> float:
+            goal = _normalize_goal_name(row.get("Goal"))
+            item_rollup = str(row.get("item_rollup"))
+            seats_sum = row.get("seats_sum", 0) or 0
+            asset_count = row.get("asset_count", 0) or 0
+            base = seats_sum if seats_sum and seats_sum > 0 else asset_count
+            goal_weights = weights_cfg.get(goal, {})
+            w = goal_weights.get(item_rollup, goal_weights.get("default", 1.0))
+            return float(base) * float(w)
+        
+        a = assets.copy()
+        if 'Customer ID' in a.columns:
+            a['Customer ID'] = canonicalize_customer_id(a['Customer ID'])
+        a["Goal"] = a["Goal"].map(_normalize_goal_name)
+        
+        # Filter to division's adoption goals
+        # Special handling for Training/Services: only 3DP Training rollup counts (for Hardware)
+        if "Training/Services" in division_config.adoption_goals:
+            a_focus = a[a["Goal"].isin(adoption_goals_norm)].copy()
+            # Filter out Training/Services unless it's 3DP Training
+            training_mask = a_focus["Goal"] == _normalize_goal_name("Training/Services")
+            if training_mask.any():
+                a_focus.loc[training_mask, "_is_3dp"] = (
+                    a_focus.loc[training_mask, "item_rollup"]
+                    .astype(str).str.strip().str.lower() == "3dp training"
+                )
+                a_focus = a_focus[
+                    ~training_mask | (training_mask & a_focus["_is_3dp"])
+                ].drop(columns=["_is_3dp"], errors="ignore")
+        else:
+            a_focus = a[a["Goal"].isin(adoption_goals_norm)].copy()
+        
+        a_focus.loc[:, "weighted_value"] = a_focus.apply(weighted_measure, axis=1)
+        
+        adoption_assets = (
+            a_focus.groupby("Customer ID")["weighted_value"]
+            .sum()
+            .rename(adoption_assets_col)
+        )
+        
+        df = df.merge(adoption_assets, on="Customer ID", how="left")
+        if adoption_assets_col not in df.columns:
+            df[adoption_assets_col] = 0.0
+        df[adoption_assets_col] = df.get(adoption_assets_col, 0).fillna(0.0)
+    
+    # Build adoption_profit from profit_rollup: division's adoption goals
+    if isinstance(profit_roll, pd.DataFrame) and not profit_roll.empty:
+        pr = profit_roll.copy()
+        if 'Customer ID' in pr.columns:
+            pr['Customer ID'] = canonicalize_customer_id(pr['Customer ID'])
+        pr["Goal"] = pr["Goal"].map(_normalize_goal_name)
+        
+        # Filter to division's adoption goals
+        adoption_goals_norm = {_normalize_goal_name(g) for g in division_config.adoption_goals}
+        mask_focus_goals = pr["Goal"].isin(adoption_goals_norm)
+        
+        # Special handling for Training/Services: only 3DP Training rollup counts
+        if "Training/Services" in division_config.adoption_goals:
+            mask_3dp_training = (
+                (pr["Goal"] == _normalize_goal_name("Training/Services")) & 
+                (pr["item_rollup"].astype(str).str.strip().str.lower() == "3dp training")
+            )
+            mask_focus = mask_focus_goals & (
+                ~(pr["Goal"] == _normalize_goal_name("Training/Services")) | 
+                mask_3dp_training
+            )
+        else:
+            mask_focus = mask_focus_goals
+        
+        adoption_profit = (
+            pr[mask_focus]
+            .groupby("Customer ID")["Profit_Since_2023"]
+            .sum()
+            .rename(adoption_profit_col)
+        )
+        
+        df = df.merge(adoption_profit, on="Customer ID", how="left")
+        if adoption_profit_col not in df.columns:
+            df[adoption_profit_col] = 0.0
+        df[adoption_profit_col] = df.get(adoption_profit_col, 0).fillna(0.0)
+    
+    # Build relationship_profit: division's relationship goals
+    # OR reuse hardware adoption if flagged
+    if division_config.relationship_uses_hardware_adoption:
+        # Reuse hardware adoption features (calculated separately)
+        # This will be set in main pipeline after Hardware features are calculated
+        pass  # Will be handled in main pipeline
+    elif isinstance(profit_roll, pd.DataFrame) and not profit_roll.empty:
+        pr = profit_roll.copy()
+        if 'Customer ID' in pr.columns:
+            pr['Customer ID'] = canonicalize_customer_id(pr['Customer ID'])
+        
+        # Check if relationship goals exist as pivot columns first
+        rel_goals_upper = [g.title() for g in division_config.relationship_goals]
+        sw_cols = [c for c in df.columns if c in rel_goals_upper]
+        
+        if sw_cols:
+            df[relationship_profit_col] = df[sw_cols].fillna(0).sum(axis=1)
+        else:
+            # Aggregate from profit rollup
+            pr["Goal"] = pr["Goal"].map(_normalize_goal_name)
+            rel_goals_norm = {_normalize_goal_name(g) for g in division_config.relationship_goals}
+            rel_mask = pr["Goal"].isin(rel_goals_norm)
+            
+            rel = (
+                pr[rel_mask]
+                .groupby("Customer ID")["Profit_Since_2023"]
+                .sum()
+                .rename(relationship_profit_col)
+            )
+            
+            df = df.merge(rel, on="Customer ID", how="left")
+            if relationship_profit_col not in df.columns:
+                df[relationship_profit_col] = 0.0
+            df[relationship_profit_col] = df.get(relationship_profit_col, 0).fillna(0.0)
+    
+    return df
+
+
 def engineer_features(df: pd.DataFrame, asset_weights: dict) -> pd.DataFrame:
     """
     Engineers features for scoring using assets/seats and profit.
@@ -1307,20 +1482,114 @@ def main():
         for c in bad:
             master[c] = master[c].clip(lower=0)
 
-    print("Generating data-driven industry weights...")
-    industry_weights_path = ROOT / "artifacts" / "weights" / "industry_weights.json"
-    if not industry_weights_path.exists():
-        print("[INFO] Building new industry weights from historical profit since 2023")
-        industry_weights = build_industry_weights(master)
-        industry_weights_path.parent.mkdir(parents=True, exist_ok=True)
-        save_industry_weights(industry_weights, filepath=str(industry_weights_path))
-    else:
-        print("[INFO] Loading existing industry weights")
-        _ = load_industry_weights(filepath=str(industry_weights_path))
-
-    print("Engineering features & scores...")
+    # --- Multi-Division ICP Calculation ---
+    print("\n=== Multi-Division ICP Scoring ===")
+    
+    # Get available divisions
+    available_divisions = list_available_divisions()
+    if not available_divisions:
+        raise ValueError("No division configurations found. Expected at least 'hardware' and 'cre'.")
+    
+    print(f"[INFO] Found {len(available_divisions)} division(s): {', '.join(available_divisions)}")
+    
+    # Load division configs
+    division_configs = {}
+    for div_name in available_divisions:
+        try:
+            division_configs[div_name] = load_division_config(div_name)
+            print(f"[INFO] Loaded {div_name} division config")
+        except Exception as e:
+            print(f"[ERROR] Failed to load {div_name} division config: {e}")
+            raise
+    
+    # Get profit rollup for division-specific industry weights
+    profit_rollup = getattr(master, "_profit_rollup_raw", pd.DataFrame())
+    if profit_rollup.empty:
+        print("[WARN] No profit rollup data available for division-specific industry weights")
+    
+    # Generate/load industry weights for each division
+    for div_name, div_config in division_configs.items():
+        industry_weights_path = div_config.get_industry_weights_path()
+        if not industry_weights_path.exists():
+            print(f"[INFO] Building {div_name} industry weights from {div_name} adoption data")
+            if not profit_rollup.empty:
+                industry_weights = build_industry_weights_for_division(
+                    master, profit_rollup, div_config
+                )
+                industry_weights_path.parent.mkdir(parents=True, exist_ok=True)
+                save_industry_weights(industry_weights, filepath=str(industry_weights_path))
+            else:
+                print(f"[WARN] Cannot build {div_name} industry weights without profit rollup")
+        else:
+            print(f"[INFO] Using existing {div_name} industry weights from {industry_weights_path.name}")
+    
+    # Load asset weights
     asset_weights = load_asset_weights()
+    
+    # First, generate shared features (printer_count, scaling_flag, per-goal metrics)
+    # This maintains backward compatibility
+    print("Engineering shared features...")
     scored = engineer_features(master, asset_weights)
+    
+    # Calculate division-specific features and scores
+    
+    # Process Hardware division first (CRE may depend on Hardware features)
+    hardware_config = division_configs.get('hardware')
+    cre_config = division_configs.get('cre')
+    
+    if hardware_config:
+        print(f"\n--- Processing {hardware_config.display_name} Division ---")
+        prefix = f"{hardware_config.display_name}_"
+        scored = engineer_division_features(scored, asset_weights, hardware_config, prefix=prefix)
+        scored = calculate_scores(scored, hardware_config.weights, division_config=hardware_config)
+        print(f"[INFO] Calculated {hardware_config.display_name} ICP scores")
+    
+    if cre_config:
+        print(f"\n--- Processing {cre_config.display_name} Division ---")
+        prefix = f"{cre_config.display_name}_"
+        scored = engineer_division_features(scored, asset_weights, cre_config, prefix=prefix)
+        
+        # Handle CRE relationship using hardware adoption if flagged
+        if cre_config.relationship_uses_hardware_adoption and hardware_config:
+            hw_assets_col = f"{hardware_config.display_name}_adoption_assets"
+            hw_profit_col = f"{hardware_config.display_name}_adoption_profit"
+            cre_rel_col = f"{prefix}relationship_profit"
+            if hw_assets_col in scored.columns and hw_profit_col in scored.columns:
+                # Use hardware adoption as CRE relationship
+                scored[cre_rel_col] = (
+                    scored[hw_assets_col].fillna(0) + scored[hw_profit_col].fillna(0)
+                )
+                print(f"[INFO] CRE relationship using Hardware adoption features")
+        
+        scored = calculate_scores(scored, cre_config.weights, division_config=cre_config)
+        print(f"[INFO] Calculated {cre_config.display_name} ICP scores")
+    
+    # Add per-goal metrics (e.g., Seats_CRE, GP_CRE)
+    # These are already calculated in engineer_features for backward compatibility
+    # But we'll ensure CRE-specific metrics are present
+    if not profit_rollup.empty and cre_config:
+        pr = profit_rollup.copy()
+        if 'Customer ID' in pr.columns:
+            pr['Customer ID'] = canonicalize_customer_id(pr['Customer ID'])
+        pr["Goal"] = pr["Goal"].map(_normalize_goal_name)
+        
+        # Map CAD to CRE for display
+        cad_mask = pr["Goal"] == _normalize_goal_name("CAD")
+        if cad_mask.any():
+            # Seats_CRE
+            assets_df = getattr(master, "_assets_raw", pd.DataFrame())
+            if not assets_df.empty and 'Goal' in assets_df.columns:
+                a_cre = assets_df.copy()
+                a_cre['Customer ID'] = canonicalize_customer_id(a_cre['Customer ID'])
+                a_cre['Goal'] = a_cre['Goal'].map(_normalize_goal_name)
+                cre_seats = a_cre[a_cre['Goal'] == _normalize_goal_name("CAD")].groupby('Customer ID')['seats_sum'].sum()
+                scored['Seats_CRE'] = scored['Customer ID'].map(cre_seats).fillna(0)
+            
+            # GP_CRE
+            cre_gp = pr[cad_mask].groupby('Customer ID')['Profit_Since_2023'].sum()
+            scored['GP_CRE'] = scored['Customer ID'].map(cre_gp).fillna(0.0)
+    
+    print("\n=== Finished Multi-Division ICP Scoring ===\n")
 
     # --- Begin: List-Builder enrichment pipeline ---
     df_accounts = scored.copy()
@@ -1520,11 +1789,16 @@ def main():
         'Name','email','phone',
         # Shipping address
         'ShippingAddr1','ShippingAddr2','ShippingCity','ShippingState','ShippingZip','ShippingCountry',
-        # Headline score
+        # Headline scores (legacy backward compatibility)
         'ICP_score','ICP_grade',
+        # Multi-Division ICP Scores
+        'Hardware_ICP_score','Hardware_ICP_grade','Hardware_ICP_score_raw',
+        'Hardware_vertical_score','Hardware_size_score','Hardware_adoption_score','Hardware_relationship_score',
+        'CRE_ICP_score','CRE_ICP_grade','CRE_ICP_score_raw',
+        'CRE_vertical_score','CRE_size_score','CRE_adoption_score','CRE_relationship_score',
         # Context
         'Industry','Industry Sub List','Industry_Reasoning',
-        # Headline Hardware/Software
+        # Headline Hardware/Software (legacy aliases)
         'Hardware_score','Software_score',
         # Recent GP signals
         'GP_LastQ_Total','GP_PrevQ_Total','GP_QoQ_Growth','GP_T4Q_Total','GP_Since_2023_Total',
@@ -1534,12 +1808,13 @@ def main():
         'Qty_Printer Accessories','GP_Printer Accessories','Qty_Scanners','GP_Scanners','Qty_Geomagic','GP_Geomagic',
         # Software inputs (seats & GP)
         'Seats_CAD','GP_CAD','Seats_CPE','GP_CPE','Seats_Specialty Software','GP_Specialty Software',
+        'Seats_CRE','GP_CRE',  # CRE-specific metrics
         # Operational metrics
         'scaling_flag', LICENSE_COL,
         'active_assets_total','seats_sum_total','Portfolio_Breadth',
         'EarliestPurchaseDate','LatestPurchaseDate','LatestExpirationDate',
         'Days_Since_First_Purchase','Days_Since_Last_Purchase','Days_Since_Last_Expiration',
-        # Secondary detail scores
+        # Secondary detail scores (legacy)
         'vertical_score','size_score','ICP_score_raw'
     ]
     
@@ -1559,11 +1834,26 @@ def main():
         backup_path = backup_dir / f"icp_scored_accounts_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         shutil.copy2(out_path, backup_path)
         print(f"Backed up previous CSV to {backup_path}")
-    # Human-friendly aliases for output readability
+    # Human-friendly aliases for output readability (backward compatibility)
     if 'adoption_score' in scored.columns:
         scored['Hardware_score'] = scored['adoption_score']
     if 'relationship_score' in scored.columns:
         scored['Software_score'] = scored['relationship_score']
+    
+    # Add division-prefixed aliases for backward compatibility
+    if 'Hardware_adoption_score' in scored.columns:
+        scored['Hardware_score'] = scored['Hardware_adoption_score']
+    if 'Hardware_relationship_score' in scored.columns:
+        # Hardware relationship is software profit
+        scored['Software_score'] = scored['Hardware_relationship_score']
+    
+    # Legacy ICP_score aliases (use Hardware as default for backward compatibility)
+    if 'Hardware_ICP_score' in scored.columns and 'ICP_score' not in scored.columns:
+        scored['ICP_score'] = scored['Hardware_ICP_score']
+        scored['ICP_grade'] = scored['Hardware_ICP_grade']
+        scored['ICP_score_raw'] = scored['Hardware_ICP_score_raw']
+        scored['vertical_score'] = scored['Hardware_vertical_score']
+        scored['size_score'] = scored['Hardware_size_score']
 
     # Surface GP_* aliases and ensure fields are not NaN
     alias_pairs = {

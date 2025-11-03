@@ -1,0 +1,23 @@
+{
+  "name": "CRE",
+  "display_name": "CRE",
+  "source_goal": "CAD",
+  "weights": {
+    "vertical": 0.30,
+    "size": 0.0,
+    "adoption": 0.40,
+    "relationship": 0.30
+  },
+  "adoption_goals": [
+    "CAD"
+  ],
+  "relationship_goals": [
+    "Printers",
+    "Printer Accessorials",
+    "Scanners",
+    "Geomagic"
+  ],
+  "industry_weights_file": "industry_weights_cre.json",
+  "relationship_uses_hardware_adoption": true
+}
+

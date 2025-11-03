@@ -4,36 +4,49 @@ This document reflects the metrics and artifacts produced by the current repo co
 
 ## ICP Scoring (Azure SQL pipeline)
 
-Identity and context columns (if present in sources):
+**Multi-Division Support**: The pipeline now calculates ICP scores for multiple divisions (Hardware, CRE) independently. Each division has its own weights, industry scores, and feature sets.
+
+### Identity and context columns (if present in sources):
 - Customer ID, Company Name, Industry, Industry Sub List, Industry_Reasoning
 - AM Sales Rep, AM Territory, EDU Assets flag
 - Contacts (RP Primary and Account Primary), Shipping address fields
 
-Profit aggregates (customer-level):
+### Profit aggregates (customer-level):
 - Profit_Since_2023_Total, Profit_T4Q_Total, Profit_LastQ_Total, Profit_PrevQ_Total, Profit_QoQ_Growth
 - Months_Active_12M (derived from monthly profit activity)
 
-Hardware/Software features (customer-level):
-- adoption_assets (aggregated asset/seat signals across focus goals)
-- adoption_profit (profit signals across Printer/Accessories/Scanners/Geomagic and 3DP Training rollup)
-- relationship_profit (profit across software goals: CAD, CPE, Specialty Software)
-- printer_count, scaling_flag
+### Hardware/Software features (customer-level):
+- **Legacy (backward compatibility)**: adoption_assets, adoption_profit, relationship_profit, printer_count, scaling_flag
+- **Hardware Division**: Hardware_adoption_assets, Hardware_adoption_profit, Hardware_relationship_profit
+- **CRE Division**: CRE_adoption_assets (CAD seats/assets), CRE_adoption_profit (CAD profit), CRE_relationship_profit (uses Hardware adoption)
 
-Goal- and rollup-level totals (merged to customer-level where available):
+### Goal- and rollup-level totals (merged to customer-level where available):
 - Seats_CAD/CPE/Specialty Software; GP_CAD/CPE/Specialty Software
+- **CRE-specific**: Seats_CRE, GP_CRE (maps from CAD in source tables)
 - Qty_Printers, GP_Printers; per-printer-subdivision qty/gp where available
 - active_assets_total, seats_sum_total, Portfolio_Breadth
 - Earliest/Latest purchase/expiration dates and corresponding day deltas
 
-Scores and grades:
-- Hardware_score (adoption), Software_score (relationship)
-- vertical_score, size_score
-- ICP_score_raw, ICP_score (0–100 normalized), ICP_grade (A–F)
+### Scores and grades (Multi-Division):
+- **Legacy (backward compatibility)**: Hardware_score (adoption), Software_score (relationship), vertical_score, size_score, ICP_score_raw, ICP_score (0–100 normalized), ICP_grade (A–F)
 
-Notes:
-- The “List‑Builder” time‑series and mix features (spend_13w, trend/momentum, HW/SW share, top_subdivision, HHI, POV tags, etc.) are now ENABLED in the default pipeline via the Azure SQL feed and are appended to the scored CSV.
+- **Hardware Division ICP**:
+  - Hardware_ICP_score_raw, Hardware_ICP_score (0–100 normalized), Hardware_ICP_grade (A–F)
+  - Hardware_vertical_score, Hardware_size_score, Hardware_adoption_score, Hardware_relationship_score
 
-Output file:
+- **CRE Division ICP**:
+  - CRE_ICP_score_raw, CRE_ICP_score (0–100 normalized), CRE_ICP_grade (A–F)
+  - CRE_vertical_score, CRE_size_score, CRE_adoption_score, CRE_relationship_score
+
+### Notes:
+- Size scores are calculated but zero-weighted for all divisions per requirements
+- Hardware ICP uses hardware adoption goals (Printers, Accessories, Scanners, Geomagic, 3DP Training) for adoption score
+- CRE ICP uses CAD software adoption for adoption score, and Hardware adoption for relationship score
+- Industry weights are division-specific: `industry_weights_hardware.json` and `industry_weights_cre.json`
+- Legacy columns (ICP_score, Hardware_score, Software_score) are maintained for backward compatibility, defaulting to Hardware division values
+- The "List‑Builder" time‑series and mix features (spend_13w, trend/momentum, HW/SW share, top_subdivision, HHI, POV tags, etc.) are now ENABLED in the default pipeline via the Azure SQL feed and are appended to the scored CSV.
+
+### Output file:
 - data/processed/icp_scored_accounts.csv
 
 ## Neighbors Artifact (Exact, blockwise)
