@@ -161,7 +161,7 @@ INDUSTRY_ENRICHMENT_FILE = ROOT / "data" / "raw" / "TR - Industry Enrichment.csv
 ASSET_WEIGHTS_FILE = ROOT / "artifacts" / "weights" / "asset_rollup_weights.json"
 
 
-def load_weights():
+def load_weights(division_key: str | None = None):
     """
     Load optimized weights from the JSON file.
     If the file is not found or is invalid, it falls back to the default weights
@@ -176,19 +176,25 @@ def load_weights():
         with open(weights_path, 'r') as f:
             data = json.load(f)
             raw_weights = data.get('weights', {})
+            # Support per-division weights structure
+            if isinstance(raw_weights, dict) and any(k in raw_weights for k in ("hardware","cre")):
+                key = (division_key or os.environ.get("ICP_DIVISION") or "hardware").lower()
+                if key in raw_weights and isinstance(raw_weights[key], dict):
+                    raw_weights = raw_weights[key]
             
             # Convert from optimizer format to script format and calculate missing weights
             weights = {}
-            weights['vertical'] = raw_weights.get('vertical_score', DEFAULT_WEIGHTS['vertical'])
-            weights['size'] = raw_weights.get('size_score', DEFAULT_WEIGHTS['size'])
-            weights['adoption'] = raw_weights.get('adoption_score', DEFAULT_WEIGHTS['adoption'])
+            weights['vertical'] = float(raw_weights.get('vertical_score', DEFAULT_WEIGHTS['vertical']))
+            weights['size'] = float(raw_weights.get('size_score', 0.0))
+            weights['adoption'] = float(raw_weights.get('adoption_score', DEFAULT_WEIGHTS['adoption']))
             
             # Calculate relationship score as remainder to ensure sum = 1.0
             total_so_far = weights['vertical'] + weights['size'] + weights['adoption']
             weights['relationship'] = max(0.0, 1.0 - total_so_far)
             
             print(f"[INFO] Loaded optimized weights from {weights_path}")
-            print("  - Optimization details: " + str(data.get("n_trials","Unknown")) + " trials")
+            meta = data.get('meta', data)
+            print("  - Optimization details: " + str(meta.get("n_trials","Unknown")) + " trials")
             print(f"  - Converted weights: vertical={weights['vertical']:.3f}, size={weights['size']:.3f}, adoption={weights['adoption']:.3f}, relationship={weights['relationship']:.3f}")
             return weights
     except FileNotFoundError:
@@ -612,6 +618,36 @@ def assemble_master_from_db() -> pd.DataFrame:
         master['Customer ID'] = canonicalize_customer_id(master['Customer ID'])
         master = master.merge(p_goal, on="Customer ID", how="left")
 
+    # CRE Training subset: only include Training/Services item_rollups that
+    # belong to CRE super-division: 'Success Plan' and 'Training'.
+    try:
+        pr = profit_rollup.copy()
+        if 'Customer ID' in pr.columns:
+            pr['Customer ID'] = canonicalize_customer_id(pr['Customer ID'])
+        pr["Goal"] = pr["Goal"].astype(str)
+        pr["item_rollup"] = pr.get("item_rollup", "").astype(str)
+        # Normalize goal label to match downstream label mapping
+        def _norm_goal(g: str) -> str:
+            return str(g).strip()
+        pr["Goal_norm"] = pr["Goal"].map(_norm_goal)
+        allowed_train = {"success plan", "training"}
+        mask_cre_train = (
+            pr["Goal_norm"].str.lower() == "training/services".lower()
+        ) & (pr["item_rollup"].str.strip().str.lower().isin(allowed_train))
+        if mask_cre_train.any():
+            cre_train = (
+                pr.loc[mask_cre_train]
+                .groupby("Customer ID")["Profit_Since_2023"].sum().rename("CRE_Training")
+                .reset_index()
+            )
+            master = master.merge(cre_train, on="Customer ID", how="left")
+            master["CRE_Training"] = master.get("CRE_Training", 0).fillna(0.0)
+        else:
+            master["CRE_Training"] = 0.0
+    except Exception as e:
+        print(f"[WARN] Could not compute CRE_Training from rollups: {e}")
+        master["CRE_Training"] = 0.0
+
     # Compute total profit since 2023 across all Goals
     value_cols = [
         c for c in master.columns
@@ -1020,8 +1056,8 @@ def engineer_features(
         )
         df = df.merge(adoption_profit, on="Customer ID", how="left")
 
-        # CRE adoption profit from CAD/CPE goals
-        mask_cre = pr["Goal"].isin({_normalize_goal_name("CAD"), _normalize_goal_name("CPE")})
+        # CRE adoption profit from CAD and Specialty Software goals
+        mask_cre = pr["Goal"].isin({_normalize_goal_name("CAD"), _normalize_goal_name("Specialty Software")})
         cre_profit = (
             pr[mask_cre]
             .groupby("Customer ID")["Profit_Since_2023"]
@@ -1068,34 +1104,65 @@ def engineer_features(
                 df = df.drop(columns=drop_cols)
             df["relationship_profit"] = df.get("relationship_profit", 0).fillna(0.0)
 
-    # CRE relationship: Specialty Software + CAD-focused Training/Services
+    # CRE relationship: blend cross-division signals
+    # - Specialty Software GP (in-division)
+    # - Training/Services GP (subset rollups: Success Plan / Training; fuzzy match)
+    # - Hardware signals (Printers): assets + GP
+    # - CPE signals: seats + GP
     if isinstance(profit_roll, pd.DataFrame) and not profit_roll.empty:
         pr_cre = profit_roll.copy()
+        # Ensure Customer ID dtype matches master (canonical string) to avoid merge type issues
+        if 'Customer ID' in pr_cre.columns:
+            pr_cre['Customer ID'] = canonicalize_customer_id(pr_cre['Customer ID'])
         pr_cre["Goal"] = pr_cre["Goal"].map(_normalize_goal_name)
         specialty_mask = pr_cre["Goal"] == _normalize_goal_name("Specialty Software")
         training_mask = pr_cre["Goal"] == _normalize_goal_name("Training/Services")
         if "item_rollup" in pr_cre.columns:
-            cad_training_mask = pr_cre["item_rollup"].astype(str).str.contains("cad", case=False, na=False)
+            # Exact allowlist per taxonomy
+            ir = pr_cre["item_rollup"].astype(str).str.strip().str.lower()
+            allowed_train = {"success plan", "training"}
+            train_allowed_mask = ir.isin(allowed_train)
         else:
-            cad_training_mask = pd.Series(False, index=pr_cre.index)
-        include_mask = specialty_mask | (training_mask & cad_training_mask)
-        rel_cre = (
+            train_allowed_mask = pd.Series(False, index=pr_cre.index)
+        include_mask = specialty_mask | (training_mask & train_allowed_mask)
+        rel_cre_gp = (
             pr_cre[include_mask]
             .groupby("Customer ID")["Profit_Since_2023"]
             .sum()
-            .rename("cre_relationship_profit")
+            .rename("_tmp_cre_specialty_train_gp")
         )
-        if not rel_cre.empty:
-            df = df.merge(rel_cre, on="Customer ID", how="left")
+        if not rel_cre_gp.empty:
+            df = df.merge(rel_cre_gp, on="Customer ID", how="left")
 
-    if 'cre_relationship_profit_y' in df.columns:
-        if 'cre_relationship_profit' in df.columns:
-            df['cre_relationship_profit'] = df['cre_relationship_profit_y'].combine_first(df['cre_relationship_profit'])
-        else:
-            df['cre_relationship_profit'] = df['cre_relationship_profit_y']
-        drop_cols = [c for c in ['cre_relationship_profit_x','cre_relationship_profit_y'] if c in df.columns]
-        df = df.drop(columns=drop_cols)
-    df["cre_relationship_profit"] = df.get("cre_relationship_profit", 0).fillna(0.0)
+    # Build composite relationship signal using cross-division assets + GP
+    # Helpers: safe percentile rank (0..1)
+    def _pctl(series):
+        s = pd.to_numeric(series, errors="coerce")
+        if isinstance(s, (int, float)):
+            s = pd.Series(float(s), index=df.index)
+        s = s.fillna(0)
+        if len(s) == 0:
+            return s
+        return s.rank(pct=True)
+
+    def _series(name: str) -> pd.Series:
+        if name in df.columns:
+            return pd.to_numeric(df[name], errors="coerce").fillna(0)
+        return pd.Series(0.0, index=df.index, dtype=float)
+
+    # Training subset GP (sum of two stable columns)
+    t1 = _series("GP_Training/Services_Success_Plan")
+    t2 = _series("GP_Training/Services_Training")
+    rel_train = _pctl(t1 + t2)
+    # Hardware printers: printer_count + GP_Printers
+    rel_hw = 0.5 * _pctl(_series("printer_count")) + 0.5 * _pctl(_series("GP_Printers"))
+    # CPE: seats + GP
+    rel_cpe = 0.5 * _pctl(_series("Seats_CPE")) + 0.5 * _pctl(_series("GP_CPE"))
+
+    # Blend weights (emphasize cross-division signals as requested)
+    # Do not double-count Specialty Software (already in adoption); use equal blend of Training, Hardware, CPE
+    rel_combined = 0.333333 * rel_train + 0.333333 * rel_hw + 0.333334 * rel_cpe
+    df["cre_relationship_profit"] = pd.to_numeric(rel_combined, errors="coerce").fillna(0.0)
 
     # Flag for scaling
     df["scaling_flag"] = (df["printer_count"] >= 4).astype(int)
@@ -1141,7 +1208,7 @@ def engineer_features(
             qty_goal.columns = [f"Qty_{goal_label_map.get(c, c.title())}" for c in qty_goal.columns]
             qty_goal = qty_goal.reset_index()
             df = df.merge(qty_goal, on='Customer ID', how='left')
-        # Per rollup totals, always including printer subdivisions
+        # Per rollup totals (asset_count), always including printer subdivisions
         weights_cfg = (asset_weights.get('weights', {}) or {})
         keep_rollups = set()
         for g, m in weights_cfg.items():
@@ -1173,6 +1240,20 @@ def engineer_features(
             if col not in df.columns:
                 df[col] = 0
 
+        # Seats per goal and rollup for CAD and Specialty Software
+        if 'seats_sum' in a2.columns:
+            a2['item_rollup'] = a2['item_rollup'].astype(str)
+            seats_grp = (
+                a2.groupby(['Customer ID','Goal','item_rollup'])['seats_sum'].sum().reset_index()
+            )
+            if not seats_grp.empty:
+                for (g, r), sub in seats_grp.groupby(['Goal','item_rollup']):
+                    # Only expose for CAD / Specialty Software
+                    if g in {_normalize_goal_name('CAD'), _normalize_goal_name('Specialty Software')}:
+                        label = f"Seats_{goal_label_map.get(g, g.title())}_{safe_label(r)}"
+                        m = sub.set_index('Customer ID')['seats_sum']
+                        df[label] = df['Customer ID'].map(m).fillna(0)
+
     # GP per goal and per rollup from transactions
     pr_df = getattr(_base_df, "_profit_rollup_raw", pd.DataFrame())
     if isinstance(pr_df, pd.DataFrame) and not pr_df.empty:
@@ -1180,12 +1261,17 @@ def engineer_features(
         if 'Customer ID' in pr2.columns:
             pr2['Customer ID'] = canonicalize_customer_id(pr2['Customer ID'])
         pr2['Goal'] = pr2['Goal'].map(_normalize_goal_name)
+        # Restrict Training/Services to CRE-allowed rollups only
+        pr2['item_rollup'] = pr2['item_rollup'].astype(str)
+        allowed_train = {"success plan", "training"}
+        is_train = pr2['Goal'] == _normalize_goal_name('Training/Services')
+        pr2 = pr2[~is_train | pr2['item_rollup'].str.strip().str.lower().isin(allowed_train)]
+
         gp_goal = pr2.groupby(['Customer ID','Goal'])['Profit_Since_2023'].sum().unstack(fill_value=0)
         if not gp_goal.empty:
             gp_goal.columns = [f"GP_{goal_label_map.get(c, c.title())}" for c in gp_goal.columns]
             gp_goal = gp_goal.reset_index()
             df = df.merge(gp_goal, on='Customer ID', how='left')
-        pr2['item_rollup'] = pr2['item_rollup'].astype(str)
         grp = pr2.groupby(['Customer ID','Goal','item_rollup'])['Profit_Since_2023'].sum().reset_index()
         for (g, r), sub in grp.groupby(['Goal','item_rollup']):
             label = f"GP_{goal_label_map.get(g, g.title())}_{safe_label(r)}"
@@ -1389,6 +1475,13 @@ def main():
 
     division_key = CLI_OPTS.get("division", "hardware")
     division_config = get_division_config(division_key)
+    # Reload optimized weights for the selected division (size locked to 0 in v1.5)
+    global WEIGHTS
+    try:
+        os.environ["ICP_DIVISION"] = division_key
+        WEIGHTS = load_weights(division_key)
+    except Exception:
+        WEIGHTS = load_weights()
     print(f"Scoring division: {division_config.label} ({division_config.key})")
 
     print("Loading data from Azure SQL...")
@@ -1420,6 +1513,39 @@ def main():
     print("Engineering features & scores...")
     asset_weights = load_asset_weights()
     scored = engineer_features(master, asset_weights, division=division_config)
+
+    # Also compute per-division ICP scores for both Hardware and CRE, and surface as additional columns
+    try:
+        from icp.scoring import calculate_scores
+        from icp.divisions import get_division_config as _get_div_cfg
+
+        # Load per-division optimized weights (fallback to defaults inside loader)
+        weights_hw = load_weights("hardware")
+        weights_cre = load_weights("cre")
+
+        base = scored.copy()
+        # Hardware
+        cfg_hw = _get_div_cfg("hardware")
+        hw = calculate_scores(base, weights_hw, division=cfg_hw)
+        if "ICP_score" in hw.columns:
+            scored["ICP_score_hardware"] = pd.to_numeric(hw["ICP_score"], errors="coerce")
+        if "ICP_grade" in hw.columns:
+            scored["ICP_grade_hardware"] = hw["ICP_grade"].astype(str)
+        # CRE
+        cfg_cre = _get_div_cfg("cre")
+        cr = calculate_scores(base, weights_cre, division=cfg_cre)
+        if "ICP_score" in cr.columns:
+            scored["ICP_score_cre"] = pd.to_numeric(cr["ICP_score"], errors="coerce")
+        if "ICP_grade" in cr.columns:
+            scored["ICP_grade_cre"] = cr["ICP_grade"].astype(str)
+
+        # Backward compatibility: keep legacy ICP_score/ICP_grade aligned to Hardware
+        if "ICP_score_hardware" in scored.columns:
+            scored["ICP_score"] = scored["ICP_score_hardware"]
+        if "ICP_grade_hardware" in scored.columns:
+            scored["ICP_grade"] = scored["ICP_grade_hardware"]
+    except Exception as e:
+        print(f"[WARN] Could not compute per-division scores: {e}")
 
     # --- Begin: List-Builder enrichment pipeline ---
     df_accounts = scored.copy()
@@ -1459,8 +1585,13 @@ def main():
     products_hw_subdiv = (
         prod_norm.loc[hardware_mask, "sub_division"].dropna().astype(str).unique().tolist()
     )
-    as_of_raw = cfg.get("data_sources", {}).get("as_of_date") if cfg else ""
-    as_of_date = pd.to_datetime(as_of_raw) if as_of_raw else pd.to_datetime(tx["date"]).max()
+    # Environment override for historical backtesting
+    env_asof = os.environ.get("ICP_AS_OF_DATE", "").strip()
+    if env_asof:
+        as_of_date = pd.to_datetime(env_asof, errors="coerce")
+    else:
+        as_of_raw = cfg.get("data_sources", {}).get("as_of_date") if cfg else ""
+        as_of_date = pd.to_datetime(as_of_raw, errors="coerce") if as_of_raw else pd.to_datetime(tx["date"], errors="coerce").max()
     if pd.isna(as_of_date):
         as_of_date = pd.Timestamp.utcnow().normalize()
     else:
@@ -1606,6 +1737,26 @@ def main():
             f"GP_Printers_{slug}",
         ])
 
+    # Ensure Training/Services subset columns exist for schema stability
+    for r in ("Success_Plan", "Training"):
+        col = f"GP_Training/Services_{r}"
+        if col not in scored.columns:
+            scored[col] = 0.0
+
+    # Build dynamic CRE rollup columns for ordering
+    cre_rollup_cols = []
+    try:
+        # Seats and GP for CAD and Specialty Software rollups
+        for prefix in ("Seats_CAD_", "Seats_Specialty Software_", "GP_CAD_", "GP_Specialty Software_"):
+            cre_rollup_cols.extend(sorted([c for c in scored.columns if c.startswith(prefix)]))
+        # Only allowed training rollups
+        for r in ("Success_Plan", "Training"):
+            col = f"GP_Training/Services_{r}"
+            if col in scored.columns:
+                cre_rollup_cols.append(col)
+    except Exception:
+        cre_rollup_cols = []
+
     desired_order = [
         # Identity
         'Customer ID','Company Name',
@@ -1620,7 +1771,7 @@ def main():
         # Shipping address
         'ShippingAddr1','ShippingAddr2','ShippingCity','ShippingState','ShippingZip','ShippingCountry',
         # Headline score
-        'ICP_score','ICP_grade',
+        'ICP_score','ICP_grade','ICP_score_hardware','ICP_grade_hardware','ICP_score_cre','ICP_grade_cre',
         # Context
         'Industry','Industry Sub List','Industry_Reasoning',
         # Headline Hardware/Software
@@ -1633,6 +1784,9 @@ def main():
         'Qty_Printer Accessories','GP_Printer Accessories','Qty_Scanners','GP_Scanners','Qty_Geomagic','GP_Geomagic',
         # Software inputs (seats & GP)
         'Seats_CAD','GP_CAD','Seats_CPE','GP_CPE','Seats_Specialty Software','GP_Specialty Software',
+        *cre_rollup_cols,
+        # CRE aggregate signals (division-aware)
+        'cre_adoption_assets','cre_adoption_profit','cre_relationship_profit',
         # Operational metrics
         'scaling_flag', LICENSE_COL,
         'active_assets_total','seats_sum_total','Portfolio_Breadth',

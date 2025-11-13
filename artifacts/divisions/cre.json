@@ -16,8 +16,8 @@
   },
   "performance_columns": [
     "CAD",
-    "CPE",
-    "Specialty Software"
+    "Specialty Software",
+    "CRE_Training"
   ],
   "neutral_vertical_score": 0.35
 }

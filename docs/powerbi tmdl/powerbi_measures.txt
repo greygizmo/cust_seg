@@ -1,0 +1,847 @@
+createOrReplace
+
+	ref table '.Segmentation'
+
+		measure Customers = ```
+				
+				DISTINCTCOUNT ( 'icp_scored_accounts v1'[Customer ID] )
+				
+				
+				```
+			formatString: 0
+			lineageTag: 903058b3-784a-41e9-803f-a5634a64273b
+
+		measure Customers_HW =
+				
+				CALCULATE(
+				  DISTINCTCOUNT( 'icp_scored_accounts v1'[Customer ID] ),
+				  'icp_scored_accounts v1'[adoption_score] > 0
+				)
+			formatString: 0
+			lineageTag: 018b2a08-970d-41ac-b972-80fee06dd435
+
+		measure Customers_SW =
+				
+				CALCULATE(
+				    DISTINCTCOUNT( 'icp_scored_accounts v1'[Customer ID] ),
+				    'icp_scored_accounts v1'[relationship_score] > 0
+				)
+			formatString: 0
+			lineageTag: 2c02ef9a-5d1a-48e5-8a85-73d2cdade889
+
+		measure 'Pct Customers' = ```
+				
+				DIVIDE (
+				    [Customers],
+				    CALCULATE ( [Customers], ALL ( 'icp_scored_accounts v1' ) )
+				)
+				
+				```
+			formatString: 0%;-0%;0%
+			lineageTag: 87e22204-f85c-499e-8fb0-7b327e4fb1f2
+
+		measure 'Pct Revenue' =
+				
+				DIVIDE(
+				  [Revenue],
+				  CALCULATE( [Revenue], ALL( 'icp_scored_accounts v1' ) )
+				)
+			formatString: 0%;-0%;0%
+			lineageTag: 72e81a79-9181-44e5-8958-74410cafc296
+
+		measure Pct_Customers_HW =
+				
+				DIVIDE(
+				  [Customers_HW],
+				  CALCULATE(
+				    [Customers_HW],
+				    ALL( 'icp_scored_accounts v1'[ICP_grade] )
+				  )
+				)
+			formatString: 0%;-0%;0%
+			lineageTag: 695b8ac2-3416-486c-b446-1111a797152b
+
+		measure Pct_Customers_SW =
+				
+				DIVIDE(
+				    [Customers_SW],
+				    CALCULATE(
+				      [Customers_SW],
+				      ALL( 'icp_scored_accounts v1'[ICP_grade] )
+				    )
+				)
+			formatString: 0%;-0%;0%
+			lineageTag: 1f90851a-81de-4eb8-adff-5522d27795ff
+
+		measure Pct_Revenue_HW =
+				
+				DIVIDE(
+				  [Revenue_HW],
+				  CALCULATE(
+				    [Revenue_HW],
+				    ALL( 'icp_scored_accounts v1'[ICP_grade] )
+				  )
+				)
+			formatString: #,0%;-#,0%;#,0%
+			lineageTag: e17e5489-f31e-42ad-a71d-a94c3cb03f02
+
+		measure Pct_Revenue_SW =
+				
+				DIVIDE(
+				    [Revenue_SW],
+				    CALCULATE(
+				      [Revenue_SW],
+				      ALL( 'icp_scored_accounts v1'[ICP_grade] )
+				    )
+				)
+			formatString: 0%;-0%;0%
+			lineageTag: b780cc38-4d33-48f3-a6fc-27dfa9980f71
+
+		measure Revenue = ```
+				
+				SUM ( 'Customer Analysis'[Total Revenue] )
+				
+				```
+			formatString: \$#,0;(\$#,0);\$#,0
+			lineageTag: a80e42d6-aa14-44a6-8ec6-c73ea02c0657
+
+		measure 'Revenue per Customer' = ```
+				
+				DIVIDE ( [Revenue], [Customers] )
+				
+				```
+			formatString: \$#,0;(\$#,0);\$#,0
+			lineageTag: 14373369-975b-45fb-8991-4d2f6ae8b2b5
+
+		measure Revenue_HW =
+				
+				CALCULATE(
+				  SUM( 'icp_scored_accounts v1'[Total Hardware + Consumable Revenue] ),
+				  'icp_scored_accounts v1'[adoption_score] > 0
+				)
+			formatString: \$#,0;(\$#,0);\$#,0
+			lineageTag: b8f80ea4-0740-46a1-b72f-20beb5deb853
+
+		measure Revenue_per_Customer_HW =
+				
+				DIVIDE(
+				  [Revenue_HW],
+				  [Customers_HW]
+				)
+			formatString: \$#,0;(\$#,0);\$#,0
+			lineageTag: 69904183-4316-49e2-9462-77411f0ee946
+
+		measure Revenue_per_Customer_SW =
+				
+				DIVIDE(
+				    [Revenue_SW],
+				    [Customers_SW]
+				)
+			formatString: \$#,0;(\$#,0);\$#,0
+			lineageTag: 11de7e52-db09-4114-8236-163e81ed8c70
+
+		measure Revenue_SW =
+				
+				CALCULATE(
+				    SUM( 'icp_scored_accounts v1'[Total Maintenance Revenue] )
+				  + SUM( 'icp_scored_accounts v1'[Total Saas Revenue] )
+				  + SUM( 'icp_scored_accounts v1'[Total Software License Revenue] ),
+				    'icp_scored_accounts v1'[relationship_score] > 0
+				)
+			formatString: \$#,0;(\$#,0);\$#,0
+			lineageTag: 647d1a95-352b-48aa-97bf-03833b9587e0
+
+		measure 'Score Range' = ```
+				
+				VAR lo =
+				    CALCULATE (
+				        MIN ( 'icp_scored_accounts v1'[ICP_score] ),
+				        ALLEXCEPT ( 'icp_scored_accounts v1', 'icp_scored_accounts v1'[ICP_grade] )
+				    )
+				VAR hi =
+				    CALCULATE (
+				        MAX ( 'icp_scored_accounts v1'[ICP_score] ),
+				        ALLEXCEPT ( 'icp_scored_accounts v1', 'icp_scored_accounts v1'[ICP_grade] )
+				    )
+				RETURN
+				    FORMAT ( lo, "0" ) & " – " & FORMAT ( hi, "0" )
+				
+				```
+			lineageTag: bbb1cbc9-5b50-4b56-b43a-cd069430d569
+
+		measure 'Total Hardware Customers' = ```
+				
+				CALCULATE(
+				  DISTINCTCOUNT( 'icp_scored_accounts v1'[Customer ID] ),
+				  'icp_scored_accounts v1'[adoption_score] > 0
+				)
+				
+				```
+			formatString: 0
+			lineageTag: c92a5928-4ab4-4819-8163-d83133ab8f2b
+
+		measure 'Total Hardware Revenue' = ```
+				
+				CALCULATE(
+				  SUM( 'icp_scored_accounts v1'[Total Hardware + Consumable Revenue] ),
+				  'icp_scored_accounts v1'[adoption_score] > 0
+				)
+				
+				```
+			formatString: \$#,0;(\$#,0);\$#,0
+			lineageTag: 29e249b7-39cc-4265-ad01-71b69a568d2a
+
+	ref table account_neighbors
+
+		measure similarity_p75 = PERCENTILEX.INC ( ALL ( account_neighbors ), account_neighbors[sim_overall], 0.75 )
+			lineageTag: 38526812-dccc-46fe-bf01-472bd1195588
+
+	ref table 'Customer Analysis'
+
+		measure '% CAD Customers w/ High-End' = ```
+				
+				VAR Companies = VALUES ( 'Customer Analysis'[Company Name] )
+				VAR DenCAD =
+				    COUNTROWS (
+				        FILTER (
+				            Companies,
+				            CALCULATE ( SUM ( 'Customer Analysis'[Active CAD Seats] ) ) > 0
+				        )
+				    )
+				VAR NumHighEnd =
+				    COUNTROWS (
+				        FILTER (
+				            Companies,
+				            CALCULATE ( SUM ( 'Customer Analysis'[Active CAD Seats] ) ) > 0
+				                && CALCULATE ( [High-End Licenses Qty] ) > 0
+				        )
+				    )
+				RETURN
+				    DIVIDE ( NumHighEnd, DenCAD )
+				
+				
+				```
+			formatString: 0.000%;-0.000%;0.000%
+			lineageTag: 80379637-f0b2-4c3a-9cdc-390448a7ab01
+
+		measure 'CATIA Qty (parsed)' =
+				
+				SUMX (
+				    'Customer Analysis',
+				    VAR s = TRIM ( 'Customer Analysis'[CATIA] )
+				    RETURN IFERROR( VALUE( s ), 0 )
+				)
+			lineageTag: c7d92d7b-22f7-4847-98dc-96d2bacee88f
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		measure 'ENOVIA Qty (parsed)' =
+				
+				SUMX (
+				    'Customer Analysis',
+				    VAR s = TRIM ( 'Customer Analysis'[ENOVIA] )
+				    RETURN IFERROR( VALUE( s ), 0 )
+				)
+			lineageTag: 888d064f-aa3d-4a2b-903a-b6af16cd59fb
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		measure 'High-End Licenses Qty' =
+				
+				[CATIA Qty (parsed)] + [ENOVIA Qty (parsed)] + [SIMULIA Qty (parsed)]
+			lineageTag: 9a564378-84f6-4f3d-b7e0-84a23169a4c7
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		measure 'SIMULIA Qty (parsed)' =
+				
+				SUMX (
+				    'Customer Analysis',
+				    VAR s = TRIM ( 'Customer Analysis'[SIMULIA] )
+				    RETURN IFERROR( VALUE( s ), 0 )
+				)
+			lineageTag: e0cf9098-ec94-4958-96de-1db2dd0876d9
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	ref table 'icp_scored_accounts v1'
+
+		measure 'Customer Rank' = ```
+				
+				RANKX(
+				  ALLSELECTED( 'icp_scored_accounts v1' ),                 -- the table to rank over
+				  CALCULATE( MAX( 'icp_scored_accounts v1'[ICP_score] ) ), -- the scalar expression to rank
+				  ,                                                    -- no explicit value-to-compare needed
+				  DESC,                                                -- highest score = rank 1
+				  DENSE                                                -- no gaps in ranking
+				)
+				
+				
+				```
+			formatString: 0
+			lineageTag: 4185891f-429a-4c91-a584-28bfdd5e759d
+
+		measure Grade = ```
+				
+				VAR aPct = SELECTEDVALUE( 'Pct A'[Pct A], 0.1 )
+				VAR bPct = SELECTEDVALUE( 'Pct B'[Pct B], 0.2 )
+				VAR cPct = SELECTEDVALUE( 'Pct C'[Pct C], 0.4 )
+				VAR dPct = SELECTEDVALUE( 'Pct D'[Pct D], 0.2 )
+				
+				VAR aCut = ROUNDUP ( aPct * [Total Customers], 0 )
+				VAR bCut = ROUNDUP ( (aPct + bPct) * [Total Customers], 0 )
+				VAR cCut = ROUNDUP ( (aPct + bPct + cPct) * [Total Customers], 0 )
+				VAR dCut = ROUNDUP ( (aPct + bPct + cPct + dPct) * [Total Customers], 0 )
+				
+				RETURN
+				SWITCH ( TRUE(),
+				    [Customer Rank] <= aCut, "A",
+				    [Customer Rank] <= bCut, "B",
+				    [Customer Rank] <= cCut, "C",
+				    [Customer Rank] <= dCut, "D",
+				    "F"
+				)
+				
+				```
+			lineageTag: c65a737a-ec38-473d-a634-7f4a2f55c46a
+
+		measure 'Total Customers' = ```
+				
+				DISTINCTCOUNT( 'icp_scored_accounts v1'[Customer ID] )
+				
+				```
+			formatString: 0
+			lineageTag: 26048e1e-497e-42a6-bd44-39a55560e0d4
+
+	ref table 'icp_scored_accounts v1.5'
+
+		measure avg_warm_neighbor_similarity = [AvgWarmNeighborSimilarity_In]
+			lineageTag: 65c13c36-ba31-489f-82fa-27195c7b2018
+
+		measure AvgWarmNeighborSimilarity_In =
+				VAR MeID =
+				    SELECTEDVALUE ( 'Accounts Dim'[Customer ID] )
+				VAR WarmCut =
+				    PERCENTILEX.INC (
+				        ALL ( 'icp_scored_accounts v1.5' ),
+				        'icp_scored_accounts v1.5'[Software_score],
+				        0.75
+				    )
+				RETURN
+				COALESCE (
+				    AVERAGEX (
+				        FILTER (
+				            account_neighbors,
+				            account_neighbors[neighbor_account_id] = MeID
+				                && LOOKUPVALUE (
+				                       'icp_scored_accounts v1.5'[Software_score],
+				                       'icp_scored_accounts v1.5'[Customer ID], account_neighbors[account_id]
+				                   ) >= WarmCut
+				        ),
+				        account_neighbors[sim_overall]
+				    ),
+				    0
+				)
+			lineageTag: 28e4ceb3-6efd-4021-9bc0-62b0bbc878ee
+
+		measure AvgWarmNeighborSimilarity_Out =
+				VAR MeID =
+				    SELECTEDVALUE ( 'Accounts Dim'[Customer ID] )
+				VAR WarmCut =
+				    PERCENTILEX.INC (
+				        ALL ( 'icp_scored_accounts v1.5' ),
+				        'icp_scored_accounts v1.5'[Software_score],
+				        0.75
+				    )
+				RETURN
+				COALESCE (
+				    AVERAGEX (
+				        FILTER (
+				            account_neighbors,
+				            account_neighbors[account_id] = MeID
+				                && LOOKUPVALUE (
+				                       'icp_scored_accounts v1.5'[Software_score],
+				                       'icp_scored_accounts v1.5'[Customer ID], account_neighbors[neighbor_account_id]
+				                   ) >= WarmCut
+				        ),
+				        account_neighbors[sim_overall]
+				    ),
+				    0
+				)
+			lineageTag: 4f1cafc9-013a-4e50-a7d1-5133bf54685d
+
+		measure b_to_a_upgrade_score =
+				VAR closeA = [closeness_to_A_norm]
+				VAR d13    = MAX ( 'icp_scored_accounts v1.5'[delta_13w_pct_pctl] )
+				VAR yoy    = MAX ( 'icp_scored_accounts v1.5'[yoy_13w_pct_pctl] )
+				RETURN DIVIDE ( 0.50 * closeA + 0.25 * d13 + 0.25 * yoy, 1.0 )
+			lineageTag: 3c543286-4a0c-4b3c-8cdb-6815f362e30b
+
+		measure breadth_gap_index =
+				VAR breadth = MAX ( 'icp_scored_accounts v1.5'[breadth_score_hw] )
+				RETURN 1 - breadth
+			lineageTag: 59b0dd70-a4b2-455f-8f01-6675dbe1809a
+
+		measure closeness_to_A_norm =
+				VAR maxDist =
+				    MAXX (
+				        FILTER ( ALL ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[ICP_grade] = "B" ),
+				        [distance_to_A]
+				    )
+				RETURN MAX ( 0, 1 - DIVIDE ( [distance_to_A], maxDist ) )
+			lineageTag: 76e9845d-f82a-4a4e-b0c6-a3eb755d1cee
+
+		measure consumables_ratio_norm =
+				VAR x  = MAX ( 'icp_scored_accounts v1.5'[consumables_to_hw_ratio] )
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[consumables_to_hw_ratio] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[consumables_to_hw_ratio] )
+				RETURN DIVIDE ( x - mn, mx - mn )
+			lineageTag: a310602a-fa59-434a-bb27-c6ad1238374d
+
+		measure days_since_first_purchase_norm =
+				VAR x  = MAX ( 'icp_scored_accounts v1.5'[Days_Since_First_Purchase] )
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[Days_Since_First_Purchase] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[Days_Since_First_Purchase] )
+				RETURN DIVIDE ( x - mn, mx - mn )
+			lineageTag: f78728a8-fce5-4045-95df-50d9556fd972
+
+		measure distance_to_A =
+				VAR a_min =
+				    CALCULATE (
+				        MIN ( 'icp_scored_accounts v1.5'[ICP_score] ),
+				        FILTER ( ALL ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[ICP_grade] = "A" )
+				    )
+				VAR meScore = SELECTEDVALUE ( 'icp_scored_accounts v1.5'[ICP_score] )
+				RETURN a_min - meScore
+			lineageTag: 1c2f8923-8f71-489c-b17a-912100914922
+
+		measure gp_printers_norm =
+				VAR x  = MAX ( 'icp_scored_accounts v1.5'[GP_Printers] )
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[GP_Printers] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[GP_Printers] )
+				RETURN DIVIDE ( x - mn, mx - mn )
+			lineageTag: eb987576-0569-48ca-a74c-bef4e4d990d6
+
+		measure hw_headroom_index =
+				VAR headroom_adopt = 1 - MAX ( 'icp_scored_accounts v1.5'[hardware_adoption_score_pctl] )
+				VAR headroom_share = 1 - MAX ( 'icp_scored_accounts v1.5'[hw_share_12m_pctl] )
+				VAR white_sw2hw    = MAX ( 'icp_scored_accounts v1.5'[sw_to_hw_whitespace_score_pctl] )
+				VAR rec_hw_gap     = 1 - [recency_hw_norm]
+				RETURN DIVIDE (
+				    0.40 * white_sw2hw + 0.35 * headroom_adopt + 0.15 * headroom_share + 0.10 * rec_hw_gap,
+				    1.0
+				)
+			lineageTag: 6b1d1729-9849-40f9-a362-1f447203f00d
+
+		measure hw_propensity_score =
+				VAR icp        = [icp_norm]
+				VAR mom        = [momentum_norm]
+				VAR white      = MAX ( 'icp_scored_accounts v1.5'[sw_to_hw_whitespace_score_pctl] )
+				VAR swdom      = MAX ( 'icp_scored_accounts v1.5'[sw_dominance_score_pctl] )
+				VAR adopt_gap  = 1 - MAX ( 'icp_scored_accounts v1.5'[hardware_adoption_score_pctl] )
+				VAR share_gap  = 1 - MAX ( 'icp_scored_accounts v1.5'[hw_share_12m_pctl] )
+				VAR rec_hw_gap = 1 - [recency_hw_norm]
+				RETURN DIVIDE (
+				    0.35 * icp + 0.20 * mom + 0.20 * white + 0.10 * swdom + 0.10 * adopt_gap + 0.05 * share_gap + 0.05 * rec_hw_gap,
+				    1.0
+				)
+			lineageTag: adc1c640-509e-4cb0-9714-027282302db7
+
+		measure icp_norm =
+				VAR x  = MAX ( 'icp_scored_accounts v1.5'[ICP_score] )
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[ICP_score] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[ICP_score] )
+				RETURN DIVIDE ( x - mn, mx - mn )
+			lineageTag: e450e021-cd0e-499e-9d31-c3b9146e38fa
+
+		measure inbound_neighbor_count =
+				VAR me = SELECTEDVALUE ( 'icp_scored_accounts v1.5'[Customer ID] )
+				RETURN COUNTROWS ( FILTER ( account_neighbors, account_neighbors[neighbor_account_id] = me ) )
+			lineageTag: 00d4174c-6a7e-4d92-aa9c-8e9d8a9fafea
+
+		measure inbound_neighbor_count_norm =
+				VAR x  = [inbound_neighbor_count]
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), [inbound_neighbor_count] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), [inbound_neighbor_count] )
+				RETURN DIVIDE ( x - mn, mx - mn )
+			lineageTag: 5a90fb4a-b5a5-4d5d-b96a-64f93732aa4a
+
+		measure keep_b_to_a_upgrade =
+				VAR grade = SELECTEDVALUE( 'icp_scored_accounts v1.5'[ICP_grade] )
+				VAR closeA = [closeness_to_A_norm]
+				VAR d13 = MAX( 'icp_scored_accounts v1.5'[delta_13w_pct_pctl] )
+				VAR yoy = MAX( 'icp_scored_accounts v1.5'[yoy_13w_pct_pctl] )
+				RETURN IF( grade = "B" && closeA >= 0.60 && ( d13 >= 0.60 || yoy >= 0.60 ), 1, 0 )
+			lineageTag: 0046be8d-07db-49f9-be5d-dab3bb9671f3
+
+		measure keep_fdm_cross_sell =
+				VAR fdmQty = MAX( 'icp_scored_accounts v1.5'[Qty_Printers_FDM] )
+				VAR topSub = SELECTEDVALUE( 'icp_scored_accounts v1.5'[top_subdivision_12m] )
+				VAR narrow = MAX( 'icp_scored_accounts v1.5'[breadth_score_hw] ) <= 0.40
+				RETURN IF( (fdmQty > 0 || topSub = "FDM") && narrow, 1, 0 )
+			lineageTag: a1338006-52cc-4666-9d27-7185bcc9284a
+
+		measure keep_neighbor_hubs =
+				VAR grade = SELECTEDVALUE( 'icp_scored_accounts v1.5'[ICP_grade] )
+				VAR central = [inbound_neighbor_count_norm]
+				RETURN IF( (grade = "A" || grade = "B") && central >= 0.90, 1, 0 )
+			lineageTag: e8b9c804-5b0f-41f9-a195-4046ed3716c5
+
+		measure keep_quick_hits_top50 =
+				VAR r = [sales_priority_rank]
+				RETURN IF( NOT ISBLANK(r) && r <= 50, 1, 0 )
+			lineageTag: 9760945b-a6c5-4a6c-a4f3-3cb3594b83bf
+
+		measure keep_reorder_alerts =
+				VAR qty = MAX( 'icp_scored_accounts v1.5'[Qty_Printers] )
+				VAR due = [reorder_due_days]
+				RETURN IF( qty > 0 && due >= 0, 1, 0 )
+			lineageTag: 3b45313a-091e-4913-b321-60629b053b49
+
+		measure keep_replacement_upgrade =
+				VAR qty = MAX( 'icp_scored_accounts v1.5'[Qty_Printers] )
+				VAR repl = [replacement_likelihood_score]
+				RETURN IF( qty > 0 && repl >= 0.50, 1, 0 )
+			lineageTag: 8f23de00-dac0-4f2d-b3d3-9a451b43a450
+
+		measure keep_strategic_whales =
+				VAR sizeOK = MAX( 'icp_scored_accounts v1.5'[size_score] ) >= [p80_size_score]
+				VAR vertOK = MAX( 'icp_scored_accounts v1.5'[vertical_score] ) >= [p70_vertical_score]
+				VAR headOK = [hw_headroom_index] >= 0.50
+				RETURN IF( sizeOK && vertOK && headOK, 1, 0 )
+			lineageTag: 5a9ec24d-359f-479c-800b-a16e080a4377
+
+		measure keep_sw_hw_whitespace_now =
+				VAR grade = SELECTEDVALUE( 'icp_scored_accounts v1.5'[ICP_grade] )
+				VAR whitespace = MAX( 'icp_scored_accounts v1.5'[sw_to_hw_whitespace_score_pctl] )
+				VAR adopt = MAX( 'icp_scored_accounts v1.5'[hardware_adoption_score_pctl] )
+				VAR share = MAX( 'icp_scored_accounts v1.5'[hw_share_12m_pctl] )
+				VAR dueDays = [reorder_due_days]
+				RETURN
+				    IF(
+				        (grade = "A" || grade = "B")
+				        && whitespace >= 0.60
+				        && adopt <= 0.50
+				        && share <= 0.50
+				        && dueDays >= 0,
+				        1, 0
+				    )
+			formatString: 0
+			lineageTag: c2fc2613-603c-4ad4-996b-a6f9f0382ddd
+
+		measure keep_warm_lookalikes =
+				VAR grade  = SELECTEDVALUE ( 'icp_scored_accounts v1.5'[ICP_grade] )
+				VAR adopt  = MAX ( 'icp_scored_accounts v1.5'[hardware_adoption_score_pctl] )
+				VAR sim    = [AvgWarmNeighborSimilarity_In]
+				VAR simCut = CALCULATE ( [similarity_p75], ALL ( account_neighbors ) )
+				RETURN IF ( (grade = "A" || grade = "B") && adopt <= 0.50 && sim >= simCut, 1, 0 )
+			lineageTag: 988b1117-66bf-42a6-a3ce-9b3d11854880
+
+		measure keep_warm_lookalikes_out =
+				VAR SeedID   = SELECTEDVALUE ( 'Accounts Dim'[Customer ID] )
+				VAR IsRow    = NOT ISBLANK ( SELECTEDVALUE ( account_neighbors[neighbor_account_id] ) )
+				VAR Neighbor = SELECTEDVALUE ( account_neighbors[neighbor_account_id] )
+				VAR Grade    = LOOKUPVALUE ( 'icp_scored_accounts v1.5'[ICP_grade],
+				                             'icp_scored_accounts v1.5'[Customer ID], Neighbor )
+				VAR Adopt    = LOOKUPVALUE ( 'icp_scored_accounts v1.5'[hardware_adoption_score_pctl],
+				                             'icp_scored_accounts v1.5'[Customer ID], Neighbor )
+				VAR Sim      = SELECTEDVALUE ( account_neighbors[sim_overall] )
+				VAR SimCut   = CALCULATE ( [similarity_p75], ALL ( account_neighbors ) )
+				VAR WarmCut  = PERCENTILEX.INC ( ALL ( 'icp_scored_accounts v1.5' ),
+				                                 'icp_scored_accounts v1.5'[Software_score], 0.75 )
+				VAR SeedWarm = LOOKUPVALUE ( 'icp_scored_accounts v1.5'[Software_score],
+				                             'icp_scored_accounts v1.5'[Customer ID], SeedID )
+				RETURN
+				IF (
+				    IsRow
+				        && SeedWarm >= WarmCut
+				        && (Grade = "A" || Grade = "B")
+				        && Adopt <= 0.50
+				        && Sim >= SimCut,
+				    1, 0
+				)
+			lineageTag: 69878543-b905-4139-9cf1-82cd264308f2
+
+		measure keep_winbacks =
+				VAR grade    = SELECTEDVALUE( 'icp_scored_accounts v1.5'[ICP_grade] )
+				VAR spendLow = MAX( 'icp_scored_accounts v1.5'[spend_13w_pctl] ) <= 0.40
+				VAR win      = [winback_score] >= 0.60
+				RETURN IF( (grade = "A" || grade = "B") && spendLow && win, 1, 0 )
+			lineageTag: 1d0e42b8-5a1d-4812-a448-af9139a6cdea
+
+		measure momentum_norm =
+				VAR x  = MAX ( 'icp_scored_accounts v1.5'[momentum_score] )
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[momentum_score] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[momentum_score] )
+				RETURN DIVIDE ( x - mn, mx - mn )
+			lineageTag: b271d0db-6b59-41f4-a117-751205daf206
+
+		measure neighbor_hub_score =
+				VAR central  = [inbound_neighbor_count_norm]
+				VAR fit      = [icp_norm]
+				VAR headroom = [hw_headroom_index]
+				RETURN DIVIDE ( 0.50 * central + 0.25 * fit + 0.25 * headroom, 1.0 )
+			lineageTag: 3d6c0112-ef5d-4b29-ac6e-028838f43d18
+
+		measure p70_vertical_score = PERCENTILEX.INC( ALLSELECTED( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[vertical_score], 0.70 )
+			lineageTag: 3b206225-ffc5-4692-be2b-a9839789536d
+
+		measure p80_size_score = PERCENTILEX.INC( ALLSELECTED( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[size_score], 0.80 )
+			lineageTag: 8587b28d-3618-4e1b-ac92-0b88631986ac
+
+		measure qty_printers_norm =
+				VAR x  = MAX ( 'icp_scored_accounts v1.5'[Qty_Printers] )
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[Qty_Printers] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[Qty_Printers] )
+				RETURN DIVIDE ( x - mn, mx - mn )
+			lineageTag: fe0e4272-5749-410b-8835-b16ef93e04f7
+
+		measure recency_hw_norm =
+				VAR x  = MAX ( 'icp_scored_accounts v1.5'[recency_score_hw] )
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[recency_score_hw] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[recency_score_hw] )
+				RETURN DIVIDE ( x - mn, mx - mn )
+			lineageTag: e7983c76-c167-46b4-8061-0fa294f782db
+
+		measure recency_norm =
+				VAR x  = MAX ( 'icp_scored_accounts v1.5'[recency_score] )
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[recency_score] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[recency_score] )
+				RETURN DIVIDE ( x - mn, mx - mn )
+			lineageTag: 2fd562d0-e1cd-4acf-9923-edcbd10163e9
+
+		measure reorder_due_days =
+				VAR last  = MAX ( 'icp_scored_accounts v1.5'[days_since_last_hw_order] )
+				VAR medip = MAX ( 'icp_scored_accounts v1.5'[median_interpurchase_days] )
+				RETURN last - medip
+			lineageTag: 0d87496e-b3a0-4565-bd2c-916aa5056b60
+
+		measure reorder_urgency_score =
+				VAR overdue = MAX ( 0, [reorder_due_days] )
+				VAR maxOver =
+				    MAXX (
+				        ALLSELECTED ( 'icp_scored_accounts v1.5' ),
+				        MAX ( 0, 'icp_scored_accounts v1.5'[days_since_last_hw_order] - 'icp_scored_accounts v1.5'[median_interpurchase_days] )
+				    )
+				VAR qty  = [qty_printers_norm]
+				VAR cons = [consumables_ratio_norm]
+				RETURN DIVIDE ( 0.70 * DIVIDE ( overdue, maxOver ) + 0.20 * qty + 0.10 * cons, 1.0 )
+			lineageTag: 77a03e63-4bd7-4376-ad5a-316df05b6fee
+
+		measure replacement_likelihood_score =
+				VAR age       = [days_since_first_purchase_norm]
+				VAR usage     = [consumables_ratio_norm]
+				VAR gp        = [gp_printers_norm]
+				VAR rec_gap   = 1 - [recency_hw_norm]
+				RETURN DIVIDE ( 0.40 * age + 0.30 * usage + 0.20 * gp + 0.10 * rec_gap, 1.0 )
+			lineageTag: 7647d263-c906-495c-942f-2e9837ea9bc8
+
+		measure sales_priority_rank =
+				RANKX(
+				    ALLSELECTED( 'icp_scored_accounts v1.5' ),
+				    [sales_priority_score],
+				    ,
+				    DESC,
+				    DENSE
+				)
+			lineageTag: d8dc8e0c-1ab3-4351-95e0-92b5bd29a14a
+
+		measure sales_priority_score =
+				VAR icp      = [icp_norm]
+				VAR mom      = [momentum_norm]
+				VAR warm     = [warm_neighbor_similarity_norm]
+				VAR headroom = [hw_headroom_index]
+				VAR rec      = 1 - [recency_norm]
+				RETURN DIVIDE ( 0.30 * icp + 0.25 * mom + 0.20 * warm + 0.15 * headroom + 0.10 * rec, 1.0 )
+			lineageTag: 98eb8c92-0ef0-44b1-ae20-daa300480d6d
+
+		measure size_norm =
+				VAR x  = MAX ( 'icp_scored_accounts v1.5'[size_score] )
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[size_score] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[size_score] )
+				RETURN DIVIDE ( x - mn, mx - mn )
+			lineageTag: 03094ade-821f-43da-a42e-f1cb1810fe87
+
+		measure strategic_hw_oppty_score =
+				VAR size     = [size_norm]
+				VAR vert     = [vertical_norm]
+				VAR headroom = [hw_headroom_index]
+				VAR icp      = [icp_norm]
+				RETURN DIVIDE ( 0.40 * size + 0.25 * vert + 0.20 * headroom + 0.15 * icp, 1.0 )
+			lineageTag: c6e05a5b-59ee-498e-a55f-62c710a417e5
+
+		measure vertical_norm =
+				VAR x  = MAX ( 'icp_scored_accounts v1.5'[vertical_score] )
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[vertical_score] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[vertical_score] )
+				RETURN DIVIDE ( x - mn, mx - mn )
+			lineageTag: d0b69802-332b-49c8-a7c9-5ad86f9ec51c
+
+		measure warm_neighbor_count = [WarmNeighborCount_In]
+			lineageTag: a539f144-a346-4da3-aaf3-65da073b5640
+
+		measure warm_neighbor_similarity_norm =
+				VAR x  = [avg_warm_neighbor_similarity]
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), [avg_warm_neighbor_similarity] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), [avg_warm_neighbor_similarity] )
+				RETURN DIVIDE ( x - mn, mx - mn )
+			lineageTag: 8b4db87d-947e-4245-9977-2516a2e8ca98
+
+		measure WarmNeighborCount_In =
+				VAR MeID =
+				    SELECTEDVALUE ( 'Accounts Dim'[Customer ID] )
+				VAR WarmCut =
+				    PERCENTILEX.INC (
+				        ALL ( 'icp_scored_accounts v1.5' ),
+				        'icp_scored_accounts v1.5'[Software_score],
+				        0.75
+				    )
+				RETURN
+				COUNTROWS (
+				    FILTER (
+				        account_neighbors,
+				        account_neighbors[neighbor_account_id] = MeID
+				            && LOOKUPVALUE (
+				                   'icp_scored_accounts v1.5'[Software_score],
+				                   'icp_scored_accounts v1.5'[Customer ID], account_neighbors[account_id]
+				               ) >= WarmCut
+				    )
+				)
+			lineageTag: 6d54ed09-8a09-4b67-8d7a-cbffe9e5a01d
+
+		measure WarmNeighborCount_Out =
+				VAR MeID =
+				    SELECTEDVALUE ( 'Accounts Dim'[Customer ID] )
+				VAR WarmCut =
+				    PERCENTILEX.INC (
+				        ALL ( 'icp_scored_accounts v1.5' ),
+				        'icp_scored_accounts v1.5'[Software_score],
+				        0.75
+				    )
+				RETURN
+				COUNTROWS (
+				    FILTER (
+				        account_neighbors,
+				        account_neighbors[account_id] = MeID
+				            && LOOKUPVALUE (
+				                   'icp_scored_accounts v1.5'[Software_score],
+				                   'icp_scored_accounts v1.5'[Customer ID], account_neighbors[neighbor_account_id]
+				               ) >= WarmCut
+				    )
+				)
+			lineageTag: 85ff7fae-2af7-41cf-9cd9-204fbb8ba3af
+
+		measure winback_score =
+				VAR icp   = [icp_norm]
+				VAR rec   = 1 - [recency_norm]
+				VAR mom   = 1 - [momentum_norm]
+				VAR spend = 1 - MAX ( 'icp_scored_accounts v1.5'[spend_13w_pctl] )
+				RETURN DIVIDE ( 0.40 * icp + 0.30 * rec + 0.20 * mom + 0.10 * spend, 1.0 )
+			lineageTag: d0e9e805-267c-4748-a819-96598124e0c5
+
+	ref table 'NS Opportunity Matrix'
+
+		measure 'Win Rate Value' = ```
+				
+				VAR Wins =
+				    CALCULATE(
+				        COUNTROWS( 'NS Opportunity Matrix' ),
+				        'NS Opportunity Matrix'[Hardware Opportunity Status] = "Closed Won"
+				    )
+				VAR Losses =
+				    CALCULATE(
+				        COUNTROWS( 'NS Opportunity Matrix' ),
+				        'NS Opportunity Matrix'[Hardware Opportunity Status] IN {
+				            "Closed Lost / 0%"
+				        }
+				    )
+				RETURN
+				DIVIDE( Wins, Wins + Losses )
+				
+				```
+			formatString: 0%;-0%;0%
+			lineageTag: 1e7f141c-486f-4f65-9970-6d4744c964da
+
+	ref table 'Pct A'
+
+		measure 'Pct A Value' = SELECTEDVALUE('Pct A'[Pct A], 0.1)
+			lineageTag: e3c0fe83-97d0-4508-97af-068010d3705d
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	ref table 'Pct B'
+
+		measure 'Pct B Value' = SELECTEDVALUE('Pct B'[Pct B], 0.2)
+			lineageTag: abe9e2e7-9ee3-4248-a4d1-8982fbf9b4e5
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	ref table 'Pct C'
+
+		measure 'Pct C Value' = SELECTEDVALUE('Pct C'[Pct C], 0.4)
+			lineageTag: 3778d0c6-575e-4189-84b4-6ca3dcc6dd47
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	ref table 'Pct D'
+
+		measure 'Pct D Value' = SELECTEDVALUE('Pct D'[Pct D], 0.2)
+			lineageTag: 8813fbf5-871c-42f8-8b60-2fb80e3416a7
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	ref table SegmentSelector
+
+		measure Customers_Segmented = ```
+				
+				VAR sel = SELECTEDVALUE( SegmentSelector[Segment] )
+				RETURN
+				CALCULATE(
+				  DISTINCTCOUNT( 'icp_scored_accounts v1'[Customer ID] ),
+				  -- this boolean SWITCH becomes your dynamic filter
+				  SWITCH(
+				    sel,
+				    "Printer count = 0",   'icp_scored_accounts v1'[printer_count] = 0,
+				    "Printer count > 0",   'icp_scored_accounts v1'[printer_count] > 0,
+				    "SW revenue = 0",      'icp_scored_accounts v1'[relationship_score] = 0,
+				    "SW revenue > 0",      'icp_scored_accounts v1'[relationship_score] > 0,
+				    "Printer + SW > 0",    'icp_scored_accounts v1'[printer_count] > 0
+				                          && 'icp_scored_accounts v1'[relationship_score] > 0,
+				    -- fallback: no filter
+				    TRUE()
+				  )
+				)
+				
+				
+				```
+			formatString: 0
+			lineageTag: 80badc41-d4db-4b06-b9fc-e92093b69ef1
+
+		measure Revenue_Segmented = ```
+				
+				VAR sel = SELECTEDVALUE( SegmentSelector[Segment] )
+				RETURN
+				CALCULATE(
+				  SUM( 'Customer Analysis'[Total Revenue] ),
+				  SWITCH(
+				    sel,
+				    "Printer count = 0",   'icp_scored_accounts v1'[printer_count] = 0,
+				    "Printer count > 0",   'icp_scored_accounts v1'[printer_count] > 0,
+				    "SW revenue = 0",      'icp_scored_accounts v1'[relationship_score] = 0,
+				    "SW revenue > 0",      'icp_scored_accounts v1'[relationship_score] > 0,
+				    "Printer + SW > 0",    'icp_scored_accounts v1'[printer_count] > 0
+				                          && 'icp_scored_accounts v1'[relationship_score] > 0,
+				    TRUE()
+				  )
+				)
+				
+				```
+			lineageTag: 812f8d08-4e6c-40a4-a26c-85e181eb0182
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	ref table Table
+
+		measure 'Viewer Email' = USERPRINCIPALNAME()
+			lineageTag: d6234228-ed10-4976-978a-1dfa07d79c30
+

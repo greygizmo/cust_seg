@@ -177,6 +177,34 @@ def get_quarterly_profit_by_goal(engine=None) -> pd.DataFrame:
     return pd.read_sql(sql, engine, params={"since_date": SINCE_DATE})
 
 
+def get_quarterly_profit_by_rollup(engine=None) -> pd.DataFrame:
+    """
+    Quarterly Profit (GP + Term_GP) since 2023-01-01 grouped by customer, Goal, and item_rollup.
+
+    Returns: [Customer ID, Quarter, Goal, item_rollup, Profit]
+             Quarter format: YYYYQn (e.g., 2024Q3)
+    """
+    engine = engine or get_engine()
+    sql = text(
+        """
+        SELECT
+            s.CompanyId AS [Customer ID],
+            CONCAT(YEAR(s.Rec_Date),'Q', DATEPART(QUARTER, s.Rec_Date)) AS [Quarter],
+            t.Goal AS Goal,
+            icl.Item_Rollup AS item_rollup,
+            SUM(COALESCE(s.GP,0) + COALESCE(s.Term_GP,0)) AS Profit
+        FROM dbo.table_saleslog_detail s
+        INNER JOIN dbo.items_category_limited icl
+            ON s.Item_internalid = icl.internalId
+        LEFT JOIN dbo.analytics_product_tags t
+            ON icl.Item_Rollup = t.item_rollup
+        WHERE s.Rec_Date >= :since_date
+        GROUP BY s.CompanyId, CONCAT(YEAR(s.Rec_Date),'Q', DATEPART(QUARTER, s.Rec_Date)), t.Goal, icl.Item_Rollup
+        """
+    )
+    return pd.read_sql(sql, engine, params={"since_date": SINCE_DATE})
+
+
 def get_quarterly_profit_total(engine=None) -> pd.DataFrame:
     """
     Quarterly Profit (GP + Term_GP) since 2023-01-01 grouped by customer (all goals combined).

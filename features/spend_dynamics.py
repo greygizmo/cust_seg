@@ -77,6 +77,11 @@ def compute_spend_dynamics(
     for acc, g in tx.groupby("account_id"):
         g = g.sort_values("date")
 
+        # Restrict to activity on or before the analysis date
+        g = g[g["date"] <= as_of]
+        if g.empty:
+            continue
+
         # Level windows
         g_13 = window(g, s13, end)
         g_13p = window(g, s13p, s13)

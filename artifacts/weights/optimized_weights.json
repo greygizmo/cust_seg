@@ -1,12 +1,1040 @@
 {
     "weights": {
-        "vertical_score": 0.30,
-        "adoption_score": 0.40,
-        "relationship_score": 0.30,
-        "size_score": 0.0
+        "vertical_score": 0.3,
+        "adoption_score": 0.4,
+        "relationship_score": 0.3,
+        "size_score": 0.0,
+        "cre": {
+            "vertical_score": 0.2226676022801948,
+            "adoption_score": 0.48622193351522724,
+            "relationship_score": 0.29111046420457803,
+            "size_score": 0.0
+        },
+        "hardware": {
+            "vertical_score": 0.24512892518478013,
+            "adoption_score": 0.549955906868303,
+            "relationship_score": 0.20491516794691697,
+            "size_score": 0.0
+        }
     },
-    "lambda_param": 0.25,
-    "n_trials": 5000,
-    "best_objective_value": -0.5088523783739207,
-    "include_size": false
+    "division": "hardware",
+    "meta": {
+        "cre": {
+            "division": "cre",
+            "as_of_date": "2025-11-03",
+            "n_trials": 2000,
+            "lambda_param": 0.25,
+            "horizons": [
+                1,
+                2
+            ],
+            "group_col": "Industry",
+            "best_objective_value": 0.0507499370781437,
+            "spearman_mean": 0.0,
+            "kl_divergence_mean": 0.002999748312574786,
+            "stability_std_spearman_mean": 0.0,
+            "lifts": {
+                "lift@A": 0.0,
+                "lift@B": 0.0,
+                "lift@C": 0.0,
+                "lift@D": 0.0,
+                "lift@F": 0.0
+            },
+            "lift_curves": {
+                "1": {
+                    "points": [
+                        {
+                            "pop_share": 0.01,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.02,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.05,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.1,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.2,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.3,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.4,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.5,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.75,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 1.0,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        }
+                    ],
+                    "auc": 0.0
+                },
+                "2": {
+                    "points": [
+                        {
+                            "pop_share": 0.01,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.02,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.05,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.1,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.2,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.3,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.4,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.5,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.75,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 1.0,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        }
+                    ],
+                    "auc": 0.0
+                }
+            },
+            "label_counts": {
+                "1": {
+                    "rows": 32407,
+                    "nonzero": 0
+                },
+                "2": {
+                    "rows": 32407,
+                    "nonzero": 0
+                }
+            },
+            "run_timestamp_utc": "2025-11-04T13:20:34+00:00"
+        },
+        "hardware": {
+            "division": "hardware",
+            "as_of_date": "2025-06-30",
+            "n_trials": 400,
+            "lambda_param": 0.25,
+            "horizons": [
+                1,
+                2
+            ],
+            "group_col": "Industry",
+            "best_objective_value": -0.5927559383525061,
+            "spearman_mean": 0.23456072988926252,
+            "kl_divergence_mean": 0.028978824724529003,
+            "stability_std_spearman_mean": 0.06671216381791563,
+            "lifts": {
+                "lift@A": 9.548314106151743,
+                "lift@B": 0.21998189136517776,
+                "lift@C": 0.002901079628642257,
+                "lift@D": 5.889630166591782e-05,
+                "lift@F": 0.0
+            },
+            "lift_curves": {
+                "1": {
+                    "points": [
+                        {
+                            "pop_share": 0.01,
+                            "cum_y_share": 0.581008,
+                            "lift": 58.100773
+                        },
+                        {
+                            "pop_share": 0.02,
+                            "cum_y_share": 0.681506,
+                            "lift": 34.075276
+                        },
+                        {
+                            "pop_share": 0.05,
+                            "cum_y_share": 0.906979,
+                            "lift": 18.139575
+                        },
+                        {
+                            "pop_share": 0.1,
+                            "cum_y_share": 0.963109,
+                            "lift": 9.631086
+                        },
+                        {
+                            "pop_share": 0.2,
+                            "cum_y_share": 0.992828,
+                            "lift": 4.96414
+                        },
+                        {
+                            "pop_share": 0.3,
+                            "cum_y_share": 0.99911,
+                            "lift": 3.330366
+                        },
+                        {
+                            "pop_share": 0.4,
+                            "cum_y_share": 0.999941,
+                            "lift": 2.499852
+                        },
+                        {
+                            "pop_share": 0.5,
+                            "cum_y_share": 0.999941,
+                            "lift": 1.999882
+                        },
+                        {
+                            "pop_share": 0.75,
+                            "cum_y_share": 0.999994,
+                            "lift": 1.333325
+                        },
+                        {
+                            "pop_share": 1.0,
+                            "cum_y_share": 1.0,
+                            "lift": 1.0
+                        }
+                    ],
+                    "auc": 0.974224
+                },
+                "2": {
+                    "points": [
+                        {
+                            "pop_share": 0.01,
+                            "cum_y_share": 0.324059,
+                            "lift": 32.405859
+                        },
+                        {
+                            "pop_share": 0.02,
+                            "cum_y_share": 0.470811,
+                            "lift": 23.540532
+                        },
+                        {
+                            "pop_share": 0.05,
+                            "cum_y_share": 0.718222,
+                            "lift": 14.364433
+                        },
+                        {
+                            "pop_share": 0.1,
+                            "cum_y_share": 0.946554,
+                            "lift": 9.465543
+                        },
+                        {
+                            "pop_share": 0.2,
+                            "cum_y_share": 0.993579,
+                            "lift": 4.967895
+                        },
+                        {
+                            "pop_share": 0.3,
+                            "cum_y_share": 0.998546,
+                            "lift": 3.328486
+                        },
+                        {
+                            "pop_share": 0.4,
+                            "cum_y_share": 0.999773,
+                            "lift": 2.499433
+                        },
+                        {
+                            "pop_share": 0.5,
+                            "cum_y_share": 0.999985,
+                            "lift": 1.99997
+                        },
+                        {
+                            "pop_share": 0.75,
+                            "cum_y_share": 1.0,
+                            "lift": 1.333333
+                        },
+                        {
+                            "pop_share": 1.0,
+                            "cum_y_share": 1.0,
+                            "lift": 1.0
+                        }
+                    ],
+                    "auc": 0.959944
+                }
+            },
+            "label_counts": {
+                "1": {
+                    "rows": 38148,
+                    "nonzero": 1096
+                },
+                "2": {
+                    "rows": 38148,
+                    "nonzero": 668
+                }
+            },
+            "run_timestamp_utc": "2025-11-12T22:52:24+00:00"
+        }
+    },
+    "meta_history": [
+        {
+            "division": "hardware",
+            "as_of_date": "2025-06-30",
+            "n_trials": 1,
+            "lambda_param": 0.25,
+            "horizons": [
+                1,
+                2
+            ],
+            "group_col": "Industry",
+            "best_objective_value": -0.10030244107524847,
+            "spearman_mean": -0.007089924838618868,
+            "kl_divergence_mean": 0.013909097632990483,
+            "stability_std_spearman_mean": 0.08591810691260396,
+            "lifts": {
+                "lift@A": 3.2678612891618086,
+                "lift@B": 0.9842695200910779,
+                "lift@C": 0.4911420792938269,
+                "lift@D": 1.2744877921920632,
+                "lift@F": 0.2500557690966019
+            },
+            "lift_curves": {
+                "1": {
+                    "points": [
+                        {
+                            "pop_share": 0.01,
+                            "cum_y_share": 0.061949,
+                            "lift": 6.194901
+                        },
+                        {
+                            "pop_share": 0.02,
+                            "cum_y_share": 0.400357,
+                            "lift": 20.017827
+                        },
+                        {
+                            "pop_share": 0.05,
+                            "cum_y_share": 0.417004,
+                            "lift": 8.340076
+                        },
+                        {
+                            "pop_share": 0.1,
+                            "cum_y_share": 0.474929,
+                            "lift": 4.749293
+                        },
+                        {
+                            "pop_share": 0.2,
+                            "cum_y_share": 0.555029,
+                            "lift": 2.775146
+                        },
+                        {
+                            "pop_share": 0.3,
+                            "cum_y_share": 0.583726,
+                            "lift": 1.945754
+                        },
+                        {
+                            "pop_share": 0.4,
+                            "cum_y_share": 0.595132,
+                            "lift": 1.487829
+                        },
+                        {
+                            "pop_share": 0.5,
+                            "cum_y_share": 0.62587,
+                            "lift": 1.251739
+                        },
+                        {
+                            "pop_share": 0.75,
+                            "cum_y_share": 0.776199,
+                            "lift": 1.034933
+                        },
+                        {
+                            "pop_share": 1.0,
+                            "cum_y_share": 1.0,
+                            "lift": 1.0
+                        }
+                    ],
+                    "auc": 0.662582
+                },
+                "2": {
+                    "points": [
+                        {
+                            "pop_share": 0.01,
+                            "cum_y_share": 0.023115,
+                            "lift": 2.311536
+                        },
+                        {
+                            "pop_share": 0.02,
+                            "cum_y_share": 0.03432,
+                            "lift": 1.716008
+                        },
+                        {
+                            "pop_share": 0.05,
+                            "cum_y_share": 0.094742,
+                            "lift": 1.894833
+                        },
+                        {
+                            "pop_share": 0.1,
+                            "cum_y_share": 0.178643,
+                            "lift": 1.78643
+                        },
+                        {
+                            "pop_share": 0.2,
+                            "cum_y_share": 0.423624,
+                            "lift": 2.118118
+                        },
+                        {
+                            "pop_share": 0.3,
+                            "cum_y_share": 0.463554,
+                            "lift": 1.545179
+                        },
+                        {
+                            "pop_share": 0.4,
+                            "cum_y_share": 0.47278,
+                            "lift": 1.18195
+                        },
+                        {
+                            "pop_share": 0.5,
+                            "cum_y_share": 0.478445,
+                            "lift": 0.956891
+                        },
+                        {
+                            "pop_share": 0.75,
+                            "cum_y_share": 0.724798,
+                            "lift": 0.966397
+                        },
+                        {
+                            "pop_share": 1.0,
+                            "cum_y_share": 1.0,
+                            "lift": 1.0
+                        }
+                    ],
+                    "auc": 0.543913
+                }
+            },
+            "label_counts": {
+                "1": {
+                    "rows": 32357,
+                    "nonzero": 1098
+                },
+                "2": {
+                    "rows": 32357,
+                    "nonzero": 555
+                }
+            },
+            "run_timestamp_utc": "2025-10-31T23:07:11+00:00"
+        },
+        {
+            "division": "cre",
+            "as_of_date": "2025-11-03",
+            "n_trials": 2000,
+            "lambda_param": 0.25,
+            "horizons": [
+                1,
+                2
+            ],
+            "group_col": "Industry",
+            "best_objective_value": 0.0507499370781437,
+            "spearman_mean": 0.0,
+            "kl_divergence_mean": 0.002999748312574786,
+            "stability_std_spearman_mean": 0.0,
+            "lifts": {
+                "lift@A": 0.0,
+                "lift@B": 0.0,
+                "lift@C": 0.0,
+                "lift@D": 0.0,
+                "lift@F": 0.0
+            },
+            "lift_curves": {
+                "1": {
+                    "points": [
+                        {
+                            "pop_share": 0.01,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.02,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.05,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.1,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.2,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.3,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.4,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.5,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.75,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 1.0,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        }
+                    ],
+                    "auc": 0.0
+                },
+                "2": {
+                    "points": [
+                        {
+                            "pop_share": 0.01,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.02,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.05,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.1,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.2,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.3,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.4,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.5,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.75,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 1.0,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        }
+                    ],
+                    "auc": 0.0
+                }
+            },
+            "label_counts": {
+                "1": {
+                    "rows": 32407,
+                    "nonzero": 0
+                },
+                "2": {
+                    "rows": 32407,
+                    "nonzero": 0
+                }
+            },
+            "run_timestamp_utc": "2025-11-04T13:20:34+00:00"
+        },
+        {
+            "division": "hardware",
+            "as_of_date": "2025-10-31",
+            "n_trials": 200,
+            "lambda_param": 0.25,
+            "horizons": [
+                1,
+                2
+            ],
+            "group_col": "Industry",
+            "best_objective_value": 0.053133868683986736,
+            "spearman_mean": 0.0,
+            "kl_divergence_mean": 0.012535474735946937,
+            "stability_std_spearman_mean": 0.0,
+            "lifts": {
+                "lift@A": 0.0,
+                "lift@B": 0.0,
+                "lift@C": 0.0,
+                "lift@D": 0.0,
+                "lift@F": 0.0
+            },
+            "lift_curves": {
+                "1": {
+                    "points": [
+                        {
+                            "pop_share": 0.01,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.02,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.05,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.1,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.2,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.3,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.4,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.5,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.75,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 1.0,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        }
+                    ],
+                    "auc": 0.0
+                },
+                "2": {
+                    "points": [
+                        {
+                            "pop_share": 0.01,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.02,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.05,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.1,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.2,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.3,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.4,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.5,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.75,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 1.0,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        }
+                    ],
+                    "auc": 0.0
+                }
+            },
+            "label_counts": {
+                "1": {
+                    "rows": 32378,
+                    "nonzero": 0
+                },
+                "2": {
+                    "rows": 32378,
+                    "nonzero": 0
+                }
+            },
+            "run_timestamp_utc": "2025-11-12T22:14:28+00:00"
+        },
+        {
+            "division": "hardware",
+            "as_of_date": "2025-10-31",
+            "n_trials": 150,
+            "lambda_param": 0.25,
+            "horizons": [
+                0,
+                1
+            ],
+            "group_col": "Industry",
+            "best_objective_value": -0.005242652042323451,
+            "spearman_mean": -0.009467571407770154,
+            "kl_divergence_mean": 0.013770149364661973,
+            "stability_std_spearman_mean": 0.04353160402744994,
+            "lifts": {
+                "lift@A": 1.3592489628137812,
+                "lift@B": 0.3854453178474996,
+                "lift@C": 0.2942783075415742,
+                "lift@D": 0.5435516999809357,
+                "lift@F": 0.6056437713630523
+            },
+            "lift_curves": {
+                "0": {
+                    "points": [
+                        {
+                            "pop_share": 0.01,
+                            "cum_y_share": 0.015517,
+                            "lift": 1.551662
+                        },
+                        {
+                            "pop_share": 0.02,
+                            "cum_y_share": 0.024763,
+                            "lift": 1.238168
+                        },
+                        {
+                            "pop_share": 0.05,
+                            "cum_y_share": 0.074259,
+                            "lift": 1.48517
+                        },
+                        {
+                            "pop_share": 0.1,
+                            "cum_y_share": 0.27185,
+                            "lift": 2.718498
+                        },
+                        {
+                            "pop_share": 0.2,
+                            "cum_y_share": 0.349843,
+                            "lift": 1.749215
+                        },
+                        {
+                            "pop_share": 0.3,
+                            "cum_y_share": 0.426028,
+                            "lift": 1.420093
+                        },
+                        {
+                            "pop_share": 0.4,
+                            "cum_y_share": 0.45679,
+                            "lift": 1.141974
+                        },
+                        {
+                            "pop_share": 0.5,
+                            "cum_y_share": 0.617803,
+                            "lift": 1.235605
+                        },
+                        {
+                            "pop_share": 0.75,
+                            "cum_y_share": 0.661876,
+                            "lift": 0.882501
+                        },
+                        {
+                            "pop_share": 1.0,
+                            "cum_y_share": 1.0,
+                            "lift": 1.0
+                        }
+                    ],
+                    "auc": 0.545783
+                },
+                "1": {
+                    "points": [
+                        {
+                            "pop_share": 0.01,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.02,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.05,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.1,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.2,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.3,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.4,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.5,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 0.75,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        },
+                        {
+                            "pop_share": 1.0,
+                            "cum_y_share": 0.0,
+                            "lift": 0.0
+                        }
+                    ],
+                    "auc": 0.0
+                }
+            },
+            "label_counts": {
+                "0": {
+                    "rows": 32378,
+                    "nonzero": 835
+                },
+                "1": {
+                    "rows": 32378,
+                    "nonzero": 0
+                }
+            },
+            "run_timestamp_utc": "2025-11-12T22:17:30+00:00"
+        },
+        {
+            "division": "hardware",
+            "as_of_date": "2025-06-30",
+            "n_trials": 400,
+            "lambda_param": 0.25,
+            "horizons": [
+                1,
+                2
+            ],
+            "group_col": "Industry",
+            "best_objective_value": -0.5927559383525061,
+            "spearman_mean": 0.23456072988926252,
+            "kl_divergence_mean": 0.028978824724529003,
+            "stability_std_spearman_mean": 0.06671216381791563,
+            "lifts": {
+                "lift@A": 9.548314106151743,
+                "lift@B": 0.21998189136517776,
+                "lift@C": 0.002901079628642257,
+                "lift@D": 5.889630166591782e-05,
+                "lift@F": 0.0
+            },
+            "lift_curves": {
+                "1": {
+                    "points": [
+                        {
+                            "pop_share": 0.01,
+                            "cum_y_share": 0.581008,
+                            "lift": 58.100773
+                        },
+                        {
+                            "pop_share": 0.02,
+                            "cum_y_share": 0.681506,
+                            "lift": 34.075276
+                        },
+                        {
+                            "pop_share": 0.05,
+                            "cum_y_share": 0.906979,
+                            "lift": 18.139575
+                        },
+                        {
+                            "pop_share": 0.1,
+                            "cum_y_share": 0.963109,
+                            "lift": 9.631086
+                        },
+                        {
+                            "pop_share": 0.2,
+                            "cum_y_share": 0.992828,
+                            "lift": 4.96414
+                        },
+                        {
+                            "pop_share": 0.3,
+                            "cum_y_share": 0.99911,
+                            "lift": 3.330366
+                        },
+                        {
+                            "pop_share": 0.4,
+                            "cum_y_share": 0.999941,
+                            "lift": 2.499852
+                        },
+                        {
+                            "pop_share": 0.5,
+                            "cum_y_share": 0.999941,
+                            "lift": 1.999882
+                        },
+                        {
+                            "pop_share": 0.75,
+                            "cum_y_share": 0.999994,
+                            "lift": 1.333325
+                        },
+                        {
+                            "pop_share": 1.0,
+                            "cum_y_share": 1.0,
+                            "lift": 1.0
+                        }
+                    ],
+                    "auc": 0.974224
+                },
+                "2": {
+                    "points": [
+                        {
+                            "pop_share": 0.01,
+                            "cum_y_share": 0.324059,
+                            "lift": 32.405859
+                        },
+                        {
+                            "pop_share": 0.02,
+                            "cum_y_share": 0.470811,
+                            "lift": 23.540532
+                        },
+                        {
+                            "pop_share": 0.05,
+                            "cum_y_share": 0.718222,
+                            "lift": 14.364433
+                        },
+                        {
+                            "pop_share": 0.1,
+                            "cum_y_share": 0.946554,
+                            "lift": 9.465543
+                        },
+                        {
+                            "pop_share": 0.2,
+                            "cum_y_share": 0.993579,
+                            "lift": 4.967895
+                        },
+                        {
+                            "pop_share": 0.3,
+                            "cum_y_share": 0.998546,
+                            "lift": 3.328486
+                        },
+                        {
+                            "pop_share": 0.4,
+                            "cum_y_share": 0.999773,
+                            "lift": 2.499433
+                        },
+                        {
+                            "pop_share": 0.5,
+                            "cum_y_share": 0.999985,
+                            "lift": 1.99997
+                        },
+                        {
+                            "pop_share": 0.75,
+                            "cum_y_share": 1.0,
+                            "lift": 1.333333
+                        },
+                        {
+                            "pop_share": 1.0,
+                            "cum_y_share": 1.0,
+                            "lift": 1.0
+                        }
+                    ],
+                    "auc": 0.959944
+                }
+            },
+            "label_counts": {
+                "1": {
+                    "rows": 38148,
+                    "nonzero": 1096
+                },
+                "2": {
+                    "rows": 38148,
+                    "nonzero": 668
+                }
+            },
+            "run_timestamp_utc": "2025-11-12T22:52:24+00:00"
+        }
+    ]
 }

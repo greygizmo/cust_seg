@@ -92,9 +92,10 @@ _BASE_CONFIGS: Dict[str, DivisionConfig] = {
         adoption=AdoptionConfig(
             asset_column="cre_adoption_assets",
             profit_column="cre_adoption_profit",
-            asset_goals=("CAD", "CPE"),
-            profit_goals=("CAD", "CPE"),
-            fallback_revenue_columns=("CAD", "CPE"),
+            # CRE adoption considers CAD and Specialty Software divisions
+            asset_goals=("CAD", "Specialty Software"),
+            profit_goals=("CAD", "Specialty Software"),
+            fallback_revenue_columns=("CAD", "Specialty Software"),
         ),
         relationship=RelationshipConfig(
             profit_column="cre_relationship_profit",
@@ -105,7 +106,9 @@ _BASE_CONFIGS: Dict[str, DivisionConfig] = {
                 "Total Maintenance Revenue",
             ),
         ),
-        performance_columns=("CAD", "CPE", "Specialty Software"),
+        # CRE industry performance considers CAD, Specialty Software, and
+        # Training/Services restricted to CRE-specific rollups (set upstream as CRE_Training)
+        performance_columns=("CAD", "Specialty Software", "CRE_Training"),
         neutral_vertical_score=0.35,
     ),
 }

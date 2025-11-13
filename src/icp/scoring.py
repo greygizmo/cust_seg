@@ -156,48 +156,7 @@ def _compute_adoption_scores(df: pd.DataFrame, config: DivisionConfig) -> pd.Ser
 
         return pd.Series(adoption_scores, index=index)
 
-    # Fallback to legacy printer/revenue logic when configured.
-    printer_cols = config.adoption.fallback_printer_columns
-    revenue_cols = config.adoption.fallback_revenue_columns
-    if printer_cols or revenue_cols:
-        if printer_cols:
-            big_col = printer_cols[0] if len(printer_cols) > 0 else None
-            small_col = printer_cols[1] if len(printer_cols) > 1 else None
-        else:
-            big_col = small_col = None
-
-        big_box_safe = np.maximum(
-            pd.to_numeric(df.get(big_col, 0), errors="coerce").fillna(0) if big_col else 0,
-            0,
-        )
-        small_box_safe = np.maximum(
-            pd.to_numeric(df.get(small_col, 0), errors="coerce").fillna(0) if small_col else 0,
-            0,
-        )
-        weighted_printer_score = 2.0 * big_box_safe + 1.0 * small_box_safe
-
-        revenue_series = _sum_columns(df, revenue_cols) if revenue_cols else pd.Series(0.0, index=index)
-        revenue_series = np.maximum(revenue_series, 0)
-
-        P = _percentile_scale(weighted_printer_score)
-        R = _percentile_scale(revenue_series)
-
-        adoption_scores = np.zeros(len(df), dtype=float)
-        zero_printer_mask = weighted_printer_score == 0
-        zero_revenue_mask = revenue_series == 0
-
-        revenue_only_mask = zero_printer_mask & ~zero_revenue_mask
-        adoption_scores[revenue_only_mask] = 0.5 * np.sqrt(R[revenue_only_mask])
-
-        with_printers_mask = ~zero_printer_mask
-        if with_printers_mask.any():
-            base_score = 0.6 * P + 0.4 * R
-            adoption_scores[with_printers_mask] = base_score[with_printers_mask]
-            heavy_fleet_mask = weighted_printer_score >= 10
-            adoption_scores[heavy_fleet_mask] = np.clip(adoption_scores[heavy_fleet_mask] + 0.05, 0, 1)
-
-        return pd.Series(adoption_scores, index=index)
-
+    # No legacy fallbacks: if neither assets nor profit are available, treat adoption as 0.0
     return pd.Series(0.0, index=index, dtype=float)
 
 
