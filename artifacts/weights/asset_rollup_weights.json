@@ -1,0 +1,33 @@
+{
+  "focus_goals": [
+    "Printer",
+    "Printer Accessorials",
+    "Scanners",
+    "Geomagic",
+    "Training/Services"
+  ],
+  "weights": {
+    "Printer": {
+      "default": 1.0
+    },
+    "Printer Accessorials": {
+      "AM Software": 1.0,
+      "AM Support": 1.0,
+      "Consumables": 1.0,
+      "Spare Parts/Repair Parts/Time & Materials": 1.0
+    },
+    "Scanners": {
+      "Artec": 1.0,
+      "Creaform": 1.0
+    },
+    "Geomagic": {
+      "GeoMagic": 1.0
+    },
+    "Training/Services": {
+      "3DP Training": 1.0,
+      "Service": 1.0,
+      "Success Plan": 1.0,
+      "Training": 1.0
+    }
+  }
+}

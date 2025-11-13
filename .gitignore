@@ -35,6 +35,14 @@ env/
 ENV/
 env.bak/
 venv.bak/
+.venv/
+
+# Archives & local backups
+archive/
+
+# Data staging areas (raw/interim often large/private)
+data/raw/
+data/interim/
 
 # IDE
 .vscode/

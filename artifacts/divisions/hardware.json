@@ -1,0 +1,16 @@
+{
+  "component_weights": {
+    "vertical": 0.3,
+    "size": 0.0,
+    "adoption": 0.5,
+    "relationship": 0.2
+  },
+  "performance_columns": [
+    "Printers",
+    "Printer Accessorials",
+    "Scanners",
+    "Geomagic",
+    "Training/Services"
+  ],
+  "neutral_vertical_score": 0.3
+}

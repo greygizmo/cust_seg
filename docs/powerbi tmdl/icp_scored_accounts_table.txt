@@ -1,0 +1,2039 @@
+createOrReplace
+
+	table 'icp_scored_accounts v1.5'
+		lineageTag: 31a803aa-038e-4f5b-a068-d426924d0c0c
+
+		measure icp_norm =
+				VAR x  = MAX ( 'icp_scored_accounts v1.5'[ICP_score] )
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[ICP_score] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[ICP_score] )
+				RETURN DIVIDE ( x - mn, mx - mn )
+			lineageTag: e450e021-cd0e-499e-9d31-c3b9146e38fa
+
+		measure momentum_norm =
+				VAR x  = MAX ( 'icp_scored_accounts v1.5'[momentum_score] )
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[momentum_score] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[momentum_score] )
+				RETURN DIVIDE ( x - mn, mx - mn )
+			lineageTag: b271d0db-6b59-41f4-a117-751205daf206
+
+		measure recency_norm =
+				VAR x  = MAX ( 'icp_scored_accounts v1.5'[recency_score] )
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[recency_score] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[recency_score] )
+				RETURN DIVIDE ( x - mn, mx - mn )
+			lineageTag: 2fd562d0-e1cd-4acf-9923-edcbd10163e9
+
+		measure recency_hw_norm =
+				VAR x  = MAX ( 'icp_scored_accounts v1.5'[recency_score_hw] )
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[recency_score_hw] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[recency_score_hw] )
+				RETURN DIVIDE ( x - mn, mx - mn )
+			lineageTag: e7983c76-c167-46b4-8061-0fa294f782db
+
+		measure size_norm =
+				VAR x  = MAX ( 'icp_scored_accounts v1.5'[size_score] )
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[size_score] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[size_score] )
+				RETURN DIVIDE ( x - mn, mx - mn )
+			lineageTag: 03094ade-821f-43da-a42e-f1cb1810fe87
+
+		measure vertical_norm =
+				VAR x  = MAX ( 'icp_scored_accounts v1.5'[vertical_score] )
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[vertical_score] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[vertical_score] )
+				RETURN DIVIDE ( x - mn, mx - mn )
+			lineageTag: d0b69802-332b-49c8-a7c9-5ad86f9ec51c
+
+		measure qty_printers_norm =
+				VAR x  = MAX ( 'icp_scored_accounts v1.5'[Qty_Printers] )
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[Qty_Printers] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[Qty_Printers] )
+				RETURN DIVIDE ( x - mn, mx - mn )
+			lineageTag: fe0e4272-5749-410b-8835-b16ef93e04f7
+
+		measure gp_printers_norm =
+				VAR x  = MAX ( 'icp_scored_accounts v1.5'[GP_Printers] )
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[GP_Printers] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[GP_Printers] )
+				RETURN DIVIDE ( x - mn, mx - mn )
+			lineageTag: eb987576-0569-48ca-a74c-bef4e4d990d6
+
+		measure consumables_ratio_norm =
+				VAR x  = MAX ( 'icp_scored_accounts v1.5'[consumables_to_hw_ratio] )
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[consumables_to_hw_ratio] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[consumables_to_hw_ratio] )
+				RETURN DIVIDE ( x - mn, mx - mn )
+			lineageTag: a310602a-fa59-434a-bb27-c6ad1238374d
+
+		measure days_since_first_purchase_norm =
+				VAR x  = MAX ( 'icp_scored_accounts v1.5'[Days_Since_First_Purchase] )
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[Days_Since_First_Purchase] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[Days_Since_First_Purchase] )
+				RETURN DIVIDE ( x - mn, mx - mn )
+			lineageTag: f78728a8-fce5-4045-95df-50d9556fd972
+
+		measure inbound_neighbor_count =
+				VAR me = SELECTEDVALUE ( 'icp_scored_accounts v1.5'[Customer ID] )
+				RETURN COUNTROWS ( FILTER ( account_neighbors, account_neighbors[neighbor_account_id] = me ) )
+			lineageTag: 00d4174c-6a7e-4d92-aa9c-8e9d8a9fafea
+
+		measure inbound_neighbor_count_norm =
+				VAR x  = [inbound_neighbor_count]
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), [inbound_neighbor_count] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), [inbound_neighbor_count] )
+				RETURN DIVIDE ( x - mn, mx - mn )
+			lineageTag: 5a90fb4a-b5a5-4d5d-b96a-64f93732aa4a
+
+		measure warm_neighbor_count = [WarmNeighborCount_In]
+			lineageTag: a539f144-a346-4da3-aaf3-65da073b5640
+
+		measure avg_warm_neighbor_similarity = [AvgWarmNeighborSimilarity_In]
+			lineageTag: 65c13c36-ba31-489f-82fa-27195c7b2018
+
+		measure warm_neighbor_similarity_norm =
+				VAR x  = [avg_warm_neighbor_similarity]
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), [avg_warm_neighbor_similarity] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), [avg_warm_neighbor_similarity] )
+				RETURN DIVIDE ( x - mn, mx - mn )
+			lineageTag: 8b4db87d-947e-4245-9977-2516a2e8ca98
+
+		measure distance_to_A =
+				VAR a_min =
+				    CALCULATE (
+				        MIN ( 'icp_scored_accounts v1.5'[ICP_score] ),
+				        FILTER ( ALL ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[ICP_grade] = "A" )
+				    )
+				VAR meScore = SELECTEDVALUE ( 'icp_scored_accounts v1.5'[ICP_score] )
+				RETURN a_min - meScore
+			lineageTag: 1c2f8923-8f71-489c-b17a-912100914922
+
+		measure closeness_to_A_norm =
+				VAR maxDist =
+				    MAXX (
+				        FILTER ( ALL ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[ICP_grade] = "B" ),
+				        [distance_to_A]
+				    )
+				RETURN MAX ( 0, 1 - DIVIDE ( [distance_to_A], maxDist ) )
+			lineageTag: 76e9845d-f82a-4a4e-b0c6-a3eb755d1cee
+
+		measure hw_headroom_index =
+				VAR headroom_adopt = 1 - MAX ( 'icp_scored_accounts v1.5'[hardware_adoption_score_pctl] )
+				VAR headroom_share = 1 - MAX ( 'icp_scored_accounts v1.5'[hw_share_12m_pctl] )
+				VAR white_sw2hw    = MAX ( 'icp_scored_accounts v1.5'[sw_to_hw_whitespace_score_pctl] )
+				VAR rec_hw_gap     = 1 - [recency_hw_norm]
+				RETURN DIVIDE (
+				    0.40 * white_sw2hw + 0.35 * headroom_adopt + 0.15 * headroom_share + 0.10 * rec_hw_gap,
+				    1.0
+				)
+			lineageTag: 6b1d1729-9849-40f9-a362-1f447203f00d
+
+		measure hw_propensity_score =
+				VAR icp        = [icp_norm]
+				VAR mom        = [momentum_norm]
+				VAR white      = MAX ( 'icp_scored_accounts v1.5'[sw_to_hw_whitespace_score_pctl] )
+				VAR swdom      = MAX ( 'icp_scored_accounts v1.5'[sw_dominance_score_pctl] )
+				VAR adopt_gap  = 1 - MAX ( 'icp_scored_accounts v1.5'[hardware_adoption_score_pctl] )
+				VAR share_gap  = 1 - MAX ( 'icp_scored_accounts v1.5'[hw_share_12m_pctl] )
+				VAR rec_hw_gap = 1 - [recency_hw_norm]
+				RETURN DIVIDE (
+				    0.35 * icp + 0.20 * mom + 0.20 * white + 0.10 * swdom + 0.10 * adopt_gap + 0.05 * share_gap + 0.05 * rec_hw_gap,
+				    1.0
+				)
+			lineageTag: adc1c640-509e-4cb0-9714-027282302db7
+
+		measure b_to_a_upgrade_score =
+				VAR closeA = [closeness_to_A_norm]
+				VAR d13    = MAX ( 'icp_scored_accounts v1.5'[delta_13w_pct_pctl] )
+				VAR yoy    = MAX ( 'icp_scored_accounts v1.5'[yoy_13w_pct_pctl] )
+				RETURN DIVIDE ( 0.50 * closeA + 0.25 * d13 + 0.25 * yoy, 1.0 )
+			lineageTag: 3c543286-4a0c-4b3c-8cdb-6815f362e30b
+
+		measure reorder_due_days =
+				VAR last  = MAX ( 'icp_scored_accounts v1.5'[days_since_last_hw_order] )
+				VAR medip = MAX ( 'icp_scored_accounts v1.5'[median_interpurchase_days] )
+				RETURN last - medip
+			lineageTag: 0d87496e-b3a0-4565-bd2c-916aa5056b60
+
+		measure reorder_urgency_score =
+				VAR overdue = MAX ( 0, [reorder_due_days] )
+				VAR maxOver =
+				    MAXX (
+				        ALLSELECTED ( 'icp_scored_accounts v1.5' ),
+				        MAX ( 0, 'icp_scored_accounts v1.5'[days_since_last_hw_order] - 'icp_scored_accounts v1.5'[median_interpurchase_days] )
+				    )
+				VAR qty  = [qty_printers_norm]
+				VAR cons = [consumables_ratio_norm]
+				RETURN DIVIDE ( 0.70 * DIVIDE ( overdue, maxOver ) + 0.20 * qty + 0.10 * cons, 1.0 )
+			lineageTag: 77a03e63-4bd7-4376-ad5a-316df05b6fee
+
+		measure replacement_likelihood_score =
+				VAR age       = [days_since_first_purchase_norm]
+				VAR usage     = [consumables_ratio_norm]
+				VAR gp        = [gp_printers_norm]
+				VAR rec_gap   = 1 - [recency_hw_norm]
+				RETURN DIVIDE ( 0.40 * age + 0.30 * usage + 0.20 * gp + 0.10 * rec_gap, 1.0 )
+			lineageTag: 7647d263-c906-495c-942f-2e9837ea9bc8
+
+		measure strategic_hw_oppty_score =
+				VAR size     = [size_norm]
+				VAR vert     = [vertical_norm]
+				VAR headroom = [hw_headroom_index]
+				VAR icp      = [icp_norm]
+				RETURN DIVIDE ( 0.40 * size + 0.25 * vert + 0.20 * headroom + 0.15 * icp, 1.0 )
+			lineageTag: c6e05a5b-59ee-498e-a55f-62c710a417e5
+
+		measure neighbor_hub_score =
+				VAR central  = [inbound_neighbor_count_norm]
+				VAR fit      = [icp_norm]
+				VAR headroom = [hw_headroom_index]
+				RETURN DIVIDE ( 0.50 * central + 0.25 * fit + 0.25 * headroom, 1.0 )
+			lineageTag: 3d6c0112-ef5d-4b29-ac6e-028838f43d18
+
+		measure breadth_gap_index =
+				VAR breadth = MAX ( 'icp_scored_accounts v1.5'[breadth_score_hw] )
+				RETURN 1 - breadth
+			lineageTag: 59b0dd70-a4b2-455f-8f01-6675dbe1809a
+
+		measure winback_score =
+				VAR icp   = [icp_norm]
+				VAR rec   = 1 - [recency_norm]
+				VAR mom   = 1 - [momentum_norm]
+				VAR spend = 1 - MAX ( 'icp_scored_accounts v1.5'[spend_13w_pctl] )
+				RETURN DIVIDE ( 0.40 * icp + 0.30 * rec + 0.20 * mom + 0.10 * spend, 1.0 )
+			lineageTag: d0e9e805-267c-4748-a819-96598124e0c5
+
+		measure sales_priority_score =
+				VAR icp      = [icp_norm]
+				VAR mom      = [momentum_norm]
+				VAR warm     = [warm_neighbor_similarity_norm]
+				VAR headroom = [hw_headroom_index]
+				VAR rec      = 1 - [recency_norm]
+				RETURN DIVIDE ( 0.30 * icp + 0.25 * mom + 0.20 * warm + 0.15 * headroom + 0.10 * rec, 1.0 )
+			lineageTag: 98eb8c92-0ef0-44b1-ae20-daa300480d6d
+
+		measure p80_size_score = PERCENTILEX.INC( ALLSELECTED( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[size_score], 0.80 )
+			lineageTag: 8587b28d-3618-4e1b-ac92-0b88631986ac
+
+		measure p70_vertical_score = PERCENTILEX.INC( ALLSELECTED( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[vertical_score], 0.70 )
+			lineageTag: 3b206225-ffc5-4692-be2b-a9839789536d
+
+		measure sales_priority_rank =
+				RANKX(
+				    ALLSELECTED( 'icp_scored_accounts v1.5' ),
+				    [sales_priority_score],
+				    ,
+				    DESC,
+				    DENSE
+				)
+			lineageTag: d8dc8e0c-1ab3-4351-95e0-92b5bd29a14a
+
+		measure keep_sw_hw_whitespace_now =
+				VAR grade = SELECTEDVALUE( 'icp_scored_accounts v1.5'[ICP_grade] )
+				VAR whitespace = MAX( 'icp_scored_accounts v1.5'[sw_to_hw_whitespace_score_pctl] )
+				VAR adopt = MAX( 'icp_scored_accounts v1.5'[hardware_adoption_score_pctl] )
+				VAR share = MAX( 'icp_scored_accounts v1.5'[hw_share_12m_pctl] )
+				VAR dueDays = [reorder_due_days]
+				RETURN
+				    IF(
+				        (grade = "A" || grade = "B")
+				        && whitespace >= 0.60
+				        && adopt <= 0.50
+				        && share <= 0.50
+				        && dueDays >= 0,
+				        1, 0
+				    )
+			formatString: 0
+			lineageTag: c2fc2613-603c-4ad4-996b-a6f9f0382ddd
+
+		measure keep_b_to_a_upgrade =
+				VAR grade = SELECTEDVALUE( 'icp_scored_accounts v1.5'[ICP_grade] )
+				VAR closeA = [closeness_to_A_norm]
+				VAR d13 = MAX( 'icp_scored_accounts v1.5'[delta_13w_pct_pctl] )
+				VAR yoy = MAX( 'icp_scored_accounts v1.5'[yoy_13w_pct_pctl] )
+				RETURN IF( grade = "B" && closeA >= 0.60 && ( d13 >= 0.60 || yoy >= 0.60 ), 1, 0 )
+			lineageTag: 0046be8d-07db-49f9-be5d-dab3bb9671f3
+
+		measure keep_reorder_alerts =
+				VAR qty = MAX( 'icp_scored_accounts v1.5'[Qty_Printers] )
+				VAR due = [reorder_due_days]
+				RETURN IF( qty > 0 && due >= 0, 1, 0 )
+			lineageTag: 3b45313a-091e-4913-b321-60629b053b49
+
+		measure keep_replacement_upgrade =
+				VAR qty = MAX( 'icp_scored_accounts v1.5'[Qty_Printers] )
+				VAR repl = [replacement_likelihood_score]
+				RETURN IF( qty > 0 && repl >= 0.50, 1, 0 )
+			lineageTag: 8f23de00-dac0-4f2d-b3d3-9a451b43a450
+
+		measure keep_strategic_whales =
+				VAR sizeOK = MAX( 'icp_scored_accounts v1.5'[size_score] ) >= [p80_size_score]
+				VAR vertOK = MAX( 'icp_scored_accounts v1.5'[vertical_score] ) >= [p70_vertical_score]
+				VAR headOK = [hw_headroom_index] >= 0.50
+				RETURN IF( sizeOK && vertOK && headOK, 1, 0 )
+			lineageTag: 5a9ec24d-359f-479c-800b-a16e080a4377
+
+		measure keep_neighbor_hubs =
+				VAR grade = SELECTEDVALUE( 'icp_scored_accounts v1.5'[ICP_grade] )
+				VAR central = [inbound_neighbor_count_norm]
+				RETURN IF( (grade = "A" || grade = "B") && central >= 0.90, 1, 0 )
+			lineageTag: e8b9c804-5b0f-41f9-a195-4046ed3716c5
+
+		measure keep_warm_lookalikes =
+				VAR grade  = SELECTEDVALUE ( 'icp_scored_accounts v1.5'[ICP_grade] )
+				VAR adopt  = MAX ( 'icp_scored_accounts v1.5'[hardware_adoption_score_pctl] )
+				VAR sim    = [AvgWarmNeighborSimilarity_In]
+				VAR simCut = CALCULATE ( [similarity_p75], ALL ( account_neighbors ) )
+				RETURN IF ( (grade = "A" || grade = "B") && adopt <= 0.50 && sim >= simCut, 1, 0 )
+			lineageTag: 988b1117-66bf-42a6-a3ce-9b3d11854880
+
+		measure keep_fdm_cross_sell =
+				VAR fdmQty = MAX( 'icp_scored_accounts v1.5'[Qty_Printers_FDM] )
+				VAR topSub = SELECTEDVALUE( 'icp_scored_accounts v1.5'[top_subdivision_12m] )
+				VAR narrow = MAX( 'icp_scored_accounts v1.5'[breadth_score_hw] ) <= 0.40
+				RETURN IF( (fdmQty > 0 || topSub = "FDM") && narrow, 1, 0 )
+			lineageTag: a1338006-52cc-4666-9d27-7185bcc9284a
+
+		measure keep_winbacks =
+				VAR grade    = SELECTEDVALUE( 'icp_scored_accounts v1.5'[ICP_grade] )
+				VAR spendLow = MAX( 'icp_scored_accounts v1.5'[spend_13w_pctl] ) <= 0.40
+				VAR win      = [winback_score] >= 0.60
+				RETURN IF( (grade = "A" || grade = "B") && spendLow && win, 1, 0 )
+			lineageTag: 1d0e42b8-5a1d-4812-a448-af9139a6cdea
+
+		measure keep_quick_hits_top50 =
+				VAR r = [sales_priority_rank]
+				RETURN IF( NOT ISBLANK(r) && r <= 50, 1, 0 )
+			lineageTag: 9760945b-a6c5-4a6c-a4f3-3cb3594b83bf
+
+		measure WarmNeighborCount_Out =
+				VAR MeID =
+				    SELECTEDVALUE ( 'Accounts Dim'[Customer ID] )
+				VAR WarmCut =
+				    PERCENTILEX.INC (
+				        ALL ( 'icp_scored_accounts v1.5' ),
+				        'icp_scored_accounts v1.5'[Software_score],
+				        0.75
+				    )
+				RETURN
+				COUNTROWS (
+				    FILTER (
+				        account_neighbors,
+				        account_neighbors[account_id] = MeID
+				            && LOOKUPVALUE (
+				                   'icp_scored_accounts v1.5'[Software_score],
+				                   'icp_scored_accounts v1.5'[Customer ID], account_neighbors[neighbor_account_id]
+				               ) >= WarmCut
+				    )
+				)
+			lineageTag: 85ff7fae-2af7-41cf-9cd9-204fbb8ba3af
+
+		measure AvgWarmNeighborSimilarity_Out =
+				VAR MeID =
+				    SELECTEDVALUE ( 'Accounts Dim'[Customer ID] )
+				VAR WarmCut =
+				    PERCENTILEX.INC (
+				        ALL ( 'icp_scored_accounts v1.5' ),
+				        'icp_scored_accounts v1.5'[Software_score],
+				        0.75
+				    )
+				RETURN
+				COALESCE (
+				    AVERAGEX (
+				        FILTER (
+				            account_neighbors,
+				            account_neighbors[account_id] = MeID
+				                && LOOKUPVALUE (
+				                       'icp_scored_accounts v1.5'[Software_score],
+				                       'icp_scored_accounts v1.5'[Customer ID], account_neighbors[neighbor_account_id]
+				                   ) >= WarmCut
+				        ),
+				        account_neighbors[sim_overall]
+				    ),
+				    0
+				)
+			lineageTag: 4f1cafc9-013a-4e50-a7d1-5133bf54685d
+
+		measure WarmNeighborCount_In =
+				VAR MeID =
+				    SELECTEDVALUE ( 'Accounts Dim'[Customer ID] )
+				VAR WarmCut =
+				    PERCENTILEX.INC (
+				        ALL ( 'icp_scored_accounts v1.5' ),
+				        'icp_scored_accounts v1.5'[Software_score],
+				        0.75
+				    )
+				RETURN
+				COUNTROWS (
+				    FILTER (
+				        account_neighbors,
+				        account_neighbors[neighbor_account_id] = MeID
+				            && LOOKUPVALUE (
+				                   'icp_scored_accounts v1.5'[Software_score],
+				                   'icp_scored_accounts v1.5'[Customer ID], account_neighbors[account_id]
+				               ) >= WarmCut
+				    )
+				)
+			lineageTag: 6d54ed09-8a09-4b67-8d7a-cbffe9e5a01d
+
+		measure AvgWarmNeighborSimilarity_In =
+				VAR MeID =
+				    SELECTEDVALUE ( 'Accounts Dim'[Customer ID] )
+				VAR WarmCut =
+				    PERCENTILEX.INC (
+				        ALL ( 'icp_scored_accounts v1.5' ),
+				        'icp_scored_accounts v1.5'[Software_score],
+				        0.75
+				    )
+				RETURN
+				COALESCE (
+				    AVERAGEX (
+				        FILTER (
+				            account_neighbors,
+				            account_neighbors[neighbor_account_id] = MeID
+				                && LOOKUPVALUE (
+				                       'icp_scored_accounts v1.5'[Software_score],
+				                       'icp_scored_accounts v1.5'[Customer ID], account_neighbors[account_id]
+				                   ) >= WarmCut
+				        ),
+				        account_neighbors[sim_overall]
+				    ),
+				    0
+				)
+			lineageTag: 28e4ceb3-6efd-4021-9bc0-62b0bbc878ee
+
+		measure keep_warm_lookalikes_out =
+				VAR SeedID   = SELECTEDVALUE ( 'Accounts Dim'[Customer ID] )
+				VAR IsRow    = NOT ISBLANK ( SELECTEDVALUE ( account_neighbors[neighbor_account_id] ) )
+				VAR Neighbor = SELECTEDVALUE ( account_neighbors[neighbor_account_id] )
+				VAR Grade    = LOOKUPVALUE ( 'icp_scored_accounts v1.5'[ICP_grade],
+				                             'icp_scored_accounts v1.5'[Customer ID], Neighbor )
+				VAR Adopt    = LOOKUPVALUE ( 'icp_scored_accounts v1.5'[hardware_adoption_score_pctl],
+				                             'icp_scored_accounts v1.5'[Customer ID], Neighbor )
+				VAR Sim      = SELECTEDVALUE ( account_neighbors[sim_overall] )
+				VAR SimCut   = CALCULATE ( [similarity_p75], ALL ( account_neighbors ) )
+				VAR WarmCut  = PERCENTILEX.INC ( ALL ( 'icp_scored_accounts v1.5' ),
+				                                 'icp_scored_accounts v1.5'[Software_score], 0.75 )
+				VAR SeedWarm = LOOKUPVALUE ( 'icp_scored_accounts v1.5'[Software_score],
+				                             'icp_scored_accounts v1.5'[Customer ID], SeedID )
+				RETURN
+				IF (
+				    IsRow
+				        && SeedWarm >= WarmCut
+				        && (Grade = "A" || Grade = "B")
+				        && Adopt <= 0.50
+				        && Sim >= SimCut,
+				    1, 0
+				)
+			lineageTag: 69878543-b905-4139-9cf1-82cd264308f2
+
+		column 'Customer ID'
+			dataType: int64
+			formatString: 0
+			lineageTag: 2aa2fd64-c7a9-4669-92f5-aa48f132ba79
+			summarizeBy: none
+			sourceColumn: Customer ID
+
+			changedProperty = DataType
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isDecimal":true}
+
+		column 'Company Name'
+			dataType: string
+			lineageTag: 1e54874e-0c27-4c7f-a4e0-0862bb20aa9b
+			summarizeBy: none
+			sourceColumn: Company Name
+
+			annotation SummarizationSetBy = Automatic
+
+		column activity_segment
+			dataType: string
+			lineageTag: d15d4fe6-0712-4bd8-b92e-c0e72b2652d4
+			summarizeBy: none
+			sourceColumn: activity_segment
+
+			annotation SummarizationSetBy = Automatic
+
+		column am_sales_rep
+			dataType: string
+			lineageTag: 8fca3397-0cd2-4086-86ea-740c0f0a228e
+			summarizeBy: none
+			sourceColumn: am_sales_rep
+
+			annotation SummarizationSetBy = Automatic
+
+		column AM_Territory
+			dataType: string
+			lineageTag: c7c1ef95-a49b-451d-b053-c08f53757b22
+			summarizeBy: none
+			sourceColumn: AM_Territory
+
+			annotation SummarizationSetBy = Automatic
+
+		column edu_assets
+			dataType: string
+			lineageTag: 2cd7fdd4-c1b8-4439-83f5-ddfff2edd0c2
+			summarizeBy: none
+			sourceColumn: edu_assets
+
+			annotation SummarizationSetBy = Automatic
+
+		column RP_Primary_Name
+			dataType: string
+			lineageTag: 4efc3a87-6b68-4dca-b29e-33fe144080f7
+			summarizeBy: none
+			sourceColumn: RP_Primary_Name
+
+			annotation SummarizationSetBy = Automatic
+
+		column RP_Primary_Email
+			dataType: string
+			lineageTag: 67498730-3c7e-4a22-ade6-ae1e3fb06937
+			summarizeBy: none
+			sourceColumn: RP_Primary_Email
+
+			annotation SummarizationSetBy = Automatic
+
+		column RP_Primary_Phone
+			dataType: string
+			lineageTag: 8bd2c6e9-576f-4b91-91bd-b5c3fb61f3a9
+			summarizeBy: none
+			sourceColumn: RP_Primary_Phone
+
+			annotation SummarizationSetBy = Automatic
+
+		column Primary_Contact_Name
+			dataType: string
+			lineageTag: a6c6bab3-f83c-4c2b-8031-2baa50847239
+			summarizeBy: none
+			sourceColumn: Primary_Contact_Name
+
+			annotation SummarizationSetBy = Automatic
+
+		column Primary_Contact_Email
+			dataType: string
+			lineageTag: fd632ba9-76e6-4c22-97e3-b3e434481ef5
+			summarizeBy: none
+			sourceColumn: Primary_Contact_Email
+
+			annotation SummarizationSetBy = Automatic
+
+		column Primary_Contact_Phone
+			dataType: string
+			lineageTag: 9a0c0700-e231-4f97-950a-90ec1bf0e325
+			summarizeBy: none
+			sourceColumn: Primary_Contact_Phone
+
+			annotation SummarizationSetBy = Automatic
+
+		column Name
+			dataType: string
+			lineageTag: 12cfdc19-76d0-43a9-9014-1c93fc775c37
+			summarizeBy: none
+			sourceColumn: Name
+
+			annotation SummarizationSetBy = Automatic
+
+		column email
+			dataType: string
+			lineageTag: f5abfc7b-78a1-4f76-bca8-a115e619f456
+			summarizeBy: none
+			sourceColumn: email
+
+			annotation SummarizationSetBy = Automatic
+
+		column phone
+			dataType: string
+			lineageTag: 3db89874-6d7f-48ed-9324-dbeab548ec4c
+			summarizeBy: none
+			sourceColumn: phone
+
+			annotation SummarizationSetBy = Automatic
+
+		column ShippingAddr1
+			dataType: string
+			lineageTag: 7a14fc14-b940-40ea-b8d5-87070d782973
+			summarizeBy: none
+			sourceColumn: ShippingAddr1
+
+			annotation SummarizationSetBy = Automatic
+
+		column ShippingAddr2
+			dataType: string
+			lineageTag: 12d1c0a0-84be-41f9-a53a-ade6e536c191
+			summarizeBy: none
+			sourceColumn: ShippingAddr2
+
+			annotation SummarizationSetBy = Automatic
+
+		column ShippingCity
+			dataType: string
+			lineageTag: ee774c8f-c8bf-4db8-b60a-764bf8d61660
+			summarizeBy: none
+			sourceColumn: ShippingCity
+
+			annotation SummarizationSetBy = Automatic
+
+		column ShippingState
+			dataType: string
+			lineageTag: f2f7a692-1a52-480f-845c-92b9adfebea7
+			summarizeBy: none
+			sourceColumn: ShippingState
+
+			annotation SummarizationSetBy = Automatic
+
+		column ShippingZip
+			dataType: string
+			lineageTag: 9895891f-ab8b-41b5-9ec8-239656dab5a3
+			summarizeBy: none
+			sourceColumn: ShippingZip
+
+			annotation SummarizationSetBy = Automatic
+
+		column ShippingCountry
+			dataType: string
+			lineageTag: f1c65806-1151-443e-92b9-4a647abe59a5
+			summarizeBy: none
+			sourceColumn: ShippingCountry
+
+			annotation SummarizationSetBy = Automatic
+
+		column ICP_score
+			dataType: double
+			formatString: 0
+			lineageTag: 12dd5cff-fecc-4c17-a9e6-b95cf4250c4e
+			summarizeBy: sum
+			sourceColumn: ICP_score
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isDecimal":true}
+
+		column ICP_grade
+			dataType: string
+			lineageTag: f8da4219-c352-4565-ae10-97e507407b31
+			summarizeBy: none
+			sourceColumn: ICP_grade
+
+			annotation SummarizationSetBy = Automatic
+
+		column Industry
+			dataType: string
+			lineageTag: faf2adc2-15a9-45cf-9386-8a4cd6b8e46a
+			summarizeBy: none
+			sourceColumn: Industry
+
+			annotation SummarizationSetBy = Automatic
+
+		column 'Industry Sub List'
+			dataType: string
+			lineageTag: 37db82de-37fe-438e-92a6-fef932d2ebaa
+			summarizeBy: none
+			sourceColumn: Industry Sub List
+
+			annotation SummarizationSetBy = Automatic
+
+		column Industry_Reasoning
+			dataType: string
+			lineageTag: 4cbb3d21-0f86-4696-bf48-405d76f4f8a5
+			summarizeBy: none
+			sourceColumn: Industry_Reasoning
+
+			annotation SummarizationSetBy = Automatic
+
+		column Hardware_score
+			dataType: double
+			lineageTag: 1afa64fb-1303-4ae8-8a78-b9c848dc6b20
+			summarizeBy: sum
+			sourceColumn: Hardware_score
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column Software_score
+			dataType: double
+			lineageTag: 3cb62bc1-89df-4339-b48e-53a9ee19a2bd
+			summarizeBy: sum
+			sourceColumn: Software_score
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column GP_PrevQ_Total
+			dataType: double
+			lineageTag: 1435e67f-a567-4686-9e70-915031a72354
+			summarizeBy: sum
+			sourceColumn: GP_PrevQ_Total
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column GP_QoQ_Growth
+			dataType: double
+			lineageTag: 13b460ab-74fc-4610-ad6d-5031dd6e7a90
+			summarizeBy: sum
+			sourceColumn: GP_QoQ_Growth
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column GP_T4Q_Total
+			dataType: double
+			lineageTag: 64762941-99b1-44a4-bdbc-030ac0f42720
+			summarizeBy: sum
+			sourceColumn: GP_T4Q_Total
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column GP_Since_2023_Total
+			dataType: double
+			lineageTag: bfdc82c3-38ba-4519-bdb8-9675da5335e9
+			summarizeBy: sum
+			sourceColumn: GP_Since_2023_Total
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column Qty_Printers
+			dataType: int64
+			formatString: 0
+			lineageTag: d60d087c-6010-45e4-97fd-068ad08b032c
+			summarizeBy: sum
+			sourceColumn: Qty_Printers
+
+			annotation SummarizationSetBy = Automatic
+
+		column GP_Printers
+			dataType: double
+			formatString: \$#,0;(\$#,0);\$#,0
+			lineageTag: 2332dbfe-fac7-4a2f-8a0c-d186b4ca4779
+			summarizeBy: sum
+			sourceColumn: GP_Printers
+
+			annotation SummarizationSetBy = Automatic
+
+		column Qty_Printers_AM_Software
+			dataType: int64
+			formatString: 0
+			lineageTag: bca26d9a-10a6-4e21-a323-4843cf7f94dc
+			summarizeBy: sum
+			sourceColumn: Qty_Printers_AM_Software
+
+			annotation SummarizationSetBy = Automatic
+
+		column GP_Printers_AM_Software
+			dataType: int64
+			formatString: 0
+			lineageTag: d682ea43-c73d-4c82-b28f-f50c69961842
+			summarizeBy: sum
+			sourceColumn: GP_Printers_AM_Software
+
+			annotation SummarizationSetBy = Automatic
+
+		column Qty_Printers_AM_Support
+			dataType: int64
+			formatString: 0
+			lineageTag: bb62c6ac-68ae-4d26-8b58-cee927e9e309
+			summarizeBy: sum
+			sourceColumn: Qty_Printers_AM_Support
+
+			annotation SummarizationSetBy = Automatic
+
+		column GP_Printers_AM_Support
+			dataType: int64
+			formatString: 0
+			lineageTag: 8661e87a-4aea-4e56-acef-290e88479dc4
+			summarizeBy: sum
+			sourceColumn: GP_Printers_AM_Support
+
+			annotation SummarizationSetBy = Automatic
+
+		column Qty_Printers_Consumables
+			dataType: int64
+			formatString: 0
+			lineageTag: c6af6988-5859-4405-a62f-49cb0267a0a1
+			summarizeBy: sum
+			sourceColumn: Qty_Printers_Consumables
+
+			annotation SummarizationSetBy = Automatic
+
+		column GP_Printers_Consumables
+			dataType: int64
+			formatString: 0
+			lineageTag: 59d5c345-5061-46e3-91f4-052697c23e91
+			summarizeBy: sum
+			sourceColumn: GP_Printers_Consumables
+
+			annotation SummarizationSetBy = Automatic
+
+		column Qty_Printers_FDM
+			dataType: int64
+			formatString: 0
+			lineageTag: 92d7d50d-2fe2-437b-ae29-64897b79bf0c
+			summarizeBy: sum
+			sourceColumn: Qty_Printers_FDM
+
+			annotation SummarizationSetBy = Automatic
+
+		column GP_Printers_FDM
+			dataType: int64
+			formatString: 0
+			lineageTag: f92a932d-6e04-4d51-8d04-ac2d8cb0e936
+			summarizeBy: sum
+			sourceColumn: GP_Printers_FDM
+
+			annotation SummarizationSetBy = Automatic
+
+		column Qty_Printers_FormLabs
+			dataType: int64
+			formatString: 0
+			lineageTag: 32f3d1c5-af91-447e-abe1-93a26b473f5d
+			summarizeBy: sum
+			sourceColumn: Qty_Printers_FormLabs
+
+			annotation SummarizationSetBy = Automatic
+
+		column GP_Printers_FormLabs
+			dataType: double
+			lineageTag: caa6992a-a289-4094-ae36-0b0cb1024821
+			summarizeBy: sum
+			sourceColumn: GP_Printers_FormLabs
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column Qty_Printers_Metals
+			dataType: int64
+			formatString: 0
+			lineageTag: da5052d7-fa1c-4076-8cad-40fabe802573
+			summarizeBy: sum
+			sourceColumn: Qty_Printers_Metals
+
+			annotation SummarizationSetBy = Automatic
+
+		column GP_Printers_Metals
+			dataType: int64
+			formatString: 0
+			lineageTag: fb4d44da-7867-4c45-92a3-d53d4496c368
+			summarizeBy: sum
+			sourceColumn: GP_Printers_Metals
+
+			annotation SummarizationSetBy = Automatic
+
+		column Qty_Printers_P3
+			dataType: int64
+			formatString: 0
+			lineageTag: f855bc5e-902b-4682-a0df-687df536287d
+			summarizeBy: sum
+			sourceColumn: Qty_Printers_P3
+
+			annotation SummarizationSetBy = Automatic
+
+		column GP_Printers_P3
+			dataType: int64
+			formatString: 0
+			lineageTag: e116d798-3269-4a6f-96cc-63f848054e06
+			summarizeBy: sum
+			sourceColumn: GP_Printers_P3
+
+			annotation SummarizationSetBy = Automatic
+
+		column Qty_Printers_Polyjet
+			dataType: int64
+			formatString: 0
+			lineageTag: a8a37e5c-556e-4329-bc92-d325b73a284d
+			summarizeBy: sum
+			sourceColumn: Qty_Printers_Polyjet
+
+			annotation SummarizationSetBy = Automatic
+
+		column GP_Printers_Polyjet
+			dataType: double
+			lineageTag: 0e9f9070-9edd-4e3c-9e6b-9411ff3d9598
+			summarizeBy: sum
+			sourceColumn: GP_Printers_Polyjet
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column Qty_Printers_Post_Processing
+			dataType: int64
+			formatString: 0
+			lineageTag: 2aa96649-c493-43b4-987a-e7ab88172806
+			summarizeBy: sum
+			sourceColumn: Qty_Printers_Post_Processing
+
+			annotation SummarizationSetBy = Automatic
+
+		column GP_Printers_Post_Processing
+			dataType: int64
+			formatString: 0
+			lineageTag: 506158e5-e20b-4200-8b5e-100bde12c265
+			summarizeBy: sum
+			sourceColumn: GP_Printers_Post_Processing
+
+			annotation SummarizationSetBy = Automatic
+
+		column Qty_Printers_SAF
+			dataType: int64
+			formatString: 0
+			lineageTag: 68be1d5a-134c-4d21-b203-f6570ebfde72
+			summarizeBy: sum
+			sourceColumn: Qty_Printers_SAF
+
+			annotation SummarizationSetBy = Automatic
+
+		column GP_Printers_SAF
+			dataType: int64
+			formatString: 0
+			lineageTag: 5f560ced-7483-4e7d-8d5a-939e42db75b7
+			summarizeBy: sum
+			sourceColumn: GP_Printers_SAF
+
+			annotation SummarizationSetBy = Automatic
+
+		column Qty_Printers_SLA
+			dataType: int64
+			formatString: 0
+			lineageTag: 15dac622-48bd-4165-95b8-491ad29ae535
+			summarizeBy: sum
+			sourceColumn: Qty_Printers_SLA
+
+			annotation SummarizationSetBy = Automatic
+
+		column GP_Printers_SLA
+			dataType: int64
+			formatString: 0
+			lineageTag: aed14548-6d7d-4ee8-a075-37cebac461cc
+			summarizeBy: sum
+			sourceColumn: GP_Printers_SLA
+
+			annotation SummarizationSetBy = Automatic
+
+		column Qty_Printers_Spare_Parts_Repair_Parts_Time_and_Materials
+			dataType: int64
+			formatString: 0
+			lineageTag: 77ecd58b-6eaf-4d74-896d-335381b4cfc8
+			summarizeBy: sum
+			sourceColumn: Qty_Printers_Spare_Parts_Repair_Parts_Time_and_Materials
+
+			annotation SummarizationSetBy = Automatic
+
+		column GP_Printers_Spare_Parts_Repair_Parts_Time_and_Materials
+			dataType: int64
+			formatString: 0
+			lineageTag: 9a7d3a36-f94a-4e5e-b9b1-e5bc125af2c2
+			summarizeBy: sum
+			sourceColumn: GP_Printers_Spare_Parts_Repair_Parts_Time_and_Materials
+
+			annotation SummarizationSetBy = Automatic
+
+		column 'Qty_Printer Accessories'
+			dataType: int64
+			formatString: 0
+			lineageTag: 5c15f530-1218-4344-872a-71e3d74a1ec3
+			summarizeBy: sum
+			sourceColumn: Qty_Printer Accessories
+
+			annotation SummarizationSetBy = Automatic
+
+		column 'GP_Printer Accessories'
+			dataType: double
+			lineageTag: 74e7356d-ec2b-40f2-9fca-ab9f52897e78
+			summarizeBy: sum
+			sourceColumn: GP_Printer Accessories
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column Qty_Scanners
+			dataType: int64
+			formatString: 0
+			lineageTag: 861f8eb1-6774-4d5f-8dcd-25e61a696dae
+			summarizeBy: sum
+			sourceColumn: Qty_Scanners
+
+			annotation SummarizationSetBy = Automatic
+
+		column GP_Scanners
+			dataType: int64
+			formatString: 0
+			lineageTag: 8b560f8a-e784-4f04-80ac-06ee20843112
+			summarizeBy: sum
+			sourceColumn: GP_Scanners
+
+			annotation SummarizationSetBy = Automatic
+
+		column Qty_Geomagic
+			dataType: int64
+			formatString: 0
+			lineageTag: 9f2ab361-80ea-4c4e-a03a-c6168972ac12
+			summarizeBy: sum
+			sourceColumn: Qty_Geomagic
+
+			annotation SummarizationSetBy = Automatic
+
+		column GP_Geomagic
+			dataType: int64
+			formatString: 0
+			lineageTag: 15a97d12-d11a-4a94-b4e3-7c87bda9caf1
+			summarizeBy: sum
+			sourceColumn: GP_Geomagic
+
+			annotation SummarizationSetBy = Automatic
+
+		column Seats_CAD
+			dataType: int64
+			formatString: 0
+			lineageTag: 5d136e6a-7cc0-4962-94d8-191278dc9817
+			summarizeBy: sum
+			sourceColumn: Seats_CAD
+
+			annotation SummarizationSetBy = Automatic
+
+		column GP_CAD
+			dataType: double
+			lineageTag: fa4932e6-0121-4f04-ab44-cbb43b507eb2
+			summarizeBy: sum
+			sourceColumn: GP_CAD
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column Seats_CPE
+			dataType: int64
+			formatString: 0
+			lineageTag: 2ab73ac7-9e77-4f1f-a84b-09827b035ba9
+			summarizeBy: sum
+			sourceColumn: Seats_CPE
+
+			annotation SummarizationSetBy = Automatic
+
+		column GP_CPE
+			dataType: double
+			lineageTag: bda146bb-2bb7-4911-97b9-1172ad9c94ad
+			summarizeBy: sum
+			sourceColumn: GP_CPE
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column 'Seats_Specialty Software'
+			dataType: int64
+			formatString: 0
+			lineageTag: e9ab7521-409c-4d94-991b-a21cc369e482
+			summarizeBy: sum
+			sourceColumn: Seats_Specialty Software
+
+			annotation SummarizationSetBy = Automatic
+
+		column 'GP_Specialty Software'
+			dataType: double
+			lineageTag: 5ac1580b-7fd3-4abd-81b7-0445b5eef48c
+			summarizeBy: sum
+			sourceColumn: GP_Specialty Software
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column scaling_flag
+			dataType: int64
+			formatString: 0
+			lineageTag: 2e6d3307-a924-485b-aa99-0c54d577b5d1
+			summarizeBy: sum
+			sourceColumn: scaling_flag
+
+			annotation SummarizationSetBy = Automatic
+
+		column 'Total Software License Revenue'
+			dataType: double
+			formatString: \$#,0;(\$#,0);\$#,0
+			lineageTag: 0e9f7299-9598-4cab-9a1d-f7c6601d6611
+			summarizeBy: sum
+			sourceColumn: Total Software License Revenue
+
+			annotation SummarizationSetBy = Automatic
+
+		column active_assets_total
+			dataType: int64
+			formatString: 0
+			lineageTag: 08851e13-ea7f-4ead-b9f6-ebf6ae5cbb02
+			summarizeBy: sum
+			sourceColumn: active_assets_total
+
+			annotation SummarizationSetBy = Automatic
+
+		column seats_sum_total
+			dataType: int64
+			formatString: 0
+			lineageTag: 378f8665-33ae-47b2-98eb-30409eb18f22
+			summarizeBy: sum
+			sourceColumn: seats_sum_total
+
+			annotation SummarizationSetBy = Automatic
+
+		column Portfolio_Breadth
+			dataType: int64
+			formatString: 0
+			lineageTag: c0634b17-7b63-40e3-896e-c3348026e020
+			summarizeBy: sum
+			sourceColumn: Portfolio_Breadth
+
+			annotation SummarizationSetBy = Automatic
+
+		column EarliestPurchaseDate
+			dataType: dateTime
+			formatString: General Date
+			lineageTag: 0962adcd-e4ed-40ce-ba6b-4e00558ccdf1
+			summarizeBy: none
+			sourceColumn: EarliestPurchaseDate
+
+			variation Variation
+				isDefault
+				relationship: 12fea945-39f4-41bc-b5c8-290bfb3b5297
+				defaultHierarchy: LocalDateTable_7581b2da-1eee-4b6d-af38-49a59f08b4c0.'Date Hierarchy'
+
+			annotation SummarizationSetBy = Automatic
+
+		column LatestPurchaseDate
+			dataType: dateTime
+			formatString: General Date
+			lineageTag: 7df35ea1-a2f9-4c92-9e48-b1fed92ff2e6
+			summarizeBy: none
+			sourceColumn: LatestPurchaseDate
+
+			variation Variation
+				isDefault
+				relationship: 8393066f-c109-40a2-b8f9-cca396ccdc75
+				defaultHierarchy: LocalDateTable_b76d92e0-857f-4c41-bba8-99d020bd84ba.'Date Hierarchy'
+
+			annotation SummarizationSetBy = Automatic
+
+		column LatestExpirationDate
+			dataType: dateTime
+			formatString: General Date
+			lineageTag: 92ba74e7-bad5-4deb-98f0-2f979b5bca9c
+			summarizeBy: none
+			sourceColumn: LatestExpirationDate
+
+			variation Variation
+				isDefault
+				relationship: 7b996883-980a-4cd8-85b8-1a1200165667
+				defaultHierarchy: LocalDateTable_ec790870-4c21-4062-aa1f-54e15cd4f604.'Date Hierarchy'
+
+			annotation SummarizationSetBy = Automatic
+
+		column Days_Since_First_Purchase
+			dataType: int64
+			formatString: 0
+			lineageTag: ddfb8a37-8d6e-4466-a355-fbf0f25b8289
+			summarizeBy: sum
+			sourceColumn: Days_Since_First_Purchase
+
+			annotation SummarizationSetBy = Automatic
+
+		column Days_Since_Last_Purchase
+			dataType: int64
+			formatString: 0
+			lineageTag: afcdd021-f87f-4b1d-8fff-39993d2134df
+			summarizeBy: sum
+			sourceColumn: Days_Since_Last_Purchase
+
+			annotation SummarizationSetBy = Automatic
+
+		column Days_Since_Last_Expiration
+			dataType: int64
+			formatString: 0
+			lineageTag: 69a54382-7b20-4a3c-a306-bc55a582d75d
+			summarizeBy: sum
+			sourceColumn: Days_Since_Last_Expiration
+
+			annotation SummarizationSetBy = Automatic
+
+		column vertical_score
+			dataType: double
+			lineageTag: 96ce65de-d791-469a-a8a6-61f759cb75d2
+			summarizeBy: sum
+			sourceColumn: vertical_score
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column size_score
+			dataType: double
+			lineageTag: 18d97457-4b43-43ee-96ec-2b449484b651
+			summarizeBy: sum
+			sourceColumn: size_score
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column ICP_score_raw
+			dataType: double
+			lineageTag: 7c932811-1811-403d-b7f9-e0984a4c36b6
+			summarizeBy: sum
+			sourceColumn: ICP_score_raw
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column account_id
+			dataType: string
+			lineageTag: 9e7dcbf8-e338-4364-a2fc-93deaa044812
+			summarizeBy: none
+			sourceColumn: account_id
+
+			annotation SummarizationSetBy = Automatic
+
+		column spend_13w
+			dataType: double
+			lineageTag: 52625060-22a1-4678-a427-7287f485433d
+			summarizeBy: sum
+			sourceColumn: spend_13w
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column spend_13w_prior
+			dataType: double
+			lineageTag: 86297026-025d-484d-824c-6ef01fcf0e22
+			summarizeBy: sum
+			sourceColumn: spend_13w_prior
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column delta_13w
+			dataType: double
+			lineageTag: 7ea53d0f-6ccb-4fa2-988d-cf100f5af52a
+			summarizeBy: sum
+			sourceColumn: delta_13w
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column delta_13w_pct
+			dataType: double
+			lineageTag: f6be16e5-ad82-4721-a4a1-b96ae663025f
+			summarizeBy: sum
+			sourceColumn: delta_13w_pct
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column spend_12m
+			dataType: double
+			lineageTag: bc0c3013-3a36-4bdc-be24-719ea504cb2c
+			summarizeBy: sum
+			sourceColumn: spend_12m
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column spend_52w
+			dataType: double
+			lineageTag: 1203a79e-1369-4770-9f98-c84b2e588b01
+			summarizeBy: sum
+			sourceColumn: spend_52w
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column yoy_13w_pct
+			dataType: double
+			lineageTag: a1f99e4a-68db-4ffc-97b7-3ab86d9cd386
+			summarizeBy: sum
+			sourceColumn: yoy_13w_pct
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column days_since_last_order
+			dataType: int64
+			formatString: 0
+			lineageTag: 17a1ac8f-53ae-4b7e-a168-de7cd2849030
+			summarizeBy: sum
+			sourceColumn: days_since_last_order
+
+			annotation SummarizationSetBy = Automatic
+
+		column active_weeks_13w
+			dataType: int64
+			formatString: 0
+			lineageTag: 542715d6-a46a-46cf-a608-d55366ef24bd
+			summarizeBy: sum
+			sourceColumn: active_weeks_13w
+
+			annotation SummarizationSetBy = Automatic
+
+		column purchase_streak_months
+			dataType: int64
+			formatString: 0
+			lineageTag: 826e6679-05f6-411a-a9c9-c923f28c3dc4
+			summarizeBy: sum
+			sourceColumn: purchase_streak_months
+
+			annotation SummarizationSetBy = Automatic
+
+		column median_interpurchase_days
+			dataType: int64
+			formatString: 0
+			lineageTag: a2167f25-471e-4bef-ad09-d75f09557ca5
+			summarizeBy: sum
+			sourceColumn: median_interpurchase_days
+
+			annotation SummarizationSetBy = Automatic
+
+		column slope_13w
+			dataType: double
+			lineageTag: 81df1b12-8ccd-4fa9-9823-8f0410aa5fd0
+			summarizeBy: sum
+			sourceColumn: slope_13w
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column slope_13w_prior
+			dataType: double
+			lineageTag: 024353a2-d9c9-4cad-a3a0-b72c6227677b
+			summarizeBy: sum
+			sourceColumn: slope_13w_prior
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column acceleration_13w
+			dataType: double
+			lineageTag: cdb292c8-bb70-4516-b75c-7ea1ba1b34dc
+			summarizeBy: sum
+			sourceColumn: acceleration_13w
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column volatility_13w
+			dataType: double
+			lineageTag: 090bdfa6-2cfc-4d73-b203-8d600b873ea0
+			summarizeBy: sum
+			sourceColumn: volatility_13w
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column seasonality_factor_13w
+			dataType: double
+			lineageTag: ca08b5f2-d2ca-4c13-97ed-de6277fd5a0d
+			summarizeBy: sum
+			sourceColumn: seasonality_factor_13w
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column trend_score
+			dataType: double
+			lineageTag: efe20945-a610-403e-933f-db54a94fd9d4
+			summarizeBy: sum
+			sourceColumn: trend_score
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column recency_score
+			dataType: double
+			lineageTag: 8b141866-6be6-41bb-968b-2db3be53670d
+			summarizeBy: sum
+			sourceColumn: recency_score
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column magnitude_score
+			dataType: double
+			lineageTag: 2a409e61-fc35-416b-b8c6-09ea614770b0
+			summarizeBy: sum
+			sourceColumn: magnitude_score
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column cadence_score
+			dataType: double
+			lineageTag: 94ff4001-4f8a-4946-b1f5-a69ed1b635c0
+			summarizeBy: sum
+			sourceColumn: cadence_score
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column momentum_score
+			dataType: double
+			lineageTag: 8023b2e5-b6c5-4566-9d44-d4d1f091b210
+			summarizeBy: sum
+			sourceColumn: momentum_score
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column w_trend
+			dataType: double
+			lineageTag: e0303aab-c5a0-4c17-88b9-1c1d0cd1b264
+			summarizeBy: sum
+			sourceColumn: w_trend
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column w_recency
+			dataType: double
+			lineageTag: 8b3a1a45-5aaf-4b9a-9d7f-178aed3d6004
+			summarizeBy: sum
+			sourceColumn: w_recency
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column w_magnitude
+			dataType: double
+			lineageTag: 8e753c8d-091e-4eff-ac65-bf64bb827645
+			summarizeBy: sum
+			sourceColumn: w_magnitude
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column w_cadence
+			dataType: double
+			lineageTag: d925fafb-482a-4017-93fa-f65f17bc105c
+			summarizeBy: sum
+			sourceColumn: w_cadence
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column hw_spend_12m
+			dataType: double
+			formatString: \$#,0;(\$#,0);\$#,0
+			lineageTag: acf1e180-e96e-4a27-9101-0acd14a8825c
+			summarizeBy: sum
+			sourceColumn: hw_spend_12m
+
+			annotation SummarizationSetBy = Automatic
+
+		column sw_spend_12m
+			dataType: double
+			lineageTag: 79d2ff0f-ba05-4d41-bc70-96ec4eec00af
+			summarizeBy: sum
+			sourceColumn: sw_spend_12m
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column hw_share_12m
+			dataType: double
+			formatString: 0%;-0%;0%
+			lineageTag: f1019c88-9113-4b70-8f56-1f16b5d8a00a
+			summarizeBy: sum
+			sourceColumn: hw_share_12m
+
+			annotation SummarizationSetBy = Automatic
+
+		column sw_share_12m
+			dataType: double
+			lineageTag: 36019fed-b865-4cb3-ad8d-ccd1b95996cf
+			summarizeBy: sum
+			sourceColumn: sw_share_12m
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column breadth_hw_subdiv_12m
+			dataType: double
+			formatString: 0
+			lineageTag: 085a7234-313b-4f96-a09d-4a2afc0ce3b4
+			summarizeBy: sum
+			sourceColumn: breadth_hw_subdiv_12m
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isDecimal":true}
+
+		column max_hw_subdiv
+			dataType: double
+			lineageTag: bfaa8a03-3ce0-45db-b512-b7c16d7dc8f7
+			summarizeBy: sum
+			sourceColumn: max_hw_subdiv
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column breadth_score_hw
+			dataType: double
+			lineageTag: a9cda1a8-c98c-4966-8d71-d47ff5fee42e
+			summarizeBy: sum
+			sourceColumn: breadth_score_hw
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column days_since_last_hw_order
+			dataType: int64
+			formatString: 0
+			lineageTag: 1100719c-eeac-46b8-a86a-d163d007dcf6
+			summarizeBy: sum
+			sourceColumn: days_since_last_hw_order
+
+			annotation SummarizationSetBy = Automatic
+
+		column recency_score_hw
+			dataType: double
+			lineageTag: 3586e919-4af4-4df9-8c75-a30a68ffee60
+			summarizeBy: sum
+			sourceColumn: recency_score_hw
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column hardware_adoption_score
+			dataType: double
+			lineageTag: 0cc401db-c123-4ccf-ad3c-ab3b6b8c180a
+			summarizeBy: sum
+			sourceColumn: hardware_adoption_score
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column consumables_to_hw_ratio
+			dataType: double
+			lineageTag: f157b29c-6e6c-4be5-9a33-ccefa311429a
+			summarizeBy: sum
+			sourceColumn: consumables_to_hw_ratio
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column top_subdivision_12m
+			dataType: string
+			lineageTag: d2787ab1-9d9f-42c0-b0a9-fdf2cd835835
+			summarizeBy: none
+			sourceColumn: top_subdivision_12m
+
+			annotation SummarizationSetBy = Automatic
+
+		column top_subdivision_share_12m
+			dataType: double
+			formatString: 0%;-0%;0%
+			lineageTag: daec445a-222d-49d5-a185-c0a18fbe650d
+			summarizeBy: sum
+			sourceColumn: top_subdivision_share_12m
+
+			annotation SummarizationSetBy = Automatic
+
+		column discount_pct
+			dataType: double
+			lineageTag: 5c44fc92-d16d-45ee-9b8c-c4de0267f827
+			summarizeBy: sum
+			sourceColumn: discount_pct
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column month_conc_hhi_12m
+			dataType: double
+			lineageTag: 7a83ea24-bf0c-4681-86e1-3da294ba9632
+			summarizeBy: sum
+			sourceColumn: month_conc_hhi_12m
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column sw_dominance_score
+			dataType: double
+			lineageTag: 52e00551-6a76-46b6-882f-362fd98d2185
+			summarizeBy: sum
+			sourceColumn: sw_dominance_score
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column sw_to_hw_whitespace_score
+			dataType: double
+			lineageTag: 7fc5c1b0-0192-4172-9173-8452f9469923
+			summarizeBy: sum
+			sourceColumn: sw_to_hw_whitespace_score
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column pov_primary
+			dataType: string
+			lineageTag: 59c27c7b-a0e3-4cb6-911a-3a4715a15e03
+			summarizeBy: none
+			sourceColumn: pov_primary
+
+			annotation SummarizationSetBy = Automatic
+
+		column pov_tags_all
+			dataType: string
+			lineageTag: bedd877a-4485-4aad-8f72-f810578079da
+			summarizeBy: none
+			sourceColumn: pov_tags_all
+
+			annotation SummarizationSetBy = Automatic
+
+		column as_of_date
+			dataType: dateTime
+			formatString: Long Date
+			lineageTag: dd008a19-954e-4d9e-99c8-a035baf3b67d
+			summarizeBy: none
+			sourceColumn: as_of_date
+
+			variation Variation
+				isDefault
+				relationship: 7ee048c6-fc91-44e2-a0ca-4a0c8ac13fb3
+				defaultHierarchy: LocalDateTable_a718c4ce-b4d3-4cf8-98ee-d63d82d73de4.'Date Hierarchy'
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation UnderlyingDateTimeDataType = Date
+
+		column run_timestamp_utc
+			dataType: dateTime
+			formatString: General Date
+			lineageTag: 393f7786-ac24-451e-8806-07417724eee0
+			summarizeBy: none
+			sourceColumn: run_timestamp_utc
+
+			variation Variation
+				isDefault
+				relationship: 940ffc66-3e8d-4df3-a8fd-19b241bd410f
+				defaultHierarchy: LocalDateTable_6b99bea8-28dd-475d-9971-dc290dfbfd39.'Date Hierarchy'
+
+			annotation SummarizationSetBy = Automatic
+
+		column spend_13w_printers
+			dataType: double
+			lineageTag: 7988e98a-2bf8-4c8f-88f6-8020b97389b2
+			summarizeBy: sum
+			sourceColumn: spend_13w_printers
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column spend_13w_prior_printers
+			dataType: double
+			lineageTag: 314fadff-c811-4dff-b2b7-34ee8351b051
+			summarizeBy: sum
+			sourceColumn: spend_13w_prior_printers
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column delta_13w_printers
+			dataType: double
+			lineageTag: ce141010-d6fb-4a7b-8edd-66ec86cfdd1f
+			summarizeBy: sum
+			sourceColumn: delta_13w_printers
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column delta_13w_pct_printers
+			dataType: double
+			lineageTag: 01bdd870-c5fd-411f-aa88-80a79abd3b4e
+			summarizeBy: sum
+			sourceColumn: delta_13w_pct_printers
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column spend_12m_printers
+			dataType: double
+			lineageTag: e45dc3cf-ef7d-4866-9743-f1d0b7cd1402
+			summarizeBy: sum
+			sourceColumn: spend_12m_printers
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column spend_52w_printers
+			dataType: double
+			lineageTag: e000b05a-2b2d-45a1-995b-9089f42fd87e
+			summarizeBy: sum
+			sourceColumn: spend_52w_printers
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column yoy_13w_pct_printers
+			dataType: double
+			lineageTag: 5a952622-7912-4f57-bf84-40b72dea2393
+			summarizeBy: sum
+			sourceColumn: yoy_13w_pct_printers
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column slope_13w_printers
+			dataType: double
+			lineageTag: 41910c0f-54e3-4161-ba52-54d49ce47a8b
+			summarizeBy: sum
+			sourceColumn: slope_13w_printers
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column slope_13w_prior_printers
+			dataType: double
+			lineageTag: e6bebcee-9164-415f-997e-8d7c4f5eac55
+			summarizeBy: sum
+			sourceColumn: slope_13w_prior_printers
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column acceleration_13w_printers
+			dataType: double
+			lineageTag: 2adbd9c6-870a-46b7-bda8-bc8c22e302e4
+			summarizeBy: sum
+			sourceColumn: acceleration_13w_printers
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column volatility_13w_printers
+			dataType: double
+			lineageTag: 416e5510-9a6b-46c0-81f8-0b62d968f316
+			summarizeBy: sum
+			sourceColumn: volatility_13w_printers
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column seasonality_factor_13w_printers
+			dataType: double
+			lineageTag: a2402ad0-2b5e-425b-ba94-30b5d574eb97
+			summarizeBy: sum
+			sourceColumn: seasonality_factor_13w_printers
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column days_since_last_order_printers
+			dataType: int64
+			formatString: 0
+			lineageTag: d1c5b697-f85c-4e76-9e8e-81a8f44c27a9
+			summarizeBy: sum
+			sourceColumn: days_since_last_order_printers
+
+			annotation SummarizationSetBy = Automatic
+
+		column active_weeks_13w_printers
+			dataType: int64
+			formatString: 0
+			lineageTag: 6e93f789-dca8-4524-b5a8-601a7b6f7ff0
+			summarizeBy: sum
+			sourceColumn: active_weeks_13w_printers
+
+			annotation SummarizationSetBy = Automatic
+
+		column spend_12m_pctl
+			dataType: double
+			lineageTag: 26c3dcca-2f1a-4ce8-8ae0-e79ca0faefd9
+			summarizeBy: sum
+			sourceColumn: spend_12m_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column spend_13w_pctl
+			dataType: double
+			lineageTag: 244c4343-8884-47db-8a43-833d5303874d
+			summarizeBy: sum
+			sourceColumn: spend_13w_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column delta_13w_pct_pctl
+			dataType: double
+			lineageTag: 072602c6-3c44-491a-a1b2-635da8b2ad61
+			summarizeBy: sum
+			sourceColumn: delta_13w_pct_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column yoy_13w_pct_pctl
+			dataType: double
+			lineageTag: 36c00d2b-1a46-4987-95b9-46c14c51bcf0
+			summarizeBy: sum
+			sourceColumn: yoy_13w_pct_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column slope_13w_pctl
+			dataType: double
+			lineageTag: 8ec7af55-c5fe-459c-9ca4-988c0ec8cb38
+			summarizeBy: sum
+			sourceColumn: slope_13w_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column acceleration_13w_pctl
+			dataType: double
+			lineageTag: 5de65e9d-25df-4718-9cae-44d464a363e2
+			summarizeBy: sum
+			sourceColumn: acceleration_13w_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column spend_12m_printers_pctl
+			dataType: string
+			lineageTag: 8716397d-c3e0-49a9-870d-2ae4eb9caae0
+			summarizeBy: none
+			sourceColumn: spend_12m_printers_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+		column spend_13w_printers_pctl
+			dataType: string
+			lineageTag: de8b4bb3-263b-4253-93e7-6224c082ff6c
+			summarizeBy: none
+			sourceColumn: spend_13w_printers_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+		column delta_13w_pct_printers_pctl
+			dataType: string
+			lineageTag: 7d18a45f-87f2-47f3-a76f-4071895f07ea
+			summarizeBy: none
+			sourceColumn: delta_13w_pct_printers_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+		column yoy_13w_pct_printers_pctl
+			dataType: string
+			lineageTag: ab613365-d215-462a-ad0d-a40a9de0688e
+			summarizeBy: none
+			sourceColumn: yoy_13w_pct_printers_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+		column slope_13w_printers_pctl
+			dataType: string
+			lineageTag: 3c656ec0-5e45-48f1-b343-2eee000b1925
+			summarizeBy: none
+			sourceColumn: slope_13w_printers_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+		column acceleration_13w_printers_pctl
+			dataType: double
+			lineageTag: befd0f06-9796-4be9-b44e-ad3bc24c16cd
+			summarizeBy: sum
+			sourceColumn: acceleration_13w_printers_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column hw_spend_12m_pctl
+			dataType: double
+			formatString: 0
+			lineageTag: 27c92b72-30cb-4bc7-b1cb-b1db6edf7209
+			summarizeBy: sum
+			sourceColumn: hw_spend_12m_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isDecimal":true}
+
+		column sw_spend_12m_pctl
+			dataType: double
+			lineageTag: e7d024c0-8e10-4b29-8023-c73dfcea7358
+			summarizeBy: sum
+			sourceColumn: sw_spend_12m_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column hw_share_12m_pctl
+			dataType: double
+			lineageTag: 888dd431-4e1f-4914-b7d2-a716f93b0aed
+			summarizeBy: sum
+			sourceColumn: hw_share_12m_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column sw_share_12m_pctl
+			dataType: double
+			lineageTag: 4a0a0f85-886c-4909-9ded-e22684e17d29
+			summarizeBy: sum
+			sourceColumn: sw_share_12m_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column hardware_adoption_score_pctl
+			dataType: double
+			lineageTag: 8bfd2c5c-9dea-4786-b3dc-fdc4cee8729a
+			summarizeBy: sum
+			sourceColumn: hardware_adoption_score_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column month_conc_hhi_12m_pctl
+			dataType: double
+			lineageTag: 23da3719-1caa-4dd0-ac9d-cb834842f19f
+			summarizeBy: sum
+			sourceColumn: month_conc_hhi_12m_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column sw_dominance_score_pctl
+			dataType: double
+			lineageTag: c1abf2a5-c0e4-41fa-a9ae-8316a9664f1b
+			summarizeBy: sum
+			sourceColumn: sw_dominance_score_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column sw_to_hw_whitespace_score_pctl
+			dataType: double
+			lineageTag: e161b5ed-eff7-428d-9886-75fb0dc328b7
+			summarizeBy: sum
+			sourceColumn: sw_to_hw_whitespace_score_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column NS_url
+			dataType: string
+			lineageTag: 587a3fe5-dd91-4ff3-af27-f4c61fe5d3da
+			dataCategory: WebUrl
+			summarizeBy: none
+			sourceColumn: NS_url
+
+			annotation SummarizationSetBy = Automatic
+
+		column 'Email Link AM Primary'
+			dataType: string
+			lineageTag: 954bc7b3-e56e-4cef-9f4e-4f4ed10adca9
+			dataCategory: WebUrl
+			summarizeBy: none
+			sourceColumn: Email Link AM Primary
+
+			annotation SummarizationSetBy = Automatic
+
+		column 'Email Link Account Primary'
+			dataType: string
+			lineageTag: fb9bf5f3-2f3a-472f-b782-258f7b9801e1
+			dataCategory: WebUrl
+			summarizeBy: none
+			sourceColumn: Email Link Account Primary
+
+			annotation SummarizationSetBy = Automatic
+
+		partition 'icp_scored_accounts v1.5' = m
+			mode: import
+			source =
+					let
+					    Source = Csv.Document(File.Contents("D:\OneDrive - Goengineer Inc\Documents\Manufacturing-TREID-LAP\Data Analytics\Reports\Customer Segementation\data\processed\icp_scored_accounts.csv"),[Delimiter=",", Columns=165, Encoding=1252, QuoteStyle=QuoteStyle.Csv]),
+					    #"Promoted Headers1" = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+					    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers1",{{"Customer ID", type number}, {"Company Name", type text}, {"activity_segment", type text}, {"am_sales_rep", type text}, {"AM_Territory", type text}, {"edu_assets", type text}, {"RP_Primary_Name", type text}, {"RP_Primary_Email", type text}, {"RP_Primary_Phone", type text}, {"Primary_Contact_Name", type text}, {"Primary_Contact_Email", type text}, {"Primary_Contact_Phone", type text}, {"Name", type text}, {"email", type text}, {"phone", type text}, {"ShippingAddr1", type text}, {"ShippingAddr2", type text}, {"ShippingCity", type text}, {"ShippingState", type text}, {"ShippingZip", type text}, {"ShippingCountry", type text}, {"ICP_score", type number}, {"ICP_grade", type text}, {"Industry", type text}, {"Industry Sub List", type text}, {"Industry_Reasoning", type text}, {"Hardware_score", type number}, {"Software_score", type number}, {"GP_PrevQ_Total", type number}, {"GP_QoQ_Growth", type number}, {"GP_T4Q_Total", type number}, {"GP_Since_2023_Total", type number}, {"Qty_Printers", Int64.Type}, {"GP_Printers", type number}, {"Qty_Printers_AM_Software", Int64.Type}, {"GP_Printers_AM_Software", Int64.Type}, {"Qty_Printers_AM_Support", Int64.Type}, {"GP_Printers_AM_Support", Int64.Type}, {"Qty_Printers_Consumables", Int64.Type}, {"GP_Printers_Consumables", Int64.Type}, {"Qty_Printers_FDM", Int64.Type}, {"GP_Printers_FDM", Int64.Type}, {"Qty_Printers_FormLabs", Int64.Type}, {"GP_Printers_FormLabs", type number}, {"Qty_Printers_Metals", Int64.Type}, {"GP_Printers_Metals", Int64.Type}, {"Qty_Printers_P3", Int64.Type}, {"GP_Printers_P3", Int64.Type}, {"Qty_Printers_Polyjet", Int64.Type}, {"GP_Printers_Polyjet", type number}, {"Qty_Printers_Post_Processing", Int64.Type}, {"GP_Printers_Post_Processing", Int64.Type}, {"Qty_Printers_SAF", Int64.Type}, {"GP_Printers_SAF", Int64.Type}, {"Qty_Printers_SLA", Int64.Type}, {"GP_Printers_SLA", Int64.Type}, {"Qty_Printers_Spare_Parts_Repair_Parts_Time_and_Materials", Int64.Type}, {"GP_Printers_Spare_Parts_Repair_Parts_Time_and_Materials", Int64.Type}, {"Qty_Printer Accessories", Int64.Type}, {"GP_Printer Accessories", type number}, {"Qty_Scanners", Int64.Type}, {"GP_Scanners", Int64.Type}, {"Qty_Geomagic", Int64.Type}, {"GP_Geomagic", Int64.Type}, {"Seats_CAD", Int64.Type}, {"GP_CAD", type number}, {"Seats_CPE", Int64.Type}, {"GP_CPE", type number}, {"Seats_Specialty Software", Int64.Type}, {"GP_Specialty Software", type number}, {"scaling_flag", Int64.Type}, {"Total Software License Revenue", type number}, {"active_assets_total", Int64.Type}, {"seats_sum_total", Int64.Type}, {"Portfolio_Breadth", Int64.Type}, {"EarliestPurchaseDate", type datetime}, {"LatestPurchaseDate", type datetime}, {"LatestExpirationDate", type datetime}, {"Days_Since_First_Purchase", Int64.Type}, {"Days_Since_Last_Purchase", Int64.Type}, {"Days_Since_Last_Expiration", Int64.Type}, {"vertical_score", type number}, {"size_score", type number}, {"ICP_score_raw", type number}, {"spend_13w", type number}, {"spend_13w_prior", type number}, {"delta_13w", type number}, {"delta_13w_pct", type number}, {"spend_12m", type number}, {"spend_52w", type number}, {"yoy_13w_pct", type number}, {"days_since_last_order", Int64.Type}, {"active_weeks_13w", Int64.Type}, {"purchase_streak_months", Int64.Type}, {"median_interpurchase_days", Int64.Type}, {"slope_13w", type number}, {"slope_13w_prior", type number}, {"acceleration_13w", type number}, {"volatility_13w", type number}, {"seasonality_factor_13w", type number}, {"trend_score", type number}, {"recency_score", type number}, {"magnitude_score", type number}, {"cadence_score", type number}, {"momentum_score", type number}, {"w_trend", type number}, {"w_recency", type number}, {"w_magnitude", type number}, {"w_cadence", type number}, {"hw_spend_12m", type number}, {"sw_spend_12m", type number}, {"hw_share_12m", type number}, {"sw_share_12m", type number}, {"breadth_hw_subdiv_12m", type number}, {"max_hw_subdiv", type number}, {"breadth_score_hw", type number}, {"recency_score_hw", type number}, {"hardware_adoption_score", type number}, {"consumables_to_hw_ratio", type number}, {"top_subdivision_12m", type text}, {"days_since_last_hw_order", Int64.Type}, {"top_subdivision_share_12m", type number}, {"discount_pct", type number}, {"month_conc_hhi_12m", type number}, {"sw_dominance_score", type number}, {"sw_to_hw_whitespace_score", type number}, {"as_of_date", type date}, {"run_timestamp_utc", type datetime}, {"spend_13w_printers", type number}, {"spend_13w_prior_printers", type number}, {"delta_13w_printers", type number}, {"delta_13w_pct_printers", type number}, {"spend_12m_printers", type number}, {"spend_52w_printers", type number}, {"yoy_13w_pct_printers", type number}, {"slope_13w_printers", type number}, {"slope_13w_prior_printers", type number}, {"acceleration_13w_printers", type number}, {"volatility_13w_printers", type number}, {"seasonality_factor_13w_printers", type number}, {"days_since_last_order_printers", Int64.Type}, {"active_weeks_13w_printers", Int64.Type}, {"spend_12m_pctl", type number}, {"spend_13w_pctl", type number}, {"delta_13w_pct_pctl", type number}, {"yoy_13w_pct_pctl", type number}, {"slope_13w_pctl", type number}, {"acceleration_13w_pctl", type number}, {"acceleration_13w_printers_pctl", type number}, {"hw_spend_12m_pctl", type number}, {"sw_spend_12m_pctl", type number}, {"hw_share_12m_pctl", type number}, {"sw_share_12m_pctl", type number}, {"hardware_adoption_score_pctl", type number}, {"month_conc_hhi_12m_pctl", type number}, {"sw_dominance_score_pctl", type number}, {"sw_to_hw_whitespace_score_pctl", type number}}),
+					    #"Added Custom" = Table.AddColumn(#"Changed Type", "NS_url", each "https://473193.app.netsuite.com/app/common/entity/custjob.nl?id=" & Number.ToText([Customer ID], "0")),
+					    #"Added Custom1" = Table.AddColumn(#"Added Custom", "Email Link AM Primary", each if [RP_Primary_Email] = null or Text.PositionOf([RP_Primary_Email], "@") = -1
+					  then null
+					  else "mailto:" & [RP_Primary_Email]),
+					    #"Added Custom2" = Table.AddColumn(#"Added Custom1", "Email Link Account Primary", each if [Primary_Contact_Email] = null or Text.PositionOf([Primary_Contact_Email], "@") = -1
+					  then null
+					  else "mailto:" & [Primary_Contact_Email])
+					in
+					    #"Added Custom2"
+
+		annotation PBI_ResultType = Table
+
+		annotation PBI_NavigationStepName = Navigation
+

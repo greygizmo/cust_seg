@@ -1,16 +1,65 @@
-[global]
-developmentMode = false
+[data_sources]
+sales_path = "data/sales_transactions.csv"
+products_path = "data/products.csv"
+as_of_date = ""
 
-[server]
-enableCORS = false
-enableXsrfProtection = false
-maxUploadSize = 200
-port = 8501
+[momentum_weights]
+w_trend = 0.4
+w_recency = 0.3
+w_magnitude = 0.2
+w_cadence = 0.1
 
-[browser]
-gatherUsageStats = false
-serverAddress = "localhost"
-serverPort = 8501
+[windows]
+weeks_short = 13
+months_ltm = 12
+weeks_year = 52
 
-[theme]
-base = "light" 
+[similarity]
+# Top-K neighbors to compute per account
+k_neighbors   = 15
+# Blocks to include
+use_text      = true
+use_als       = true   # enable ALS by default (built from Azure SQL profit rollup)
+# Block weights
+w_numeric     = 0.50
+w_categorical = 0.15
+w_text        = 0.25
+w_als         = 0.10
+# Neighbor search memory controls
+# If number of accounts exceeds this threshold, switch to blockwise top-K
+# to avoid allocating a dense NxN similarity matrix in memory.
+max_dense_accounts = 5000
+# Number of query rows per block to use when in blockwise mode.
+# Lower values reduce peak memory; higher values run faster.
+row_block_size = 512
+# Numeric transforms
+winsor_pct    = 0.01
+log1p_cols    = [
+  "GP_Since_2023_Total",
+  "GP_T4Q_Total",
+  "GP_LastQ_Total",
+  "GP_PrevQ_Total",
+  "Total Software License Revenue",
+]
+logit_cols    = [
+  "hw_share_12m",
+  "sw_share_12m",
+  "recency_score",
+  "magnitude_score",
+  "cadence_score",
+  "breadth_score_hw",
+]
+text_column   = "industry_reasoning"
+
+[als]
+# Weighting for composite ALS strength (account x item_rollup)
+w_rev = 1.0         # log1p(profit_since_2023)
+w_seats = 0.3       # log1p(seats_sum)
+w_assets = 0.2      # asset_count
+w_active = 0.1      # active_assets
+w_recency = 0.3     # multiplicative boost from recency_weight
+recency_half_life_days = 180
+alpha = 40.0        # implicit ALS alpha multiplier for confidence
+reg = 0.05          # implicit ALS regularization (stability)
+iterations = 20     # implicit ALS iterations
+use_bm25 = true     # prefer BM25 over TF-IDF weighting
