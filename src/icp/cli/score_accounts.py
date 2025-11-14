@@ -1676,6 +1676,99 @@ def main():
     except Exception as e:
         print(f"[WARN] Printer-only dynamics unavailable: {e}")
 
+    # CRE-only 13W/12M dynamics (Goals: CAD, Specialty Software; Training subset: Success Plan/Training)
+    try:
+        if "division" in tx.columns:
+            div = tx["division"].astype(str).str.strip().str.lower()
+            sub = tx.get("sub_division", pd.Series(index=tx.index, dtype=str)).astype(str).str.strip().str.lower()
+            allowed_goals = {"cad", "specialty software"}
+            allowed_train = {"success plan", "training"}
+            is_cre_goal = div.isin(allowed_goals)
+            is_cre_train = (div == "training/services") & (sub.isin(allowed_train))
+            tx_cre = tx[is_cre_goal | is_cre_train].copy()
+        else:
+            tx_cre = tx.iloc[0:0].copy()
+        dyn_cre = compute_spend_dynamics(
+            tx=tx_cre,
+            as_of=as_of_date,
+            weeks_short=weeks_short,
+            months_ltm=months_ltm,
+            weeks_year=weeks_year,
+        )
+        cre_rename = {
+            "spend_13w": "spend_13w_cre",
+            "spend_13w_prior": "spend_13w_prior_cre",
+            "delta_13w": "delta_13w_cre",
+            "delta_13w_pct": "delta_13w_pct_cre",
+            "spend_12m": "spend_12m_cre",
+            "spend_52w": "spend_52w_cre",
+            "yoy_13w_pct": "yoy_13w_pct_cre",
+            "days_since_last_order": "days_since_last_order_cre",
+            "active_weeks_13w": "active_weeks_13w_cre",
+            "slope_13w": "slope_13w_cre",
+            "slope_13w_prior": "slope_13w_prior_cre",
+            "acceleration_13w": "acceleration_13w_cre",
+            "volatility_13w": "volatility_13w_cre",
+            "seasonality_factor_13w": "seasonality_factor_13w_cre",
+        }
+        dyn_cre = dyn_cre.rename(columns=cre_rename)
+        features_df = features_df.merge(
+            dyn_cre[[c for c in dyn_cre.columns if c == "account_id" or c in cre_rename.values()]],
+            on="account_id",
+            how="left",
+        )
+
+        # CRE breadth and recency over last 12 months
+        start_12m = as_of_date - pd.DateOffset(months=months_ltm)
+        tx_cre_12m = tx_cre.loc[(pd.to_datetime(tx_cre["date"]) > start_12m) & (pd.to_datetime(tx_cre["date"]) <= as_of_date)].copy()
+        # Breadth across CRE rollups (item_rollup in sub_division)
+        if not tx_cre_12m.empty:
+            breadth_cre = (
+                tx_cre_12m.groupby(["account_id", "sub_division"]) ["net_revenue"].sum() > 0
+            ).reset_index()
+            breadth_counts = breadth_cre.groupby("account_id")["sub_division"].nunique().rename("breadth_cre_rollup_12m")
+            # Max unique rollups observed across CRE scope (for denominator)
+            products_cre_rollup = (
+                tx_cre_12m["sub_division"].dropna().astype(str).str.strip().unique().tolist()
+            )
+            max_cre_rollup = int(len(set(products_cre_rollup))) if products_cre_rollup else 0
+            cre_breadth_df = breadth_counts.to_frame().reset_index()
+            cre_breadth_df["max_cre_rollup"] = max_cre_rollup if max_cre_rollup > 0 else np.nan
+            cre_breadth_df["breadth_score_cre"] = np.where(
+                cre_breadth_df["max_cre_rollup"].fillna(0) > 0,
+                cre_breadth_df["breadth_cre_rollup_12m"].astype(float) / cre_breadth_df["max_cre_rollup"],
+                0.0,
+            )
+            features_df = features_df.merge(cre_breadth_df, on="account_id", how="left")
+        else:
+            # Ensure columns exist even if empty
+            for col in ("breadth_cre_rollup_12m", "max_cre_rollup", "breadth_score_cre"):
+                if col not in features_df.columns:
+                    features_df[col] = np.nan
+
+        # CRE recency
+        if not tx_cre.empty:
+            last_cre = (
+                tx_cre.groupby("account_id")["date"].max().rename("last_cre_date")
+            )
+            last_cre = pd.to_datetime(last_cre)
+            rec_df = last_cre.to_frame().reset_index()
+            rec_df["days_since_last_cre_order"] = (as_of_date - rec_df["last_cre_date"]).dt.days
+            rec_df["recency_score_cre"] = 1.0 / (1.0 + (rec_df["days_since_last_cre_order"] / 30.0))
+            rec_df.loc[rec_df["last_cre_date"].isna(), "recency_score_cre"] = 0.0
+            features_df = features_df.merge(
+                rec_df[["account_id", "days_since_last_cre_order", "recency_score_cre"]],
+                on="account_id",
+                how="left",
+            )
+        else:
+            for col in ("days_since_last_cre_order", "recency_score_cre"):
+                if col not in features_df.columns:
+                    features_df[col] = np.nan
+
+    except Exception as e:
+        print(f"[WARN] CRE dynamics/breadth/recency unavailable: {e}")
+
     features_df["momentum_score"] = (
         w_trend * features_df["trend_score"].fillna(0)
         + w_recency * features_df["recency_score"].fillna(0)
@@ -1700,8 +1793,12 @@ def main():
         "spend_12m","spend_13w","delta_13w_pct","yoy_13w_pct","slope_13w","acceleration_13w",
         # Printer-only
         "spend_12m_printers","spend_13w_printers","delta_13w_pct_printers","yoy_13w_pct_printers","slope_13w_printers","acceleration_13w_printers",
+        # CRE-only
+        "spend_12m_cre","spend_13w_cre","delta_13w_pct_cre","yoy_13w_pct_cre","slope_13w_cre","acceleration_13w_cre",
         # Mix/adoption and health
         "hw_spend_12m","sw_spend_12m","hw_share_12m","sw_share_12m","hardware_adoption_score","month_conc_hhi_12m",
+        # CRE breadth/recency
+        "breadth_score_cre","recency_score_cre",
         # Whitespace/dominance
         "sw_dominance_score","sw_to_hw_whitespace_score",
     ]
@@ -1840,6 +1937,7 @@ def main():
     # Include dynamically generated enrichment columns (printer-only and percentiles)
     dynamic_suffixes = (
         "_printers",
+        "_cre",
         "_pctl",
     )
     dynamic_includes = {
@@ -1875,6 +1973,11 @@ def main():
         "slope_13w","slope_13w_prior","acceleration_13w","volatility_13w","seasonality_factor_13w",
         "trend_score","recency_score","magnitude_score","cadence_score","momentum_score",
         "w_trend","w_recency","w_magnitude","w_cadence",
+        # CRE-only dynamics & breadth/recency
+        "spend_13w_cre","spend_13w_prior_cre","delta_13w_cre","delta_13w_pct_cre","spend_12m_cre","spend_52w_cre","yoy_13w_pct_cre",
+        "days_since_last_order_cre","active_weeks_13w_cre",
+        "slope_13w_cre","slope_13w_prior_cre","acceleration_13w_cre","volatility_13w_cre","seasonality_factor_13w_cre",
+        "breadth_cre_rollup_12m","max_cre_rollup","breadth_score_cre","days_since_last_cre_order","recency_score_cre",
         # adoption/mix
         "hw_spend_12m","sw_spend_12m","hw_share_12m","sw_share_12m","breadth_hw_subdiv_12m","max_hw_subdiv",
         "breadth_score_hw","days_since_last_hw_order","recency_score_hw","hardware_adoption_score",
@@ -1890,7 +1993,7 @@ def main():
     ])
     # Also coerce any dynamic percentile/printer-only metrics
     for c in list(scored.columns):
-        if c.endswith("_pctl") or c.endswith("_printers"):
+        if c.endswith("_pctl") or c.endswith("_printers") or c.endswith("_cre"):
             numeric_like.add(c)
     for col in numeric_like:
         if col in scored.columns:
