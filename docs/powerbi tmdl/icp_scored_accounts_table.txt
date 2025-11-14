@@ -59,6 +59,42 @@ createOrReplace
 				RETURN DIVIDE ( x - mn, mx - mn )
 			lineageTag: eb987576-0569-48ca-a74c-bef4e4d990d6
 
+		measure cre_spend_13w_norm =
+				VAR x  = MAX ( 'icp_scored_accounts v1.5'[spend_13w_cre] )
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[spend_13w_cre] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[spend_13w_cre] )
+				RETURN DIVIDE ( x - mn, mx - mn )
+
+		measure cre_spend_12m_norm =
+				VAR x  = MAX ( 'icp_scored_accounts v1.5'[spend_12m_cre] )
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[spend_12m_cre] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[spend_12m_cre] )
+				RETURN DIVIDE ( x - mn, mx - mn )
+
+		measure cre_yoy_13w_norm =
+				VAR x  = MAX ( 'icp_scored_accounts v1.5'[yoy_13w_pct_cre] )
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[yoy_13w_pct_cre] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[yoy_13w_pct_cre] )
+				RETURN DIVIDE ( x - mn, mx - mn )
+
+		measure cre_slope_13w_norm =
+				VAR x  = MAX ( 'icp_scored_accounts v1.5'[slope_13w_cre] )
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[slope_13w_cre] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[slope_13w_cre] )
+				RETURN DIVIDE ( x - mn, mx - mn )
+
+		measure breadth_cre_norm =
+				VAR x  = MAX ( 'icp_scored_accounts v1.5'[breadth_score_cre] )
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[breadth_score_cre] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[breadth_score_cre] )
+				RETURN DIVIDE ( x - mn, mx - mn )
+
+		measure recency_cre_norm =
+				VAR x  = MAX ( 'icp_scored_accounts v1.5'[recency_score_cre] )
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[recency_score_cre] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[recency_score_cre] )
+				RETURN DIVIDE ( x - mn, mx - mn )
+
 		measure consumables_ratio_norm =
 				VAR x  = MAX ( 'icp_scored_accounts v1.5'[consumables_to_hw_ratio] )
 				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[consumables_to_hw_ratio] )

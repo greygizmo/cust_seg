@@ -82,3 +82,13 @@ Columns
 Notes
 - The neighbors pipeline uses exact blockwise cosine and a hybrid embedding across numeric/categorical/text/ALS blocks.
 
+
+## CRE-only Dynamics and Adoption Context (Division: CRE)
+
+To provide parity for CRE sellers in list building, the dataset includes CRE-scoped dynamics, breadth, and recency signals built from the CRE tab (CAD, Specialty Software) and the CRE Training subset (Success Plan, Training):
+
+- Dynamics (13W/12M): `spend_13w_cre`, `spend_13w_prior_cre`, `delta_13w_cre`, `delta_13w_pct_cre`, `spend_12m_cre`, `spend_52w_cre`, `yoy_13w_pct_cre`
+- Slopes/volatility: `slope_13w_cre`, `slope_13w_prior_cre`, `acceleration_13w_cre`, `volatility_13w_cre`, `seasonality_factor_13w_cre`
+- Recency: `days_since_last_cre_order`, `recency_score_cre`
+- Breadth across CRE rollups: `breadth_cre_rollup_12m`, `max_cre_rollup`, `breadth_score_cre`
+- Percentile helper columns are included for many dynamics via the `*_pctl` suffix.
