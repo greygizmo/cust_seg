@@ -20,7 +20,7 @@ This checklist captures engineering improvements and sales enablement features. 
 
 ## Tests
 - [ ] Add pytest with focused unit tests
-  - [ ] Add `tests/test_scoring.py` for adoption/relationship invariants (zero-only, identical series → 0.5, heavy fleet bonus, revenue-only sqrt cap, min-max behavior).
+  - [ ] Add `tests/test_scoring.py` for adoption/relationship invariants (zero-only, identical series → 0.5, revenue-only sqrt cap, min-max behavior).
   - [ ] Add `tests/test_schema.py` for required column presence mapping.
   - [ ] Add `tests/test_industry.py` for EB shrinkage pathways.
   - [ ] Document how to run tests in README.
@@ -72,7 +72,7 @@ This checklist captures engineering improvements and sales enablement features. 
 - [ ] Add “Prospect Explorer” and “Account 360”
   - [ ] Prospect Explorer: table with live filters + detail panel (history snapshots, enrichment source).
   - [ ] Account 360: single account view with trend sparklines, adoption breakdown, recent profit, tags/playbook.
-  - [ ] Add “Quick filters” buttons (A-grade only, heavy fleet, revenue-only).
+  - [ ] Add “Quick filters” buttons (A-grade only, revenue-only).
   - Done when: sales can inspect one account deeply and navigate prospects easily.
 
 ## Docs & Onboarding

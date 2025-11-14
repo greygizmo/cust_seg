@@ -35,7 +35,7 @@ graph TB
     subgraph "Configuration & Storage"
         ConfigFiles[config.toml<br/>artifacts/industry/strategic_industry_tiers.json]
         OptimizedWeights[artifacts/weights/optimized_weights.json]
-        IndustryWeights[artifacts/weights/industry_weights.json]
+        IndustryWeights[artifacts/weights/{division}_industry_weights.json]
         ScoredData[data/processed/icp_scored_accounts.csv]
         NeighborsCSV[artifacts/account_neighbors.csv]
     end

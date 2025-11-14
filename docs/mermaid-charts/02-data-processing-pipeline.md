@@ -38,20 +38,18 @@ graph TD
     end
 
     subgraph "Stage 5: Feature Engineering"
-        AdoptionPreferred[Adoption (preferred)
-- adoption_assets, adoption_profit]
-        AdoptionLegacy[Adoption (legacy fallback)
-- weighted printers, HW+Consumable revenue]
+        AdoptionPreferred[Adoption (division)
+        - adoption_assets, adoption_profit]
         Relationship[Relationship feature
-- relationship_profit (preferred)
-- fallback software revenues]
+        - relationship_profit (preferred)
+        - fallback software revenues]
     end
 
     subgraph "Stage 6: Industry Weights"
         BuildWeights[src/icp/industry.py
-- empirical-bayes shrinkage
-- strategic blending]
-        SaveWeights[artifacts/weights/industry_weights.json]
+        - empirical-bayes shrinkage
+        - strategic blending]
+        SaveWeights[artifacts/weights/{division}_industry_weights.json]
     end
 
     subgraph "Stage 7: Scoring"
@@ -96,7 +94,6 @@ graph TD
     SaveWeights --> CalculateScores
 
     AdoptionPreferred --> CalculateScores
-    AdoptionLegacy --> CalculateScores
     Relationship --> CalculateScores
     CalculateScores --> ApplyWeights --> ScoredDataset
     CalculateScores --> VisualizationGeneration

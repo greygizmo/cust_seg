@@ -36,7 +36,7 @@ graph TB
         InputFiles[Inputs<br/>Azure SQL sources<br/>CSV: Industry Enrichment (optional)
 JSON: Strategic config]
         OutputFiles[Generated Artifacts<br/>data/processed/icp_scored_accounts.csv<br/>artifacts/weights/optimized_weights.json
-artifacts/weights/industry_weights.json
+artifacts/weights/{division}_industry_weights.json
 reports/figures/vis1-vis10.png]
         CacheFiles[Cache & Backups
 archive/*]
@@ -115,7 +115,7 @@ This diagram shows how the Python modules and external libraries interact to for
 #### 1. Data Processing Layer
 - **normalize_names.py**: Provides name standardization for data merging
 - **cleanup_industry_data.py**: Handles industry classification standardization
-- **industry_scoring.py**: Calculates data-driven industry weights using Empirical-Bayes
+- **src/icp/industry.py**: Calculates data-driven industry weights using Empirical-Bayes
 - **goe_icp_scoring.py**: Main orchestrator that calls all other processing functions
 
 #### 2. Scoring Engine Layer
@@ -144,7 +144,7 @@ This diagram shows how the Python modules and external libraries interact to for
 #### Main Processing Pipeline:
 1. `goe_icp_scoring.py:main()` calls:
    - `normalize_names.py` functions for name standardization
-   - `industry_scoring.py:build_industry_weights()` for industry analysis
+   - `src/icp/industry.py:build_industry_weights()` for industry analysis
    - `scoring_logic.py:calculate_scores()` for final scoring
 
 #### Optimization Process:
@@ -195,7 +195,7 @@ Scored Data  Optimization  Better Weights  Improved Scoring
 
 #### Tightly Coupled:
 - `scoring_logic.py` and `streamlit_icp_dashboard.py` (real-time interaction)
-- `industry_scoring.py` and `scoring_logic.py` (shared data structures)
+- `src/icp/industry.py` and `scoring_logic.py` (shared data structures)
 
 #### Loosely Coupled:
 - Optimization components (can be run independently)

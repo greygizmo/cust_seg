@@ -31,7 +31,7 @@ graph TB
         subgraph "Generated Data Files"
             ScoredAccounts[data/processed/icp_scored_accounts.csv<br/>Scored customer dataset]
             OptimizedWeights[artifacts/weights/optimized_weights.json]
-            IndustryWeights[artifacts/weights/industry_weights.json]
+            IndustryWeights[artifacts/weights/{division}_industry_weights.json]
             Visualizations[reports/figures/vis1-vis10.png]
         end
     end
@@ -167,7 +167,7 @@ graph TB
 - `src/icp/cli/score_accounts.py`  `src/icp/scoring.py` (core scoring)
 - `src/icp/cli/score_accounts.py`  `src/icp/industry.py` (industry weights)
 - `apps/streamlit/app.py`  `data/processed/icp_scored_accounts.csv` (data source)
-- `src/icp/scoring.py`  `artifacts/weights/industry_weights.json` (industry scores)
+- `src/icp/scoring.py`  `artifacts/weights/{division}_industry_weights.json` (industry scores)
 
 #### **Soft Dependencies** (Fallback Available):
 - `artifacts/weights/optimized_weights.json` (falls back to DEFAULT_WEIGHTS)

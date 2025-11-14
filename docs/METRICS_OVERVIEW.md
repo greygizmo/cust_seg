@@ -1,50 +1,50 @@
 # Metrics and Features Overview
 
-This document reflects the metrics and artifacts produced by the current repo code paths. It covers the main ICP scoring output and the separate neighbors artifact (with ALS).
+This document summarizes metrics and artifacts produced by the current pipeline.
 
 ## ICP Scoring (Azure SQL pipeline)
 
-Identity and context columns (if present in sources):
+Identity and context (when available):
 - Customer ID, Company Name, Industry, Industry Sub List, Industry_Reasoning
-- AM Sales Rep, AM Territory, EDU Assets flag
-- Contacts (RP Primary and Account Primary), Shipping address fields
+- AM Sales Rep, AM Territory, EDU Assets
+- Contacts (RP Primary and Account Primary), shipping address fields
 
 Profit aggregates (customer-level):
 - Profit_Since_2023_Total, Profit_T4Q_Total, Profit_LastQ_Total, Profit_PrevQ_Total, Profit_QoQ_Growth
-- Months_Active_12M (derived from monthly profit activity)
+- Months_Active_12M (derived from monthly activity)
 
-Hardware/Software features (customer-level):
-- adoption_assets (aggregated asset/seat signals across focus goals)
-- adoption_profit (profit signals across Printer/Accessories/Scanners/Geomagic and 3DP Training rollup)
-- relationship_profit (profit across software goals: CAD, CPE, Specialty Software)
-- printer_count, scaling_flag
+Division-aware features:
+- adoption_assets (aggregated assets/seats across focus goals)
+- adoption_profit (profit from focus goals, + CRE Training subset as configured)
+- relationship_profit (profit for software goals: CAD, CPE, Specialty Software)
+- printer_count (exposed for BI; not used in adoption scoring)
 
-Goal- and rollup-level totals (merged to customer-level where available):
+Goal/rollup totals (joined to customer-level when available):
 - Seats_CAD/CPE/Specialty Software; GP_CAD/CPE/Specialty Software
-- Qty_Printers, GP_Printers; per-printer-subdivision qty/gp where available
+- Qty_Printers, GP_Printers; per-printer-subdivision qty/gp where present
 - active_assets_total, seats_sum_total, Portfolio_Breadth
-- Earliest/Latest purchase/expiration dates and corresponding day deltas
+- Earliest/Latest purchase/expiration dates and day deltas
 
 Scores and grades:
 - Hardware_score (adoption), Software_score (relationship)
-- vertical_score, size_score
-- ICP_score_raw, ICP_score (0–100 normalized), ICP_grade (A–F)
+- vertical_score, size_score, ICP_score_raw
+- ICP_score (0–100 normalized), ICP_grade (A–F)
 
 Notes:
-- The “List‑Builder” time‑series and mix features (spend_13w, trend/momentum, HW/SW share, top_subdivision, HHI, POV tags, etc.) are now ENABLED in the default pipeline via the Azure SQL feed and are appended to the scored CSV.
+- List-builder dynamics/mix (spend_13w, trend/momentum, HW/SW share, top_subdivision, HHI, POV tags, etc.) are produced from Azure SQL and appended to the scored CSV.
 
 Output file:
 - data/processed/icp_scored_accounts.csv
 
-## Neighbors Artifact (Exact, blockwise)
+## Neighbors Artifact (exact, blockwise)
 
-Hybrid embedding composed from blocks:
-- Numeric: all numeric columns from scored accounts after robust transforms (winsor, log1p/logit per config, robust z, L2 row norm)
-- Categorical: one‑hot for industry, segment (activity_segment), territory, top_subdivision_12m (if present)
+Hybrid embedding (blocks):
+- Numeric: numeric columns from scored accounts after robust transforms (as configured)
+- Categorical: one-hot for industry, segment, territory, top_subdivision_12m
 - Text: sentence embeddings of Industry_Reasoning (MiniLM) with TF‑IDF+SVD fallback
-- ALS (collaborative): account vectors trained on composite implicit signals per (account,item_rollup) and per (account,Goal)
+- ALS (collaborative): vectors trained on composite implicit signals per (account,item_rollup) and per (account,Goal)
 
-Neighbors output columns:
+Neighbors columns:
 - account_id, neighbor_account_id, neighbor_rank
 - sim_overall, sim_numeric, sim_categorical, sim_text, sim_als
 - neighbor_account_name, neighbor_industry, neighbor_segment, neighbor_territory
@@ -54,7 +54,7 @@ Output file:
 
 ## Configuration (current)
 
-In `config.toml`:
+In `config.toml` (key excerpts):
 
 ```toml
 [similarity]
@@ -84,11 +84,10 @@ logit_cols    = [
 text_column   = "industry_reasoning"
 
 # Memory/scale controls for exact neighbors
-max_dense_accounts = 5000      # use blockwise above this N
-row_block_size     = 512       # query rows per block in blockwise
+max_dense_accounts = 5000
+row_block_size     = 512
 
 [als]
-# Composite strength weights for implicit signals
 w_rev = 1.0
 w_seats = 0.3
 w_assets = 0.2
@@ -109,3 +108,4 @@ use_bm25 = true
   - `python -m icp.cli.score_accounts --neighbors-only --in-scored data/processed/icp_scored_accounts.csv`
 - Disable ALS in neighbors (override config):
   - `python -m icp.cli.score_accounts --neighbors-only --no-als`
+

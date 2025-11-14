@@ -38,7 +38,7 @@ graph TB
     subgraph "Generated Data Files"
         ScoredAccountsCSV[data/processed/icp_scored_accounts.csv]
         OptimizedWeightsJSON[artifacts/weights/optimized_weights.json]
-        IndustryWeightsJSON[artifacts/weights/industry_weights.json]
+        IndustryWeightsJSON[artifacts/weights/{division}_industry_weights.json]
         EnrichmentBackup[archive/data/...
 Historical backups]
     end
@@ -167,7 +167,7 @@ Processing Scripts  Generated Data Files  Visualizations
 #### Output Dependencies:
 - `data/processed/icp_scored_accounts.csv` is required by dashboard and optimization
 - `artifacts/weights/optimized_weights.json` is required by scoring logic and dashboard
-- `artifacts/weights/industry_weights.json` is required by scoring logic
+- `artifacts/weights/{division}_industry_weights.json` is required by scoring logic
 
 #### Configuration Dependencies:
 - `artifacts/industry/strategic_industry_tiers.json` configures industry priorities

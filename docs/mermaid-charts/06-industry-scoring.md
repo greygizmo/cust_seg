@@ -42,7 +42,7 @@ graph TD
     subgraph "Output Generation"
         WeightDictionary[Create Industry Weight Dictionary<br/>industry_name  final_score mapping<br/>Lowercase keys for consistency<br/>Include fallback entries]
         MetadataCreation[Generate Metadata<br/>Processing timestamp<br/>Method description<br/>Sample sizes per industry<br/>Blend parameters used]
-        JSONExport[artifacts/weights/industry_weights.json<br/>Weights dictionary + metadata<br/>Used by scoring logic<br/>Cached for performance]
+        JSONExport[artifacts/weights/{division}_industry_weights.json<br/>Weights dictionary + metadata<br/>Used by scoring logic<br/>Cached for performance]
         ResultsDisplay[Display Processing Results<br/>Number of industries processed<br/>Sample size distribution<br/>Score range achieved<br/>Shrinkage statistics]
     end
 
