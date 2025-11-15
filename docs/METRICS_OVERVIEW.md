@@ -31,7 +31,7 @@ Scores and grades:
 - ICP_score (0–100 normalized), ICP_grade (A–F)
 
 Notes:
-- List-builder dynamics/mix (spend_13w, trend/momentum, HW/SW share, top_subdivision, HHI, POV tags, etc.) are produced from Azure SQL and appended to the scored CSV.
+- List-builder dynamics/mix (spend_13w, trend/momentum, HW/SW share, cross-division balance and breadth, top_subdivision, HHI, POV tags, etc.) are produced from Azure SQL and appended to the scored CSV.
 
 Output file:
 - data/processed/icp_scored_accounts.csv

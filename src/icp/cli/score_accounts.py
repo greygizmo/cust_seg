@@ -95,6 +95,7 @@ from features.product_taxonomy import validate_and_join_products
 from features.similarity_build import build_neighbors
 from features.spend_dynamics import compute_spend_dynamics
 from features.adoption_and_mix import compute_adoption_and_mix
+from features.cross_division_signals import compute_cross_division_signals
 from features.health_concentration import month_hhi_12m, discount_pct
 from features.sw_hw_whitespace import sw_dominance_and_whitespace
 from features.pov_tags import make_pov_tags
@@ -143,6 +144,21 @@ FEATURE_COLUMN_ORDER = [
     "consumables_to_hw_ratio",
     "top_subdivision_12m",
     "top_subdivision_share_12m",
+    "hw_spend_13w",
+    "hw_spend_13w_prior",
+    "hw_delta_13w",
+    "hw_delta_13w_pct",
+    "sw_spend_13w",
+    "sw_spend_13w_prior",
+    "sw_delta_13w",
+    "sw_delta_13w_pct",
+    "super_division_breadth_12m",
+    "division_breadth_12m",
+    "software_division_breadth_12m",
+    "cross_division_balance_score",
+    "hw_to_sw_cross_sell_score",
+    "sw_to_hw_cross_sell_score",
+    "training_to_hw_ratio",
     "discount_pct",
     "month_conc_hhi_12m",
     "sw_dominance_score",
@@ -1143,6 +1159,8 @@ def engineer_features(
         s = s.fillna(0)
         if len(s) == 0:
             return s
+        if not (s > 0).any():
+            return pd.Series(0.0, index=s.index, dtype=float)
         return s.rank(pct=True)
 
     def _series(name: str) -> pd.Series:
@@ -1153,16 +1171,40 @@ def engineer_features(
     # Training subset GP (sum of two stable columns)
     t1 = _series("GP_Training/Services_Success_Plan")
     t2 = _series("GP_Training/Services_Training")
+    printer_count_series = _series("printer_count")
+    gp_printers_series = _series("GP_Printers")
+    seats_cpe = _series("Seats_CPE")
+    gp_cpe = _series("GP_CPE")
+    specialty_gp = _series("GP_Specialty Software")
+    specialty_profit = _series("Specialty Software")
+
     rel_train = _pctl(t1 + t2)
     # Hardware printers: printer_count + GP_Printers
-    rel_hw = 0.5 * _pctl(_series("printer_count")) + 0.5 * _pctl(_series("GP_Printers"))
+    rel_hw = 0.5 * _pctl(printer_count_series) + 0.5 * _pctl(gp_printers_series)
     # CPE: seats + GP
-    rel_cpe = 0.5 * _pctl(_series("Seats_CPE")) + 0.5 * _pctl(_series("GP_CPE"))
+    rel_cpe = 0.5 * _pctl(seats_cpe) + 0.5 * _pctl(gp_cpe)
 
     # Blend weights (emphasize cross-division signals as requested)
     # Do not double-count Specialty Software (already in adoption); use equal blend of Training, Hardware, CPE
     rel_combined = 0.333333 * rel_train + 0.333333 * rel_hw + 0.333334 * rel_cpe
-    df["cre_relationship_profit"] = pd.to_numeric(rel_combined, errors="coerce").fillna(0.0)
+
+    cre_signal_mask = (
+        (t1 + t2 > 0)
+        | (seats_cpe > 0)
+        | (gp_cpe > 0)
+        | (specialty_gp > 0)
+        | (specialty_profit > 0)
+        | (printer_count_series > 0)
+        | (gp_printers_series > 0)
+    )
+    if not cre_signal_mask.any():
+        df["cre_relationship_profit"] = 0.0
+    else:
+        # Scale blended signal to a 0-1 percentile so that
+        # small fixtures (including single-row tests) receive a score of 1.0
+        # when they are the strongest CRE relationship examples.
+        rel_scaled = _pctl(rel_combined.where(cre_signal_mask, 0.0))
+        df["cre_relationship_profit"] = pd.to_numeric(rel_scaled, errors="coerce").fillna(0.0)
 
     # Flag for scaling
     df["scaling_flag"] = (df["printer_count"] >= 4).astype(int)
@@ -1634,12 +1676,20 @@ def main():
         weeks_short=weeks_short,
     )
 
+    cross_division = compute_cross_division_signals(
+        tx=tx,
+        as_of=as_of_date,
+        weeks_short=weeks_short,
+        months_ltm=months_ltm,
+    )
+
     features_df = (
         dyn
         .merge(mix, on="account_id", how="left")
         .merge(hhi, on="account_id", how="left")
         .merge(disc, on="account_id", how="left")
         .merge(whitespace, on="account_id", how="left")
+        .merge(cross_division, on="account_id", how="left")
     )
 
     # Printer-only 13W/12M dynamics (division == 'Printers') with suffixed columns
@@ -1982,6 +2032,10 @@ def main():
         "hw_spend_12m","sw_spend_12m","hw_share_12m","sw_share_12m","breadth_hw_subdiv_12m","max_hw_subdiv",
         "breadth_score_hw","days_since_last_hw_order","recency_score_hw","hardware_adoption_score",
         "consumables_to_hw_ratio","top_subdivision_share_12m",
+        "hw_spend_13w","hw_spend_13w_prior","hw_delta_13w","hw_delta_13w_pct",
+        "sw_spend_13w","sw_spend_13w_prior","sw_delta_13w","sw_delta_13w_pct",
+        "super_division_breadth_12m","division_breadth_12m","software_division_breadth_12m",
+        "cross_division_balance_score","hw_to_sw_cross_sell_score","sw_to_hw_cross_sell_score","training_to_hw_ratio",
         # health, whitespace, pov scores
         "discount_pct","month_conc_hhi_12m","sw_dominance_score","sw_to_hw_whitespace_score",
         # existing numeric headline columns (safe no-ops if absent)

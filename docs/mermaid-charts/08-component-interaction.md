@@ -113,27 +113,27 @@ This diagram shows how the Python modules and external libraries interact to for
 ### Layer Architecture:
 
 #### 1. Data Processing Layer
-- **normalize_names.py**: Provides name standardization for data merging
+- **src/icp/utils/normalize.py**: Provides name standardization for data merging
 - **cleanup_industry_data.py**: Handles industry classification standardization
 - **src/icp/industry.py**: Calculates data-driven industry weights using Empirical-Bayes
-- **goe_icp_scoring.py**: Main orchestrator that calls all other processing functions
+- **goe_icp_scoring.py**: Backwards-compatible shim that delegates to the CLI module
 
 #### 2. Scoring Engine Layer
-- **scoring_logic.py**: Core business logic containing:
+- **src/icp/scoring.py**: Core business logic containing:
   - `calculate_scores()`: Main scoring function with 4 component calculations
   - `calculate_grades()`: Converts scores to A-F grades
-  - `percentile_scale()`: Handles zero-value exclusion for fair scaling
+  - `_percentile_scale()`: Handles zero-value exclusion for fair scaling
   - Constants for default weights and target distributions
 
 #### 3. Optimization Layer
-- **run_optimization.py**: Configures and executes Optuna studies
-- **optimize_weights.py**: Contains the objective function that:
+- **src/icp/cli/optimize_weights.py**: CLI wrapper that configures and executes Optuna studies
+- **src/icp/optimization.py**: Contains the objective function that:
   - Calculates Spearman correlation between scores and revenue
   - Computes KL divergence for grade distribution matching
   - Applies business constraints (weight limits, normalization)
 
 #### 4. Dashboard Layer
-- **streamlit_icp_dashboard.py**: Main dashboard application with:
+- **apps/streamlit/app.py**: Main dashboard application with:
   - Real-time weight adjustment via sliders
   - Interactive charts using Plotly
   - Data export functionality
@@ -143,19 +143,19 @@ This diagram shows how the Python modules and external libraries interact to for
 
 #### Main Processing Pipeline:
 1. `goe_icp_scoring.py:main()` calls:
-   - `normalize_names.py` functions for name standardization
+   - `src/icp/utils/normalize.py` helpers for name standardization
    - `src/icp/industry.py:build_industry_weights()` for industry analysis
-   - `scoring_logic.py:calculate_scores()` for final scoring
+   - `icp.scoring.calculate_scores()` for final scoring
 
 #### Optimization Process:
-1. `run_optimization.py:run_optimization()` calls:
-   - `optimize_weights.py:objective()` for each Optuna trial
+1. `src/icp/cli/optimize_weights.py:run_optimization()` calls:
+   - `icp.optimization.objective()` for each Optuna trial
    - Pandas for data loading and manipulation
    - Optuna for parameter suggestion and study management
 
 #### Dashboard Operation:
-1. `streamlit_icp_dashboard.py:main()` calls:
-   - `scoring_logic.py:calculate_scores()` for real-time recalculation
+1. `apps/streamlit/app.py:main()` calls:
+   - `icp.scoring.calculate_scores()` for real-time recalculation
    - Plotly functions for chart generation
    - Streamlit components for UI rendering
 
@@ -194,8 +194,8 @@ Scored Data  Optimization  Better Weights  Improved Scoring
 ### Component Coupling:
 
 #### Tightly Coupled:
-- `scoring_logic.py` and `streamlit_icp_dashboard.py` (real-time interaction)
-- `src/icp/industry.py` and `scoring_logic.py` (shared data structures)
+- `icp.scoring` and `apps/streamlit/app.py` (real-time interaction)
+- `src/icp/industry.py` and `icp.scoring` (shared data structures)
 
 #### Loosely Coupled:
 - Optimization components (can be run independently)

@@ -163,8 +163,8 @@ Blended Score = (0.7  Data-Driven) + (0.3  Strategic)
 - **Predictive**: Uses adoption-adjusted metrics for better forecasting
 
 ### Output:
-- **industry_weights.json**: Contains the final industry  score mapping
-- **Used by**: `scoring_logic.py` for vertical score calculation
+- **industry_weights.json**: Contains the final industry score mapping
+- **Used by**: `icp.scoring` for vertical score calculation
 - **Integrated with**: Overall ICP scoring system
 - **Cached**: Processed once and reused for performance
 

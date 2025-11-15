@@ -66,6 +66,10 @@ List-builder dynamics and mix (BI features)
 - Hardware mix: `hw_spend_12m`, `sw_spend_12m`, `hw_share_12m`, `sw_share_12m`
 - Breadth and recency: `breadth_hw_subdiv_12m`, `max_hw_subdiv`, `breadth_score_hw`, `days_since_last_hw_order`, `recency_score_hw`, `hardware_adoption_score`
 - Concentration/discount/whitespace: `discount_pct`, `month_conc_hhi_12m`, `sw_dominance_score`, `sw_to_hw_whitespace_score`
+- Cross-division levers:
+  - Division momentum: `hw_spend_13w`, `hw_spend_13w_prior`, `hw_delta_13w`, `hw_delta_13w_pct`, `sw_spend_13w`, `sw_spend_13w_prior`, `sw_delta_13w`, `sw_delta_13w_pct`
+  - Portfolio breadth: `super_division_breadth_12m`, `division_breadth_12m`, `software_division_breadth_12m`
+  - Opportunity scores: `cross_division_balance_score`, `hw_to_sw_cross_sell_score`, `sw_to_hw_cross_sell_score`, `training_to_hw_ratio`
 - POV: `pov_primary`, `pov_tags_all`
 
 Timestamps

@@ -19,19 +19,22 @@ from pathlib import Path
 
 
 TARGETS = [
-    Path("streamlit_icp_dashboard.py"),
-    Path("documentation"),
+    # Streamlit app
+    Path("apps") / "streamlit" / "app.py",
+    # Project documentation
+    Path("docs"),
 ]
 
 
 def clean_text(s: str) -> str:
-    # Remove non-ASCII characters but preserve whitespace/newlines
-    s_ascii = s.encode("ascii", "ignore").decode("ascii")
+    """Lightweight cleanup of historical encoding artefacts in text files.
+
+    This is intentionally conservative: it avoids stripping all non-ASCII
+    characters and instead focuses on a few known bad sequences.
+    """
     # Targeted token cleanup (keep spacing intact)
-    s_ascii = s_ascii.replace("dYZ_", "").replace("dY", "")
-    # Normalize headers with odd punctuation remnants
-    s_ascii = s_ascii.replace("ICP SCORING DASHBOARD", "ICP SCORING DASHBOARD")
-    return s_ascii
+    cleaned = s.replace("dYZ_", "").replace("dY", "")
+    return cleaned
 
 
 def iter_files(root: Path):
