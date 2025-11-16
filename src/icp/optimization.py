@@ -129,7 +129,7 @@ def objective(
         vertical in [0.15, 0.45], adoption in [0.20, 0.55], relationship in [0.20, 0.55].
     - Objective: lambda*KL(grade||target) - (1-lambda)*Spearman + w_stab*stability - w_lift*(lift@A-1).
     """
-    # Common conservative bounds
+    # Common conservative bounds (size component removed)
     v_min, v_max = 0.15, 0.45
     a_min, a_max = 0.20, 0.55
     r_min, r_max = 0.20, 0.55
@@ -137,7 +137,6 @@ def objective(
     w_vertical = trial.suggest_float('vertical_score', v_min, v_max)
     w_adoption = trial.suggest_float('adoption_score', a_min, a_max)
     w_relationship = trial.suggest_float('relationship_score', r_min, r_max)
-    w_size = 0.0 if not include_size else 0.0  # enforce 0 in v1.5
 
     total = w_vertical + w_adoption + w_relationship
     if total <= 0:
@@ -150,11 +149,11 @@ def objective(
 
     weights_dict = {
         'vertical_score': w_vertical,
-        'size_score': w_size,
         'adoption_score': w_adoption,
         'relationship_score': w_relationship,
     }
-    weights = np.array([weights_dict[name] for name in X.columns])
+    # Any unknown components (e.g., legacy size_score) get weight 0.0
+    weights = np.array([weights_dict.get(name, 0.0) for name in X.columns])
 
     # Score with linear blend (no ML)
     icp_scores = X.dot(weights)

@@ -4,11 +4,17 @@ createOrReplace
 		lineageTag: 31a803aa-038e-4f5b-a068-d426924d0c0c
 
 		measure icp_norm =
-				VAR x  = MAX ( 'icp_scored_accounts v1.5'[ICP_score] )
-				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[ICP_score] )
-				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[ICP_score] )
+				VAR x  = MAX ( 'icp_scored_accounts v1.5'[ICP_score_hardware] )
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[ICP_score_hardware] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[ICP_score_hardware] )
 				RETURN DIVIDE ( x - mn, mx - mn )
 			lineageTag: e450e021-cd0e-499e-9d31-c3b9146e38fa
+
+		measure icp_norm_cre =
+				VAR x  = MAX ( 'icp_scored_accounts v1.5'[ICP_score_cre] )
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[ICP_score_cre] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[ICP_score_cre] )
+				RETURN DIVIDE ( x - mn, mx - mn )
 
 		measure momentum_norm =
 				VAR x  = MAX ( 'icp_scored_accounts v1.5'[momentum_score] )
@@ -30,13 +36,6 @@ createOrReplace
 				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[recency_score_hw] )
 				RETURN DIVIDE ( x - mn, mx - mn )
 			lineageTag: e7983c76-c167-46b4-8061-0fa294f782db
-
-		measure size_norm =
-				VAR x  = MAX ( 'icp_scored_accounts v1.5'[size_score] )
-				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[size_score] )
-				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[size_score] )
-				RETURN DIVIDE ( x - mn, mx - mn )
-			lineageTag: 03094ade-821f-43da-a42e-f1cb1810fe87
 
 		measure vertical_norm =
 				VAR x  = MAX ( 'icp_scored_accounts v1.5'[vertical_score] )
@@ -137,17 +136,17 @@ createOrReplace
 		measure distance_to_A =
 				VAR a_min =
 				    CALCULATE (
-				        MIN ( 'icp_scored_accounts v1.5'[ICP_score] ),
-				        FILTER ( ALL ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[ICP_grade] = "A" )
+				        MIN ( 'icp_scored_accounts v1.5'[ICP_score_hardware] ),
+				        FILTER ( ALL ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[ICP_grade_hardware] = "A" )
 				    )
-				VAR meScore = SELECTEDVALUE ( 'icp_scored_accounts v1.5'[ICP_score] )
+				VAR meScore = SELECTEDVALUE ( 'icp_scored_accounts v1.5'[ICP_score_hardware] )
 				RETURN a_min - meScore
 			lineageTag: 1c2f8923-8f71-489c-b17a-912100914922
 
 		measure closeness_to_A_norm =
 				VAR maxDist =
 				    MAXX (
-				        FILTER ( ALL ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[ICP_grade] = "B" ),
+				        FILTER ( ALL ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[ICP_grade_hardware] = "B" ),
 				        [distance_to_A]
 				    )
 				RETURN MAX ( 0, 1 - DIVIDE ( [distance_to_A], maxDist ) )
@@ -248,9 +247,6 @@ createOrReplace
 				RETURN DIVIDE ( 0.30 * icp + 0.25 * mom + 0.20 * warm + 0.15 * headroom + 0.10 * rec, 1.0 )
 			lineageTag: 98eb8c92-0ef0-44b1-ae20-daa300480d6d
 
-		measure p80_size_score = PERCENTILEX.INC( ALLSELECTED( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[size_score], 0.80 )
-			lineageTag: 8587b28d-3618-4e1b-ac92-0b88631986ac
-
 		measure p70_vertical_score = PERCENTILEX.INC( ALLSELECTED( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[vertical_score], 0.70 )
 			lineageTag: 3b206225-ffc5-4692-be2b-a9839789536d
 
@@ -265,7 +261,7 @@ createOrReplace
 			lineageTag: d8dc8e0c-1ab3-4351-95e0-92b5bd29a14a
 
 		measure keep_sw_hw_whitespace_now =
-				VAR grade = SELECTEDVALUE( 'icp_scored_accounts v1.5'[ICP_grade] )
+				VAR grade = SELECTEDVALUE( 'icp_scored_accounts v1.5'[ICP_grade_hardware] )
 				VAR whitespace = MAX( 'icp_scored_accounts v1.5'[sw_to_hw_whitespace_score_pctl] )
 				VAR adopt = MAX( 'icp_scored_accounts v1.5'[hardware_adoption_score_pctl] )
 				VAR share = MAX( 'icp_scored_accounts v1.5'[hw_share_12m_pctl] )
@@ -283,7 +279,7 @@ createOrReplace
 			lineageTag: c2fc2613-603c-4ad4-996b-a6f9f0382ddd
 
 		measure keep_b_to_a_upgrade =
-				VAR grade = SELECTEDVALUE( 'icp_scored_accounts v1.5'[ICP_grade] )
+				VAR grade = SELECTEDVALUE( 'icp_scored_accounts v1.5'[ICP_grade_hardware] )
 				VAR closeA = [closeness_to_A_norm]
 				VAR d13 = MAX( 'icp_scored_accounts v1.5'[delta_13w_pct_pctl] )
 				VAR yoy = MAX( 'icp_scored_accounts v1.5'[yoy_13w_pct_pctl] )
@@ -303,20 +299,19 @@ createOrReplace
 			lineageTag: 8f23de00-dac0-4f2d-b3d3-9a451b43a450
 
 		measure keep_strategic_whales =
-				VAR sizeOK = MAX( 'icp_scored_accounts v1.5'[size_score] ) >= [p80_size_score]
 				VAR vertOK = MAX( 'icp_scored_accounts v1.5'[vertical_score] ) >= [p70_vertical_score]
 				VAR headOK = [hw_headroom_index] >= 0.50
-				RETURN IF( sizeOK && vertOK && headOK, 1, 0 )
+				RETURN IF( vertOK && headOK, 1, 0 )
 			lineageTag: 5a9ec24d-359f-479c-800b-a16e080a4377
 
 		measure keep_neighbor_hubs =
-				VAR grade = SELECTEDVALUE( 'icp_scored_accounts v1.5'[ICP_grade] )
+				VAR grade = SELECTEDVALUE( 'icp_scored_accounts v1.5'[ICP_grade_hardware] )
 				VAR central = [inbound_neighbor_count_norm]
 				RETURN IF( (grade = "A" || grade = "B") && central >= 0.90, 1, 0 )
 			lineageTag: e8b9c804-5b0f-41f9-a195-4046ed3716c5
 
 		measure keep_warm_lookalikes =
-				VAR grade  = SELECTEDVALUE ( 'icp_scored_accounts v1.5'[ICP_grade] )
+				VAR grade  = SELECTEDVALUE ( 'icp_scored_accounts v1.5'[ICP_grade_hardware] )
 				VAR adopt  = MAX ( 'icp_scored_accounts v1.5'[hardware_adoption_score_pctl] )
 				VAR sim    = [AvgWarmNeighborSimilarity_In]
 				VAR simCut = CALCULATE ( [similarity_p75], ALL ( account_neighbors ) )
@@ -331,7 +326,7 @@ createOrReplace
 			lineageTag: a1338006-52cc-4666-9d27-7185bcc9284a
 
 		measure keep_winbacks =
-				VAR grade    = SELECTEDVALUE( 'icp_scored_accounts v1.5'[ICP_grade] )
+				VAR grade    = SELECTEDVALUE( 'icp_scored_accounts v1.5'[ICP_grade_hardware] )
 				VAR spendLow = MAX( 'icp_scored_accounts v1.5'[spend_13w_pctl] ) <= 0.40
 				VAR win      = [winback_score] >= 0.60
 				RETURN IF( (grade = "A" || grade = "B") && spendLow && win, 1, 0 )
@@ -442,7 +437,7 @@ createOrReplace
 				VAR SeedID   = SELECTEDVALUE ( 'Accounts Dim'[Customer ID] )
 				VAR IsRow    = NOT ISBLANK ( SELECTEDVALUE ( account_neighbors[neighbor_account_id] ) )
 				VAR Neighbor = SELECTEDVALUE ( account_neighbors[neighbor_account_id] )
-				VAR Grade    = LOOKUPVALUE ( 'icp_scored_accounts v1.5'[ICP_grade],
+				VAR Grade    = LOOKUPVALUE ( 'icp_scored_accounts v1.5'[ICP_grade_hardware],
 				                             'icp_scored_accounts v1.5'[Customer ID], Neighbor )
 				VAR Adopt    = LOOKUPVALUE ( 'icp_scored_accounts v1.5'[hardware_adoption_score_pctl],
 				                             'icp_scored_accounts v1.5'[Customer ID], Neighbor )
@@ -633,25 +628,6 @@ createOrReplace
 			lineageTag: f1c65806-1151-443e-92b9-4a647abe59a5
 			summarizeBy: none
 			sourceColumn: ShippingCountry
-
-			annotation SummarizationSetBy = Automatic
-
-		column ICP_score
-			dataType: double
-			formatString: 0
-			lineageTag: 12dd5cff-fecc-4c17-a9e6-b95cf4250c4e
-			summarizeBy: sum
-			sourceColumn: ICP_score
-
-			annotation SummarizationSetBy = Automatic
-
-			annotation PBI_FormatHint = {"isDecimal":true}
-
-		column ICP_grade
-			dataType: string
-			lineageTag: f8da4219-c352-4565-ae10-97e507407b31
-			summarizeBy: none
-			sourceColumn: ICP_grade
 
 			annotation SummarizationSetBy = Automatic
 
@@ -1206,26 +1182,6 @@ createOrReplace
 			lineageTag: 96ce65de-d791-469a-a8a6-61f759cb75d2
 			summarizeBy: sum
 			sourceColumn: vertical_score
-
-			annotation SummarizationSetBy = Automatic
-
-			annotation PBI_FormatHint = {"isGeneralNumber":true}
-
-		column size_score
-			dataType: double
-			lineageTag: 18d97457-4b43-43ee-96ec-2b449484b651
-			summarizeBy: sum
-			sourceColumn: size_score
-
-			annotation SummarizationSetBy = Automatic
-
-			annotation PBI_FormatHint = {"isGeneralNumber":true}
-
-		column ICP_score_raw
-			dataType: double
-			lineageTag: 7c932811-1811-403d-b7f9-e0984a4c36b6
-			summarizeBy: sum
-			sourceColumn: ICP_score_raw
 
 			annotation SummarizationSetBy = Automatic
 
@@ -2058,7 +2014,7 @@ createOrReplace
 					let
 					    Source = Csv.Document(File.Contents("D:\OneDrive - Goengineer Inc\Documents\Manufacturing-TREID-LAP\Data Analytics\Reports\Customer Segementation\data\processed\icp_scored_accounts.csv"),[Delimiter=",", Columns=165, Encoding=1252, QuoteStyle=QuoteStyle.Csv]),
 					    #"Promoted Headers1" = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
-					    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers1",{{"Customer ID", type number}, {"Company Name", type text}, {"activity_segment", type text}, {"am_sales_rep", type text}, {"AM_Territory", type text}, {"edu_assets", type text}, {"RP_Primary_Name", type text}, {"RP_Primary_Email", type text}, {"RP_Primary_Phone", type text}, {"Primary_Contact_Name", type text}, {"Primary_Contact_Email", type text}, {"Primary_Contact_Phone", type text}, {"Name", type text}, {"email", type text}, {"phone", type text}, {"ShippingAddr1", type text}, {"ShippingAddr2", type text}, {"ShippingCity", type text}, {"ShippingState", type text}, {"ShippingZip", type text}, {"ShippingCountry", type text}, {"ICP_score", type number}, {"ICP_grade", type text}, {"Industry", type text}, {"Industry Sub List", type text}, {"Industry_Reasoning", type text}, {"Hardware_score", type number}, {"Software_score", type number}, {"GP_PrevQ_Total", type number}, {"GP_QoQ_Growth", type number}, {"GP_T4Q_Total", type number}, {"GP_Since_2023_Total", type number}, {"Qty_Printers", Int64.Type}, {"GP_Printers", type number}, {"Qty_Printers_AM_Software", Int64.Type}, {"GP_Printers_AM_Software", Int64.Type}, {"Qty_Printers_AM_Support", Int64.Type}, {"GP_Printers_AM_Support", Int64.Type}, {"Qty_Printers_Consumables", Int64.Type}, {"GP_Printers_Consumables", Int64.Type}, {"Qty_Printers_FDM", Int64.Type}, {"GP_Printers_FDM", Int64.Type}, {"Qty_Printers_FormLabs", Int64.Type}, {"GP_Printers_FormLabs", type number}, {"Qty_Printers_Metals", Int64.Type}, {"GP_Printers_Metals", Int64.Type}, {"Qty_Printers_P3", Int64.Type}, {"GP_Printers_P3", Int64.Type}, {"Qty_Printers_Polyjet", Int64.Type}, {"GP_Printers_Polyjet", type number}, {"Qty_Printers_Post_Processing", Int64.Type}, {"GP_Printers_Post_Processing", Int64.Type}, {"Qty_Printers_SAF", Int64.Type}, {"GP_Printers_SAF", Int64.Type}, {"Qty_Printers_SLA", Int64.Type}, {"GP_Printers_SLA", Int64.Type}, {"Qty_Printers_Spare_Parts_Repair_Parts_Time_and_Materials", Int64.Type}, {"GP_Printers_Spare_Parts_Repair_Parts_Time_and_Materials", Int64.Type}, {"Qty_Printer Accessories", Int64.Type}, {"GP_Printer Accessories", type number}, {"Qty_Scanners", Int64.Type}, {"GP_Scanners", Int64.Type}, {"Qty_Geomagic", Int64.Type}, {"GP_Geomagic", Int64.Type}, {"Seats_CAD", Int64.Type}, {"GP_CAD", type number}, {"Seats_CPE", Int64.Type}, {"GP_CPE", type number}, {"Seats_Specialty Software", Int64.Type}, {"GP_Specialty Software", type number}, {"scaling_flag", Int64.Type}, {"Total Software License Revenue", type number}, {"active_assets_total", Int64.Type}, {"seats_sum_total", Int64.Type}, {"Portfolio_Breadth", Int64.Type}, {"EarliestPurchaseDate", type datetime}, {"LatestPurchaseDate", type datetime}, {"LatestExpirationDate", type datetime}, {"Days_Since_First_Purchase", Int64.Type}, {"Days_Since_Last_Purchase", Int64.Type}, {"Days_Since_Last_Expiration", Int64.Type}, {"vertical_score", type number}, {"size_score", type number}, {"ICP_score_raw", type number}, {"spend_13w", type number}, {"spend_13w_prior", type number}, {"delta_13w", type number}, {"delta_13w_pct", type number}, {"spend_12m", type number}, {"spend_52w", type number}, {"yoy_13w_pct", type number}, {"days_since_last_order", Int64.Type}, {"active_weeks_13w", Int64.Type}, {"purchase_streak_months", Int64.Type}, {"median_interpurchase_days", Int64.Type}, {"slope_13w", type number}, {"slope_13w_prior", type number}, {"acceleration_13w", type number}, {"volatility_13w", type number}, {"seasonality_factor_13w", type number}, {"trend_score", type number}, {"recency_score", type number}, {"magnitude_score", type number}, {"cadence_score", type number}, {"momentum_score", type number}, {"w_trend", type number}, {"w_recency", type number}, {"w_magnitude", type number}, {"w_cadence", type number}, {"hw_spend_12m", type number}, {"sw_spend_12m", type number}, {"hw_share_12m", type number}, {"sw_share_12m", type number}, {"breadth_hw_subdiv_12m", type number}, {"max_hw_subdiv", type number}, {"breadth_score_hw", type number}, {"recency_score_hw", type number}, {"hardware_adoption_score", type number}, {"consumables_to_hw_ratio", type number}, {"top_subdivision_12m", type text}, {"days_since_last_hw_order", Int64.Type}, {"top_subdivision_share_12m", type number}, {"discount_pct", type number}, {"month_conc_hhi_12m", type number}, {"sw_dominance_score", type number}, {"sw_to_hw_whitespace_score", type number}, {"as_of_date", type date}, {"run_timestamp_utc", type datetime}, {"spend_13w_printers", type number}, {"spend_13w_prior_printers", type number}, {"delta_13w_printers", type number}, {"delta_13w_pct_printers", type number}, {"spend_12m_printers", type number}, {"spend_52w_printers", type number}, {"yoy_13w_pct_printers", type number}, {"slope_13w_printers", type number}, {"slope_13w_prior_printers", type number}, {"acceleration_13w_printers", type number}, {"volatility_13w_printers", type number}, {"seasonality_factor_13w_printers", type number}, {"days_since_last_order_printers", Int64.Type}, {"active_weeks_13w_printers", Int64.Type}, {"spend_12m_pctl", type number}, {"spend_13w_pctl", type number}, {"delta_13w_pct_pctl", type number}, {"yoy_13w_pct_pctl", type number}, {"slope_13w_pctl", type number}, {"acceleration_13w_pctl", type number}, {"acceleration_13w_printers_pctl", type number}, {"hw_spend_12m_pctl", type number}, {"sw_spend_12m_pctl", type number}, {"hw_share_12m_pctl", type number}, {"sw_share_12m_pctl", type number}, {"hardware_adoption_score_pctl", type number}, {"month_conc_hhi_12m_pctl", type number}, {"sw_dominance_score_pctl", type number}, {"sw_to_hw_whitespace_score_pctl", type number}}),
+					    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers1",{{"Customer ID", type number}, {"Company Name", type text}, {"activity_segment", type text}, {"am_sales_rep", type text}, {"AM_Territory", type text}, {"edu_assets", type text}, {"RP_Primary_Name", type text}, {"RP_Primary_Email", type text}, {"RP_Primary_Phone", type text}, {"Primary_Contact_Name", type text}, {"Primary_Contact_Email", type text}, {"Primary_Contact_Phone", type text}, {"Name", type text}, {"email", type text}, {"phone", type text}, {"ShippingAddr1", type text}, {"ShippingAddr2", type text}, {"ShippingCity", type text}, {"ShippingState", type text}, {"ShippingZip", type text}, {"ShippingCountry", type text}, {"Industry", type text}, {"Industry Sub List", type text}, {"Industry_Reasoning", type text}, {"Hardware_score", type number}, {"Software_score", type number}, {"GP_PrevQ_Total", type number}, {"GP_QoQ_Growth", type number}, {"GP_T4Q_Total", type number}, {"GP_Since_2023_Total", type number}, {"Qty_Printers", Int64.Type}, {"GP_Printers", type number}, {"Qty_Printers_AM_Software", Int64.Type}, {"GP_Printers_AM_Software", Int64.Type}, {"Qty_Printers_AM_Support", Int64.Type}, {"GP_Printers_AM_Support", Int64.Type}, {"Qty_Printers_Consumables", Int64.Type}, {"GP_Printers_Consumables", type number}, {"Qty_Printers_FDM", Int64.Type}, {"GP_Printers_FDM", type number}, {"Qty_Printers_FormLabs", Int64.Type}, {"GP_Printers_FormLabs", type number}, {"Qty_Printers_Metals", Int64.Type}, {"GP_Printers_Metals", type number}, {"Qty_Printers_P3", Int64.Type}, {"GP_Printers_P3", type number}, {"Qty_Printers_Polyjet", Int64.Type}, {"GP_Printers_Polyjet", type number}, {"Qty_Printers_Post_Processing", Int64.Type}, {"GP_Printers_Post_Processing", type number}, {"Qty_Printers_SAF", Int64.Type}, {"GP_Printers_SAF", type number}, {"Qty_Printers_SLA", Int64.Type}, {"GP_Printers_SLA", type number}, {"Qty_Printers_Spare_Parts_Repair_Parts_Time_and_Materials", Int64.Type}, {"GP_Printers_Spare_Parts_Repair_Parts_Time_and_Materials", type number}, {"Qty_Printer Accessories", Int64.Type}, {"GP_Printer Accessories", type number}, {"Qty_Scanners", Int64.Type}, {"GP_Scanners", Int64.Type}, {"Qty_Geomagic", Int64.Type}, {"GP_Geomagic", Int64.Type}, {"Seats_CAD", Int64.Type}, {"GP_CAD", type number}, {"Seats_CPE", Int64.Type}, {"GP_CPE", type number}, {"Seats_Specialty Software", Int64.Type}, {"GP_Specialty Software", type number}, {"scaling_flag", Int64.Type}, {"Total Software License Revenue", type number}, {"active_assets_total", Int64.Type}, {"seats_sum_total", Int64.Type}, {"Portfolio_Breadth", Int64.Type}, {"EarliestPurchaseDate", type datetime}, {"LatestPurchaseDate", type datetime}, {"LatestExpirationDate", type datetime}, {"Days_Since_First_Purchase", Int64.Type}, {"Days_Since_Last_Purchase", Int64.Type}, {"Days_Since_Last_Expiration", Int64.Type}, {"spend_13w", type number}, {"spend_13w_prior", type number}, {"delta_13w", type number}, {"delta_13w_pct", type number}, {"spend_12m", type number}, {"spend_52w", type number}, {"yoy_13w_pct", type number}, {"days_since_last_order", Int64.Type}, {"active_weeks_13w", Int64.Type}, {"purchase_streak_months", Int64.Type}, {"median_interpurchase_days", Int64.Type}, {"slope_13w", type number}, {"slope_13w_prior", type number}, {"acceleration_13w", type number}, {"volatility_13w", type number}, {"seasonality_factor_13w", type number}, {"trend_score", type number}, {"recency_score", type number}, {"magnitude_score", type number}, {"cadence_score", type number}, {"momentum_score", type number}, {"w_trend", type number}, {"w_recency", type number}, {"w_magnitude", type number}, {"w_cadence", type number}, {"hw_spend_12m", type number}, {"sw_spend_12m", type number}, {"hw_share_12m", type number}, {"sw_share_12m", type number}, {"breadth_hw_subdiv_12m", type number}, {"max_hw_subdiv", type number}, {"breadth_score_hw", type number}, {"recency_score_hw", type number}, {"hardware_adoption_score", type number}, {"consumables_to_hw_ratio", type number}, {"top_subdivision_12m", type text}, {"days_since_last_hw_order", Int64.Type}, {"top_subdivision_share_12m", type number}, {"discount_pct", type number}, {"month_conc_hhi_12m", type number}, {"sw_dominance_score", type number}, {"sw_to_hw_whitespace_score", type number}, {"as_of_date", type date}, {"run_timestamp_utc", type datetime}, {"spend_13w_printers", type number}, {"spend_13w_prior_printers", type number}, {"delta_13w_printers", type number}, {"delta_13w_pct_printers", type number}, {"spend_12m_printers", type number}, {"spend_52w_printers", type number}, {"yoy_13w_pct_printers", type number}, {"slope_13w_printers", type number}, {"slope_13w_prior_printers", type number}, {"acceleration_13w_printers", type number}, {"volatility_13w_printers", type number}, {"seasonality_factor_13w_printers", type number}, {"days_since_last_order_printers", Int64.Type}, {"active_weeks_13w_printers", Int64.Type}, {"spend_12m_pctl", type number}, {"spend_13w_pctl", type number}, {"delta_13w_pct_pctl", type number}, {"yoy_13w_pct_pctl", type number}, {"slope_13w_pctl", type number}, {"acceleration_13w_pctl", type number}, {"acceleration_13w_printers_pctl", type number}, {"hw_spend_12m_pctl", type number}, {"sw_spend_12m_pctl", type number}, {"hw_share_12m_pctl", type number}, {"sw_share_12m_pctl", type number}, {"hardware_adoption_score_pctl", type number}, {"month_conc_hhi_12m_pctl", type number}, {"sw_dominance_score_pctl", type number}, {"sw_to_hw_whitespace_score_pctl", type number}}),
 					    #"Added Custom" = Table.AddColumn(#"Changed Type", "NS_url", each "https://473193.app.netsuite.com/app/common/entity/custjob.nl?id=" & Number.ToText([Customer ID], "0")),
 					    #"Added Custom1" = Table.AddColumn(#"Added Custom", "Email Link AM Primary", each if [RP_Primary_Email] = null or Text.PositionOf([RP_Primary_Email], "@") = -1
 					  then null

@@ -32,6 +32,8 @@ LICENSE_COL = "Total Software License Revenue"
 DEFAULT_DIVISION = "hardware"
 
 # Default weights for ICP scoring (hardware defaults unless overridden at runtime).
+# Note: Size is no longer a scoring component; only vertical, adoption, and
+# relationship contribute to the final ICP score.
 DEFAULT_WEIGHTS = get_division_config(DEFAULT_DIVISION).weight_dict()
 
 # Defines the target distribution for the final A-F grades.
@@ -269,34 +271,14 @@ def calculate_scores(
     weight_bundle = config.weight_dict()
     if weights:
         weight_bundle.update(dict(weights))
-    for key in ("vertical", "size", "adoption", "relationship"):
+    # Only vertical/adoption/relationship are used; size has been retired.
+    for key in ("vertical", "adoption", "relationship"):
         weight_bundle.setdefault(key, 0.0)
 
     industry_weights = load_dynamic_industry_weights(config)
     industry_series = df_clean.get(COL_INDUSTRY, pd.Series("", index=df_clean.index))
     v_lower = industry_series.astype(str).str.lower().str.strip()
     df_clean["vertical_score"] = v_lower.map(industry_weights).fillna(config.neutral_vertical_score)
-
-    revenue_series = pd.Series(0.0, index=df_clean.index, dtype=float)
-    if config.size_revenue_column and config.size_revenue_column in df_clean.columns:
-        revenue_series = pd.to_numeric(df_clean[config.size_revenue_column], errors="coerce").fillna(0)
-    elif config.size_revenue_fallback and config.size_revenue_fallback in df_clean.columns:
-        revenue_series = pd.to_numeric(df_clean[config.size_revenue_fallback], errors="coerce").fillna(0)
-    has_reliable_revenue = revenue_series > 0
-
-    df_clean["size_score"] = 0.5
-    conditions = [
-        (revenue_series >= 250_000_000) & (revenue_series < 1_000_000_000),
-        (revenue_series >= 1_000_000_000),
-        (revenue_series >= 50_000_000),
-        (revenue_series >= 10_000_000),
-        (revenue_series > 0),
-    ]
-    scores = [1.0, 0.9, 0.6, 0.4, 0.4]
-    for condition, score in zip(conditions, scores):
-        mask = has_reliable_revenue & condition
-        if mask.any():
-            df_clean.loc[mask, "size_score"] = score
 
     df_clean["adoption_score"] = _compute_adoption_scores(df_clean, config)
 
@@ -307,7 +289,6 @@ def calculate_scores(
 
     df_clean["ICP_score_raw"] = (
         weight_bundle["vertical"] * df_clean["vertical_score"]
-        + weight_bundle["size"] * df_clean["size_score"]
         + weight_bundle["adoption"] * df_clean["adoption_score"]
         + weight_bundle["relationship"] * df_clean["relationship_score"]
     ) * 100

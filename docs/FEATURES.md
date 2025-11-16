@@ -18,8 +18,8 @@ This file summarizes the main features currently used by the baseline scoring pi
 
 ## Scores
 - `Hardware_score` (adoption) and `Software_score` (relationship)
-- `vertical_score`, `size_score`
-- `ICP_score_raw`, `ICP_score` (0–100), `ICP_grade` (A–F)
+- `ICP_score_hardware`, `ICP_grade_hardware` (Hardware division)
+- `ICP_score_cre`, `ICP_grade_cre` (CRE division)
 
 ## Optional time-series features (currently disabled)
 Feature modules are available for spend dynamics, momentum, health/concentration, POV tags, and whitespace analysis. These are disabled in the default run to reduce memory, but can be enabled in code when needed.

@@ -137,8 +137,8 @@ def run_optimization(
         print("Error: 'Customer ID' missing in scored CSV.")
         return
 
-    # Component features
-    weight_names = ['vertical_score','size_score','adoption_score','relationship_score']
+    # Component features (size_score deprecated; optimization uses 3 components)
+    weight_names = ['vertical_score', 'adoption_score', 'relationship_score']
     cols_ok = True
     missing = []
     for col in weight_names:
@@ -146,8 +146,8 @@ def run_optimization(
             missing.append(col)
     # Fallbacks for adoption/relationship from aliased columns in the CSV
     X = pd.DataFrame(index=df.index)
-    if 'vertical_score' in df.columns: X['vertical_score'] = df['vertical_score']
-    if 'size_score' in df.columns: X['size_score'] = df['size_score']
+    if 'vertical_score' in df.columns:
+        X['vertical_score'] = df['vertical_score']
     # Adoption
     if 'adoption_score' in df.columns:
         X['adoption_score'] = df['adoption_score']
@@ -164,7 +164,7 @@ def run_optimization(
     else:
         cols_ok = False
         print("Error: neither 'relationship_score' nor 'Software_score' present.")
-    if not cols_ok or 'vertical_score' not in X.columns or 'size_score' not in X.columns:
+    if not cols_ok or 'vertical_score' not in X.columns:
         print("Error: Required score columns missing; cannot proceed.")
         return
 

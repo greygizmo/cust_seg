@@ -78,6 +78,7 @@ def compute_cross_division_signals(
             "hw_to_sw_cross_sell_score",
             "sw_to_hw_cross_sell_score",
             "training_to_hw_ratio",
+            "training_to_cre_ratio",
         ]
         return pd.DataFrame({col: [] for col in columns})
 
@@ -141,6 +142,10 @@ def compute_cross_division_signals(
     out["training_to_hw_ratio"] = _calc_ratio(
         training_spend.reindex(account_index, fill_value=0.0),
         hw_ltm.replace(0.0, np.nan),
+    )
+    out["training_to_cre_ratio"] = _calc_ratio(
+        training_spend.reindex(account_index, fill_value=0.0),
+        sw_ltm.replace(0.0, np.nan),
     )
 
     out.replace([np.inf, -np.inf], np.nan, inplace=True)

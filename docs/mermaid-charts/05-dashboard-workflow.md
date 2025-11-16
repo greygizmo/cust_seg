@@ -24,19 +24,19 @@ Shows current segment filter]
 
     subgraph "Interactive Weight Controls"
         SidebarControls[Sidebar Weight Controls<br/> ICP Scoring Controls<br/>Displays optimization status]
-        WeightSliders[Real-time Weight Sliders<br/>- Vertical Score Weight (0.0-1.0)<br/>- Size Score Weight (0.0-1.0)<br/>- Adoption Score Weight (0.0-1.0)<br/>- Relationship Score Weight (0.0-1.0)<br/>Auto-normalize to sum = 1.0]
+        WeightSliders[Real-time Weight Sliders<br/>- Vertical Score Weight (0.0-1.0)<br/>- Adoption Score Weight (0.0-1.0)<br/>- Relationship Score Weight (0.0-1.0)<br/>Auto-normalize to sum = 1.0]
         OptimizationStatus[Optimization Status Display<br/> Optimized Weights Active<br/>Shows trials, lambda parameter<br/> Using Default Weights<br/>If optimization not run]
     end
 
     subgraph "Real-time Score Recalculation"
         WeightChangeDetection[Detect Weight Changes<br/>Monitor slider changes<br/>Trigger recalculation]
-        ScoreRecalculation[Recalculate All Scores<br/>Using new weights<br/>Call calculate_scores() function<br/>Update ICP scores and grades]
+        ScoreRecalculation[Recalculate All Scores<br/>Using new weights<br/>Call calculate_scores() function<br/>Update division ICP scores and grades]
         DataUpdate[Update Dashboard Data<br/>Refresh metrics, charts, tables<br/>Maintain segment filtering]
     end
 
     subgraph "Interactive Visualizations"
         subgraph "Primary Charts Row 1"
-            ICPDistribution[ICP Score Distribution<br/>Histogram + Box Plot<br/>Shows score spread and percentiles<br/>Updates with weight changes]
+            ICPDistribution[ICP Score Distribution<br/>Histogram + Box Plot<br/>Shows score spread and percentiles<br/>Updates with weight changes<br/>Hardware / CRE aware]
             GradeDistribution[Customer Grade Distribution<br/>Pie Chart (A-F)<br/>Shows grade distribution<br/>Color-coded by grade]
         end
 
@@ -53,7 +53,7 @@ Shows current segment filter]
     subgraph "Data Export & Details"
         TopCustomersTable[Top Scoring Customers Table
 Columns: Company, Industry,
-ICP_score, ICP_grade, Component Scores
+ICP_score_hardware, ICP_score_cre, ICP_grade_hardware, ICP_grade_cre, Component Scores
 Sortable and searchable]
         CSVExport[Export Current View
 Download [Segment] Scores (CSV)

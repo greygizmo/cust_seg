@@ -25,9 +25,8 @@ This guide shows how to build call lists using the ICP Dashboard.
 - Printer Expansion: heavy fleet, newer models in portfolio → trade-in/expansion.
 - Cross-Division Push: filter for high `hw_to_sw_cross_sell_score` or `sw_to_hw_cross_sell_score` to pinpoint hardware-heavy or software-heavy accounts ready for the complementary motion.
 - Balanced Portfolio Wins: `cross_division_balance_score` near 1.0 highlights accounts with healthy HW/SW mix—prioritize for success story references.
-- Training Attachment: sort by `training_to_hw_ratio` to see who has adopted services relative to hardware footprint and target low-ratio accounts for enablement packages.
+- Training Attachment: sort by `training_to_hw_ratio` or the new `training_to_cre_ratio` to see who has adopted services relative to the hardware or CRE footprint and target low-ratio accounts for enablement packages.
 
 ## Tips
 - Sort by ICP Grade (A/B first), then by Adoption.
 - Use Recent Profit to avoid stale accounts.
-

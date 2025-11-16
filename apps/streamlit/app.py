@@ -108,8 +108,8 @@ COLUMN_CANDIDATES = {
         "relationship_profit",
     ],
     "score_raw": ["ICP_score_raw"],
-    "score": ["ICP_score", "score"],
-    "grade": ["ICP_grade", "grade"],
+    "score": ["ICP_score_hardware", "ICP_score_cre", "score"],
+    "grade": ["ICP_grade_hardware", "ICP_grade_cre", "grade"],
     "activity_segment": ["activity_segment"],
     "customer_segment": ["customer_segment"],
     "territory": ["AM_Territory", "territory"],
@@ -139,6 +139,8 @@ COLUMN_CANDIDATES = {
         "sw_to_hw_whitespace_score",
         "SW_to_HW_Whitespace_Score",
     ],
+    "training_to_hw_ratio": ["training_to_hw_ratio"],
+    "training_to_cre_ratio": ["training_to_cre_ratio"],
     "discount_pct": ["discount_pct", "Discount_Pct"],
     "cross_division_balance_score": ["cross_division_balance_score"],
     "hw_to_sw_cross_sell_score": ["hw_to_sw_cross_sell_score"],
@@ -176,6 +178,8 @@ NUMERIC_DEFAULTS = {
     "hw_share_12m": np.nan,
     "sw_share_12m": np.nan,
     "sw_to_hw_whitespace_score": 0.0,
+    "training_to_hw_ratio": 0.0,
+    "training_to_cre_ratio": 0.0,
     "discount_pct": np.nan,
     "cross_division_balance_score": 0.0,
     "hw_to_sw_cross_sell_score": 0.0,
@@ -1205,6 +1209,7 @@ def format_account_subset(df_subset: pd.DataFrame, filters: FilterState) -> pd.D
         "hw_to_sw_cross_sell_score": "HW->SW Cross-sell Score",
         "sw_to_hw_cross_sell_score": "SW->HW Cross-sell Score",
         "training_to_hw_ratio": "Training to HW Ratio",
+        "training_to_cre_ratio": "Training to CRE Ratio",
     }
 
     formatted = df_subset.rename(columns=rename_map)
@@ -1233,6 +1238,7 @@ def format_account_subset(df_subset: pd.DataFrame, filters: FilterState) -> pd.D
         "HW->SW Cross-sell Score",
         "SW->HW Cross-sell Score",
         "Training to HW Ratio",
+        "Training to CRE Ratio",
         "Momentum",
         "Momentum Flag",
         "Recency",
@@ -1272,6 +1278,7 @@ def opportunity_watchlist(df: pd.DataFrame, filters: FilterState) -> pd.DataFram
         "hw_to_sw_cross_sell_score",
         "sw_to_hw_cross_sell_score",
         "training_to_hw_ratio",
+        "training_to_cre_ratio",
     ]
     available_cols = [c for c in cols if c in df.columns]
     watchlist = df[available_cols].copy()

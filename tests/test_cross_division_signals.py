@@ -54,6 +54,7 @@ def test_compute_cross_division_signals_generates_balanced_and_opportunity_score
     assert row_1001["hw_spend_13w_prior"] == 60.0
     assert row_1001["sw_spend_13w"] == 50.0
     assert row_1001["training_to_hw_ratio"] == pytest.approx(20.0 / 180.0)
+    assert row_1001["training_to_cre_ratio"] == pytest.approx(20.0 / 50.0)
     assert row_1001["division_breadth_12m"] == 3
     assert row_1001["super_division_breadth_12m"] == 2
     assert row_1001["software_division_breadth_12m"] == 1

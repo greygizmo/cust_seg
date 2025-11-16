@@ -86,6 +86,7 @@ from icp.schema import (
     COL_HW_REV,
     COL_CONS_REV,
     canonicalize_customer_id,
+    get_icp_scored_accounts_base_order,
 )
 # Import the new industry scoring module
 from icp.industry import build_industry_weights, save_industry_weights, load_industry_weights
@@ -159,6 +160,7 @@ FEATURE_COLUMN_ORDER = [
     "hw_to_sw_cross_sell_score",
     "sw_to_hw_cross_sell_score",
     "training_to_hw_ratio",
+    "training_to_cre_ratio",
     "discount_pct",
     "month_conc_hhi_12m",
     "sw_dominance_score",
@@ -198,20 +200,25 @@ def load_weights(division_key: str | None = None):
                 if key in raw_weights and isinstance(raw_weights[key], dict):
                     raw_weights = raw_weights[key]
             
-            # Convert from optimizer format to script format and calculate missing weights
-            weights = {}
-            weights['vertical'] = float(raw_weights.get('vertical_score', DEFAULT_WEIGHTS['vertical']))
-            weights['size'] = float(raw_weights.get('size_score', 0.0))
-            weights['adoption'] = float(raw_weights.get('adoption_score', DEFAULT_WEIGHTS['adoption']))
-            
-            # Calculate relationship score as remainder to ensure sum = 1.0
-            total_so_far = weights['vertical'] + weights['size'] + weights['adoption']
-            weights['relationship'] = max(0.0, 1.0 - total_so_far)
-            
+            # Convert from optimizer format to script format (size component removed).
+            w_vertical = float(raw_weights.get('vertical_score', DEFAULT_WEIGHTS.get('vertical', 0.0)))
+            w_adoption = float(raw_weights.get('adoption_score', DEFAULT_WEIGHTS.get('adoption', 0.0)))
+            w_relationship = float(raw_weights.get('relationship_score', DEFAULT_WEIGHTS.get('relationship', 0.0)))
+            total = w_vertical + w_adoption + w_relationship
+            if total > 0:
+                w_vertical /= total
+                w_adoption /= total
+                w_relationship /= total
+            weights = {
+                'vertical': w_vertical,
+                'adoption': w_adoption,
+                'relationship': w_relationship,
+            }
+
             print(f"[INFO] Loaded optimized weights from {weights_path}")
             meta = data.get('meta', data)
             print("  - Optimization details: " + str(meta.get("n_trials","Unknown")) + " trials")
-            print(f"  - Converted weights: vertical={weights['vertical']:.3f}, size={weights['size']:.3f}, adoption={weights['adoption']:.3f}, relationship={weights['relationship']:.3f}")
+            print(f"  - Converted weights: vertical={weights['vertical']:.3f}, adoption={weights['adoption']:.3f}, relationship={weights['relationship']:.3f}")
             return weights
     except FileNotFoundError:
         print(f"[INFO] No optimized weights found. Using default weights.")
@@ -1410,11 +1417,12 @@ def save_fig(filename: str):
 def build_visuals(df: pd.DataFrame):
     """Generates and saves a standard set of 10 visualizations."""
     
-    # 1: Histogram of final ICP Scores
+        # 1: Histogram of final ICP Scores (hardware)
     plt.figure()
-    plt.hist(df["ICP_score"].dropna(), bins=30)
-    plt.title("Distribution of ICP Scores")
-    plt.xlabel("ICP Score")
+    if "ICP_score_hardware" in df.columns:
+        plt.hist(df["ICP_score_hardware"].dropna(), bins=30)
+    plt.title("Distribution of Hardware ICP Scores")
+    plt.xlabel("Hardware ICP Score")
     plt.ylabel("Number of Customers")
     save_fig("vis1_icp_hist.png")
     
@@ -1451,9 +1459,9 @@ def build_visuals(df: pd.DataFrame):
     else:
         print("[INFO] Skipping 'GP24 by CAD Tier' visual: 'cad_tier' column not suitable for plotting.")
     
-    # 5: Average ICP score by industry vertical
-    if "Industry" in df.columns and "ICP_score" in df.columns:
-        s3 = df.groupby("Industry")["ICP_score"].mean()
+    # 5: Average hardware ICP score by industry vertical
+    if "Industry" in df.columns and "ICP_score_hardware" in df.columns:
+        s3 = df.groupby("Industry")["ICP_score_hardware"].mean()
         if not s3.empty:
             s3.nlargest(10).plot(kind="bar")
     save_fig("vis5_icp_vertical.png")
@@ -1471,21 +1479,22 @@ def build_visuals(df: pd.DataFrame):
     plt.ylabel("Account Count")
     save_fig("vis6_scaling_vertical.png")
     
-    # 7: Scatter plot of CAD spend vs ICP score
-    if LICENSE_COL in df.columns:
+    # 7: Scatter plot of CAD spend vs Hardware ICP score
+    if LICENSE_COL in df.columns and "ICP_score_hardware" in df.columns:
         plt.figure()
-        plt.scatter(df[LICENSE_COL], df["ICP_score"])
-        plt.title("CAD Spend vs ICP Score")
+        plt.scatter(df[LICENSE_COL], df["ICP_score_hardware"])
+        plt.title("CAD Spend vs Hardware ICP Score")
         plt.xlabel("Total Software License Revenue ($)")
-        plt.ylabel("ICP Score")
+        plt.ylabel("Hardware ICP Score")
         save_fig("vis7_cad_icp.png")
     
-    # 8: Scatter plot of printer count vs ICP score
+    # 8: Scatter plot of printer count vs Hardware ICP score
     plt.figure()
-    plt.scatter(df["printer_count"], df["ICP_score"])
-    plt.title("Printer Count vs ICP Score")
+    if "ICP_score_hardware" in df.columns:
+        plt.scatter(df["printer_count"], df["ICP_score_hardware"])
+    plt.title("Printer Count vs Hardware ICP Score")
     plt.xlabel("Printer Count")
-    plt.ylabel("ICP Score")
+    plt.ylabel("Hardware ICP Score")
     save_fig("vis8_printers_icp.png")
     
     # 9: Total Profit since 2023 by industry vertical (duplicate view)
@@ -1580,12 +1589,6 @@ def main():
             scored["ICP_score_cre"] = pd.to_numeric(cr["ICP_score"], errors="coerce")
         if "ICP_grade" in cr.columns:
             scored["ICP_grade_cre"] = cr["ICP_grade"].astype(str)
-
-        # Backward compatibility: keep legacy ICP_score/ICP_grade aligned to Hardware
-        if "ICP_score_hardware" in scored.columns:
-            scored["ICP_score"] = scored["ICP_score_hardware"]
-        if "ICP_grade_hardware" in scored.columns:
-            scored["ICP_grade"] = scored["ICP_grade_hardware"]
     except Exception as e:
         print(f"[WARN] Could not compute per-division scores: {e}")
 
@@ -1890,64 +1893,32 @@ def main():
         if col not in scored.columns:
             scored[col] = 0.0
 
-    # Build dynamic CRE rollup columns for ordering
+    # Build dynamic CRE rollup columns for ordering (CAD / Specialty rollups)
     cre_rollup_cols = []
     try:
         # Seats and GP for CAD and Specialty Software rollups
         for prefix in ("Seats_CAD_", "Seats_Specialty Software_", "GP_CAD_", "GP_Specialty Software_"):
             cre_rollup_cols.extend(sorted([c for c in scored.columns if c.startswith(prefix)]))
-        # Only allowed training rollups
-        for r in ("Success_Plan", "Training"):
-            col = f"GP_Training/Services_{r}"
-            if col in scored.columns:
-                cre_rollup_cols.append(col)
     except Exception:
         cre_rollup_cols = []
 
-    desired_order = [
-        # Identity
-        'Customer ID','Company Name',
-        'activity_segment',
-        # Account owner and territory (from NetSuite)
-        'am_sales_rep','AM_Territory','edu_assets',
-        # Contacts (designated)
-        'RP_Primary_Name','RP_Primary_Email','RP_Primary_Phone',
-        'Primary_Contact_Name','Primary_Contact_Email','Primary_Contact_Phone',
-        # Back-compat generic fields (map to RP Primary)
-        'Name','email','phone',
-        # Shipping address
-        'ShippingAddr1','ShippingAddr2','ShippingCity','ShippingState','ShippingZip','ShippingCountry',
-        # Headline score
-        'ICP_score','ICP_grade','ICP_score_hardware','ICP_grade_hardware','ICP_score_cre','ICP_grade_cre',
-        # Context
-        'Industry','Industry Sub List','Industry_Reasoning',
-        # Headline Hardware/Software
-        'Hardware_score','Software_score',
-        # Recent GP signals
-        'GP_LastQ_Total','GP_PrevQ_Total','GP_QoQ_Growth','GP_T4Q_Total','GP_Since_2023_Total',
-        # Hardware inputs (qty & GP) – major divisions
-        'Qty_Printers','GP_Printers',
-        *printer_rollup_cols,
-        'Qty_Printer Accessories','GP_Printer Accessories','Qty_Scanners','GP_Scanners','Qty_Geomagic','GP_Geomagic',
-        # Software inputs (seats & GP)
-        'Seats_CAD','GP_CAD','Seats_CPE','GP_CPE','Seats_Specialty Software','GP_Specialty Software',
-        *cre_rollup_cols,
-        # CRE aggregate signals (division-aware)
-        'cre_adoption_assets','cre_adoption_profit','cre_relationship_profit',
-        # Operational metrics
-        'scaling_flag', LICENSE_COL,
-        'active_assets_total','seats_sum_total','Portfolio_Breadth',
-        'EarliestPurchaseDate','LatestPurchaseDate','LatestExpirationDate',
-        'Days_Since_First_Purchase','Days_Since_Last_Purchase','Days_Since_Last_Expiration',
-        # Secondary detail scores
-        'vertical_score','size_score','ICP_score_raw'
-    ]
-    
-    # Dynamically add other software revenue columns to the output if they exist
-    # Alias DB typo 'Printer Accessorials' to 'Printer Accessories' in output
-    # Revenue columns aliasing handled by GP_ feature generation in engineer_features\n    
-    # Add industry enrichment columns if they exist
-    # Include industry enrichment columns automatically via desired_order if present\nindustry_enrichment_cols = ['Industry_Reasoning']
+    # Start from the canonical, grouped base schema and insert dynamic rollups.
+    desired_order = list(get_icp_scored_accounts_base_order())
+
+    # Insert printer subdivision rollups immediately after GP_Printers.
+    try:
+        idx_gp_printers = desired_order.index("GP_Printers") + 1
+        desired_order[idx_gp_printers:idx_gp_printers] = printer_rollup_cols
+    except ValueError:
+        # If base schema is missing GP_Printers for some reason, append rollups at the end.
+        desired_order.extend(printer_rollup_cols)
+
+    # Insert CRE rollups immediately after GP_Specialty Software.
+    try:
+        idx_gp_specialty = desired_order.index("GP_Specialty Software") + 1
+        desired_order[idx_gp_specialty:idx_gp_specialty] = cre_rollup_cols
+    except ValueError:
+        desired_order.extend(cre_rollup_cols)
     
     # Backup existing CSV then save the new scored data
     out_env = os.environ.get("ICP_OUT_PATH")
@@ -2035,11 +2006,11 @@ def main():
         "hw_spend_13w","hw_spend_13w_prior","hw_delta_13w","hw_delta_13w_pct",
         "sw_spend_13w","sw_spend_13w_prior","sw_delta_13w","sw_delta_13w_pct",
         "super_division_breadth_12m","division_breadth_12m","software_division_breadth_12m",
-        "cross_division_balance_score","hw_to_sw_cross_sell_score","sw_to_hw_cross_sell_score","training_to_hw_ratio",
+        "cross_division_balance_score","hw_to_sw_cross_sell_score","sw_to_hw_cross_sell_score","training_to_hw_ratio","training_to_cre_ratio",
         # health, whitespace, pov scores
         "discount_pct","month_conc_hhi_12m","sw_dominance_score","sw_to_hw_whitespace_score",
         # existing numeric headline columns (safe no-ops if absent)
-        "ICP_score","vertical_score","size_score","ICP_score_raw",
+        "vertical_score","ICP_score_raw",
         "GP_PrevQ_Total","GP_QoQ_Growth","GP_T4Q_Total","GP_Since_2023_Total",
         "Seats_CAD","GP_CAD","Seats_CPE","GP_CPE","Seats_Specialty Software","GP_Specialty Software",
         "active_assets_total","seats_sum_total","Portfolio_Breadth","scaling_flag",

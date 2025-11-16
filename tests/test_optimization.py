@@ -70,7 +70,6 @@ def test_objective_matches_manual_combination():
     rng = np.random.default_rng(42)
     X = pd.DataFrame({
         'vertical_score': rng.uniform(0.2, 1.0, 300),
-        'size_score': np.zeros(300),
         'adoption_score': rng.uniform(0.0, 1.0, 300),
         'relationship_score': rng.uniform(0.0, 1.0, 300),
     })
@@ -102,7 +101,6 @@ def test_objective_matches_manual_combination():
 
     weights = np.array([
         suggestions['vertical_score'],
-        0.0,
         suggestions['adoption_score'],
         suggestions['relationship_score'],
     ])
@@ -143,7 +141,6 @@ def test_objective_matches_manual_combination():
 def test_objective_prunes_when_weights_violate_post_normalization_bounds():
     X = pd.DataFrame({
         'vertical_score': [0.1, 0.2],
-        'size_score': [0.0, 0.0],
         'adoption_score': [0.3, 0.4],
         'relationship_score': [0.2, 0.1],
     })

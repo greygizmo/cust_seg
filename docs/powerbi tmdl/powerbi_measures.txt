@@ -408,10 +408,10 @@ createOrReplace
 		measure distance_to_A =
 				VAR a_min =
 				    CALCULATE (
-				        MIN ( 'icp_scored_accounts v1.5'[ICP_score] ),
-				        FILTER ( ALL ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[ICP_grade] = "A" )
+				        MIN ( 'icp_scored_accounts v1.5'[ICP_score_hardware] ),
+				        FILTER ( ALL ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[ICP_grade_hardware] = "A" )
 				    )
-				VAR meScore = SELECTEDVALUE ( 'icp_scored_accounts v1.5'[ICP_score] )
+				VAR meScore = SELECTEDVALUE ( 'icp_scored_accounts v1.5'[ICP_score_hardware] )
 				RETURN a_min - meScore
 			lineageTag: 1c2f8923-8f71-489c-b17a-912100914922
 
@@ -448,11 +448,17 @@ createOrReplace
 			lineageTag: adc1c640-509e-4cb0-9714-027282302db7
 
 		measure icp_norm =
-				VAR x  = MAX ( 'icp_scored_accounts v1.5'[ICP_score] )
-				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[ICP_score] )
-				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[ICP_score] )
+				VAR x  = MAX ( 'icp_scored_accounts v1.5'[ICP_score_hardware] )
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[ICP_score_hardware] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[ICP_score_hardware] )
 				RETURN DIVIDE ( x - mn, mx - mn )
 			lineageTag: e450e021-cd0e-499e-9d31-c3b9146e38fa
+
+		measure icp_norm_cre =
+				VAR x  = MAX ( 'icp_scored_accounts v1.5'[ICP_score_cre] )
+				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[ICP_score_cre] )
+				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[ICP_score_cre] )
+				RETURN DIVIDE ( x - mn, mx - mn )
 
 		measure inbound_neighbor_count =
 				VAR me = SELECTEDVALUE ( 'icp_scored_accounts v1.5'[Customer ID] )
@@ -505,10 +511,9 @@ createOrReplace
 			lineageTag: 8f23de00-dac0-4f2d-b3d3-9a451b43a450
 
 		measure keep_strategic_whales =
-				VAR sizeOK = MAX( 'icp_scored_accounts v1.5'[size_score] ) >= [p80_size_score]
 				VAR vertOK = MAX( 'icp_scored_accounts v1.5'[vertical_score] ) >= [p70_vertical_score]
 				VAR headOK = [hw_headroom_index] >= 0.50
-				RETURN IF( sizeOK && vertOK && headOK, 1, 0 )
+				RETURN IF( vertOK && headOK, 1, 0 )
 			lineageTag: 5a9ec24d-359f-479c-800b-a16e080a4377
 
 		measure keep_sw_hw_whitespace_now =
@@ -586,9 +591,6 @@ createOrReplace
 		measure p70_vertical_score = PERCENTILEX.INC( ALLSELECTED( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[vertical_score], 0.70 )
 			lineageTag: 3b206225-ffc5-4692-be2b-a9839789536d
 
-		measure p80_size_score = PERCENTILEX.INC( ALLSELECTED( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[size_score], 0.80 )
-			lineageTag: 8587b28d-3618-4e1b-ac92-0b88631986ac
-
 		measure qty_printers_norm =
 				VAR x  = MAX ( 'icp_scored_accounts v1.5'[Qty_Printers] )
 				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[Qty_Printers] )
@@ -654,13 +656,6 @@ createOrReplace
 				VAR rec      = 1 - [recency_norm]
 				RETURN DIVIDE ( 0.30 * icp + 0.25 * mom + 0.20 * warm + 0.15 * headroom + 0.10 * rec, 1.0 )
 			lineageTag: 98eb8c92-0ef0-44b1-ae20-daa300480d6d
-
-		measure size_norm =
-				VAR x  = MAX ( 'icp_scored_accounts v1.5'[size_score] )
-				VAR mn = MINX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[size_score] )
-				VAR mx = MAXX ( ALLSELECTED ( 'icp_scored_accounts v1.5' ), 'icp_scored_accounts v1.5'[size_score] )
-				RETURN DIVIDE ( x - mn, mx - mn )
-			lineageTag: 03094ade-821f-43da-a42e-f1cb1810fe87
 
 		measure strategic_hw_oppty_score =
 				VAR size     = [size_norm]

@@ -21,7 +21,7 @@ Edit `config.toml`:
 - `[als]` — `alpha`, `reg`, `iterations`, `use_bm25`, and composite strength weights
 
 ## Notes on features
-- The main pipeline computes vertical/size/adoption/relationship and writes an ICP score and grade.
+- The main pipeline computes vertical/adoption/relationship components and writes division-specific ICP scores and grades (`ICP_score_hardware`/`ICP_grade_hardware`, `ICP_score_cre`/`ICP_grade_cre`), plus the raw blended score (`ICP_score_raw`).
 - Time-series “List‑Builder” features (spend dynamics, momentum, POV/whitespace) exist in `/features` but are currently disabled in the default run to keep laptop memory headroom. If enabled later, those columns will be appended.
 
 ## Documentation
