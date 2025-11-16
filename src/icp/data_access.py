@@ -293,7 +293,7 @@ def get_assets_and_seats(engine=None) -> pd.DataFrame:
             MIN(p.Purchase_Date) AS first_purchase_date,
             MAX(p.Purchase_Date) AS last_purchase_date,
             MAX(p.Expires) AS last_expiration_date
-        FROM dbo.table_All_Product_Info_cleaned_headers p
+        FROM dbo.table_Product_Info_cleaned_headers p
         LEFT JOIN dbo.analytics_product_tags t
             ON p.item_rollup = t.item_rollup
         GROUP BY p.Customer_Internal_Id, p.item_rollup, t.Goal

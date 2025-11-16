@@ -1,6 +1,6 @@
 # Metrics and Features Overview
 
-This document summarizes the main artifacts and metrics produced by the current pipeline.
+This document summarizes the main artifacts, features, and SQL tables used by the current pipeline.
 
 ## ICP Scoring (Azure SQL pipeline)
 
@@ -17,32 +17,46 @@ Division-aware features:
 - `adoption_assets` (aggregated assets/seats across focus hardware goals)
 - `adoption_profit` (profit from focus hardware goals, + CRE training subset as configured)
 - `relationship_profit` (hardware/relationship profit for software goals: CAD, CPE, Specialty Software)
-- `cre_adoption_assets`, `cre_adoption_profit`, `cre_relationship_profit` (divisionâ€‘aware CRE signals)
+- `cre_adoption_assets`, `cre_adoption_profit`, `cre_relationship_profit` (division-aware CRE signals)
 - `printer_count` (exposed for BI; used as a hardware scaling flag)
 
 Goal/rollup totals (joined to customer-level when available):
 - Seats and GP by goal: `Seats_CAD/CPE/Specialty Software`, `GP_CAD/CPE/Specialty Software`
-- Hardware totals: `Qty_Printers`, `GP_Printers`, plus perâ€‘printerâ€‘subdivision qty/GP where present
+- Hardware totals: `Qty_Printers`, `GP_Printers`, plus per-printer-subdivision qty/GP where present
 - Portfolio totals: `active_assets_total`, `seats_sum_total`, `Portfolio_Breadth`
-- Earliest/latest purchase/expiration dates and dayâ€‘since metrics
+- Earliest/latest purchase/expiration dates and day-since metrics
 
 Scores and grades (exported):
 - `Hardware_score` (adoption component), `Software_score` (relationship component)
-- `ICP_score_hardware`, `ICP_grade_hardware` (Hardware division, 0â€“100 normalized, Aâ€“F)
-- `ICP_score_cre`, `ICP_grade_cre` (CRE division, 0â€“100 normalized, Aâ€“F)
+- `ICP_score_hardware`, `ICP_grade_hardware` (Hardware division, 0–100 normalized, A–F)
+- `ICP_score_cre`, `ICP_grade_cre` (CRE division, 0–100 normalized, A–F)
 
 Notes:
-- Listâ€‘builder dynamics and mix (e.g., `spend_13w`, momentum scores, HW/SW share, crossâ€‘division balance and breadth, top_subdivision, HHI, POV tags) are produced from Azure SQL and appended to the scored CSV for BI, but do not feed back into the ICP computation directly.
+- List-builder dynamics and mix (e.g., `spend_13w`, momentum scores, HW/SW share, cross-division balance and breadth, top_subdivision, HHI, POV tags) are produced from Azure SQL and appended to the scored CSV for BI, but do not feed back into the ICP computation directly.
 
 Output file:
 - `data/processed/icp_scored_accounts.csv`
+
+## Source and Target Tables (SQL)
+
+Source tables in `AZSQL_DB` (e.g., `db-goeng-netsuite-prod`):
+- `dbo.table_saleslog_detail` — transactional GP/Term_GP (profit) by item and date; drives profit aggregates and spend dynamics.
+- `dbo.items_category_limited` — item ? `item_rollup` mapping used to join transactions to rollups and goals.
+- `dbo.analytics_product_tags` — goal, super_division, and taxonomy tags per `item_rollup`; used for division/goal classification.
+- `dbo.table_Product_Info_cleaned_headers` — product/asset headers; drives assets/seats, adoption signals, and portfolio breadth.
+- `dbo.customer_cleaned_headers` — customer attributes (AM, territory, EDU, fallback shipping) used in identity and ownership features.
+- `dbo.customer_customerOnly` — preferred source for shipping address fields when available.
+- `dbo.contact_clean_headers` — contact headers used to derive RP Primary and Account Primary contacts.
+
+Target table in `ICP_AZSQL_DB` (e.g., `db-goeng-icp-prod`), when configured:
+- `dbo.customer_icp` — full scored accounts table (same schema as `icp_scored_accounts.csv`), replaced on each scoring run.
 
 ## Neighbors Artifact (exact, blockwise)
 
 Hybrid embedding (blocks):
 - Numeric: numeric columns from scored accounts after robust transforms (as configured)
-- Categorical: oneâ€‘hot for industry, segment, territory, `top_subdivision_12m`
-- Text: sentence embeddings of `Industry_Reasoning` (MiniLM) with TFâ€‘IDF+SVD fallback
+- Categorical: one-hot for industry, segment, territory, `top_subdivision_12m`
+- Text: sentence embeddings of `Industry_Reasoning` (MiniLM) with TF-IDF+SVD fallback
 - ALS (collaborative): vectors trained on composite implicit signals per `(account, item_rollup)` and per `(account, Goal)`
 
 Neighbors columns:
@@ -100,4 +114,3 @@ reg = 0.05
 iterations = 20
 use_bm25 = true
 ```
-

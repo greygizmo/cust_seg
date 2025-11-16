@@ -14,6 +14,7 @@ graph TB
 
     subgraph "Processing & Orchestration"
         MainPipeline[src/icp/cli/score_accounts.py<br/>End-to-End Data Assembly & Scoring]
+        PublishICPSQL[src/icp/cli/publish_scored_to_db.py<br/>Publish CSV to dbo.customer_icp]
         IndustryBuilder[src/icp/industry.py<br/>Build/Load Industry Weights]
         SchemaValidation[src/icp/schema.py & validation.py<br/>Column constants & data checks]
     end
@@ -37,6 +38,7 @@ graph TB
         OptimizedWeights[artifacts/weights/optimized_weights.json]
         IndustryWeights[artifacts/weights/{division}_industry_weights.json]
         ScoredData[data/processed/icp_scored_accounts.csv]
+        ICPTable[Azure SQL: dbo.customer_icp (ICP_AZSQL_DB)]
         NeighborsCSV[artifacts/account_neighbors.csv]
     end
 
@@ -55,6 +57,7 @@ graph TB
 
     MainPipeline --> ScoredData
     MainPipeline --> VisualOutputs
+    ScoredData --> PublishICPSQL --> ICPTable
     ScoredData --> Dashboard
     ScoredData --> OptimizationCLI
 
@@ -83,10 +86,10 @@ graph TB
     classDef storage fill:#fce4ec,stroke:#880e4f,stroke-width:2px
 
     class AzureCustomers,AzureProfitGoal,AzureProfitRollup,AzureQuarterly,AzureAssets,IndustryCSV dataSource
-    class MainPipeline,IndustryBuilder,SchemaValidation processing
+    class MainPipeline,PublishICPSQL,IndustryBuilder,SchemaValidation processing
     class ScoringLogic,OptimizationCLI,OptimizationCore scoring
     class Dashboard,VisualOutputs analytics
-    class ConfigFiles,OptimizedWeights,IndustryWeights,ScoredData,NeighborsCSV storage
+    class ConfigFiles,OptimizedWeights,IndustryWeights,ScoredData,ICPTable,NeighborsCSV storage
     class SimilarityBuilder,ALSVectors processing
 ```
 
