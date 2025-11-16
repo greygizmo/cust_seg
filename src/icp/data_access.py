@@ -30,7 +30,7 @@ except Exception:
     pass
 
 
-def _build_connection_url() -> str:
+def _build_connection_url(database_override: Optional[str] = None) -> str:
     """
     Build an SQLAlchemy connection URL for Azure SQL using pyodbc.
 
@@ -38,7 +38,7 @@ def _build_connection_url() -> str:
     (when no user/pass provided) via the ODBC Driver 18 parameters.
     """
     server = os.getenv("AZSQL_SERVER", "").strip()
-    database = os.getenv("AZSQL_DB", "").strip()
+    database = (database_override or os.getenv("AZSQL_DB", "")).strip()
     user = os.getenv("AZSQL_USER", "").strip()
     pwd = os.getenv("AZSQL_PWD", "").strip()
 
@@ -66,9 +66,12 @@ def _build_connection_url() -> str:
         )
 
 
-def get_engine():
-    """Create and return a SQLAlchemy engine for Azure SQL."""
-    url = _build_connection_url()
+def get_engine(database: Optional[str] = None):
+    """Create and return a SQLAlchemy engine for Azure SQL.
+
+    If `database` is provided, it overrides AZSQL_DB for this engine only.
+    """
+    url = _build_connection_url(database_override=database)
     engine = create_engine(url, fast_executemany=True)
     return engine
 

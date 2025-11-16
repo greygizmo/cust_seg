@@ -2052,6 +2052,30 @@ def main():
     scored[out_cols].to_csv(out_path, index=False, float_format="%.4f")
     print(f"Saved {out_path}")
 
+    # --- Persist scored accounts back to the ICP database (optional) ---
+    try:
+        icp_db = os.getenv("ICP_AZSQL_DB", "").strip()
+        if icp_db:
+            print(f"[INFO] Writing scored accounts to {icp_db}.dbo.customer_icp")
+            engine = da.get_engine(database=icp_db)
+            scored_db = scored[out_cols].copy()
+            # Use replace-on-run semantics for deterministic downstream behavior
+            scored_db.to_sql(
+                "customer_icp",
+                engine,
+                schema="dbo",
+                if_exists="replace",
+                index=False,
+                chunksize=5000,
+            )
+            print("[INFO] Wrote scored accounts to dbo.customer_icp")
+        else:
+            print("[INFO] Skipping DB write: ICP_AZSQL_DB is not set")
+    except ModuleNotFoundError:
+        print("[WARN] sqlalchemy not installed; skipping DB write for scored accounts")
+    except Exception as e:
+        print(f"[WARN] Failed to write scored accounts to database: {e}")
+
     # --- Build account similarity neighbors artifact for Power BI ---
     if not CLI_OPTS.get("skip_neighbors", False):
         try:
