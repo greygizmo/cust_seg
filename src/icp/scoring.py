@@ -26,7 +26,7 @@ from icp.schema import (
 )
 
 # --- Constants and Configurations ---
-LICENSE_COL = "Total Software License Revenue"
+LICENSE_COL = COL_REL_LICENSE
 
 # Default division key used by historical scripts/tests.
 DEFAULT_DIVISION = "hardware"
@@ -193,25 +193,41 @@ def load_dynamic_industry_weights(division: str | DivisionConfig | None = None) 
         config = get_division_config(division or DEFAULT_DIVISION)
 
     root = Path(__file__).resolve().parents[2]
-    candidates = [
-        config.industry_weights_file,
-        root / "artifacts" / "weights" / "industry_weights.json",
-        Path.cwd() / "industry_weights.json",
-    ]
+    candidates: list[Path] = []
+    if config.industry_weights_file:
+        try:
+            candidates.append(Path(config.industry_weights_file))
+        except TypeError:
+            # Gracefully skip invalid/None-like paths
+            pass
+
+    candidates.extend(
+        [
+            root / "artifacts" / "weights" / "industry_weights.json",
+            Path.cwd() / "industry_weights.json",
+        ]
+    )
+
     for industry_weights_file in candidates:
-        if industry_weights_file.exists():
-            try:
-                with industry_weights_file.open("r", encoding="utf-8") as handle:
-                    data = json.load(handle)
-                weights = data.get("weights", PERFORMANCE_VERTICAL_WEIGHTS)
-                print(
-                    f"[INFO] Loaded {len(weights)} dynamic industry weights from {industry_weights_file}"
-                )
-                return weights
-            except Exception as exc:  # pragma: no cover - defensive log
-                print(f"[WARN] Error loading dynamic industry weights: {exc}")
-                print("[WARN] Falling back to static weights")
-                break
+        if not industry_weights_file:
+            continue
+
+        path = Path(industry_weights_file)
+        if not path.exists():
+            continue
+
+        try:
+            with path.open("r", encoding="utf-8") as handle:
+                data = json.load(handle)
+            weights = data.get("weights", PERFORMANCE_VERTICAL_WEIGHTS)
+            print(
+                f"[INFO] Loaded {len(weights)} dynamic industry weights from {path}"
+            )
+            return weights
+        except Exception as exc:  # pragma: no cover - defensive log
+            print(f"[WARN] Error loading dynamic industry weights from {path}: {exc}")
+            print("[WARN] Trying next candidate or falling back to static weights")
+            continue
 
     fallback = dict(PERFORMANCE_VERTICAL_WEIGHTS)
     neutral = config.neutral_vertical_score

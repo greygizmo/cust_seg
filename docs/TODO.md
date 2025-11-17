@@ -15,24 +15,24 @@ This checklist captures engineering improvements and sales enablement features. 
   - [x] Create `src/icp/validation.py` with checks (presence, dtype, non-negativity, % missing).
   - [x] Call validations in the main pipeline before `calculate_scores()` (see `src/icp/cli/score_accounts.py`).
   - [x] Log issues to `reports/logs/validation_YYYYMMDD.log` and summarize counts.
-  - [ ] Surface warnings in Streamlit "Scoring Details".
+  - [x] Surface warnings in Streamlit "Scoring Details".
   - Done when: bad inputs produce clear warnings and safe fallbacks, with logs saved and surfaced in all UIs.
 
 ## Tests
 - [ ] Add pytest with focused unit tests
   - [x] Add scoring helper tests for adoption/relationship invariants (zero-only, identical series + 0.5, revenue-only sqrt cap, min-max behavior).
   - [x] Add `tests/test_schema.py` for required column presence mapping.
-  - [ ] Add `tests/test_industry.py` for EB shrinkage pathways.
-  - [ ] Document how to run tests in README.
+  - [x] Add `tests/test_industry.py` for EB shrinkage pathways.
+  - [x] Document how to run tests in README.
   - Done when: tests pass locally and cover key edge cases including industry weights.
 
 ## CLI Parameters
 - [ ] Parameterize paths and flags
-  - [ ] Add `argparse`/`typer` to `src/icp/cli/score_accounts.py`:
-    - [ ] `--out`, `--weights`, `--industry-weights`, `--asset-weights`, `--skip-visuals`.
-  - [ ] Add params to `src/icp/cli/optimize_weights.py`:
-    - [ ] `--n-trials`, `--lambda`, `--include-size`, `--out`.
-  - [ ] Update README usage examples.
+  - [x] Add `argparse`/`typer` to `src/icp/cli/score_accounts.py`:
+    - [x] `--out`, `--weights`, `--industry-weights`, `--asset-weights`, `--skip-visuals`.
+  - [x] Add params to `src/icp/cli/optimize_weights.py`:
+    - [x] `--n-trials`, `--lambda`, `--include-size`, `--out`.
+  - [x] Update README usage examples.
   - Done when: CLIs accept overrides and default to repo standards.
 
 ## CI/CD & Quality
@@ -44,20 +44,20 @@ This checklist captures engineering improvements and sales enablement features. 
 
 ## Sales Enablement: Call List Builder (Dashboard)
 - [ ] Add a "Call List Builder" page in Streamlit
-  - [ ] Filters: segment, industry, region, account owner, adoption band, relationship band.
-  - [ ] Toggles: "Revenue-only" (no printers), "Heavy fleet (>=10 weighted)", "Newly improved score".
-  - [ ] Columns: rank, company, segment, `adoption_score`, `relationship_score`, `ICP_grade`, last profit, suggested playbook.
-  - [ ] Export: CSV/Excel to `reports/call_lists/`.
-  - [ ] Quick actions: "Copy email list", "Copy CSV path".
+  - [x] Filters: segment, industry, region, account owner, adoption band, relationship band.
+  - [x] Toggles: "Revenue-only" (no printers), "Heavy fleet (>=10 weighted)", "Newly improved score".
+  - [x] Columns: rank, company, segment, `adoption_score`, `relationship_score`, `ICP_grade`, last profit, suggested playbook.
+  - [x] Export: CSV/Excel to `reports/call_lists/`.
+  - [x] Quick actions: "Copy email list", "Copy CSV path".
   - Done when: sales can build/export call lists interactively.
 
 ## Sales Enablement: Weekly Call List Exports
 - [ ] Add CLI to generate weekly lists
-  - [ ] New `src/icp/cli/export_call_lists.py` with presets:
-    - [ ] "Top A/B by segment", "Revenue-only with high relationship", "Heavy fleet expansion".
-  - [ ] Write to `reports/call_lists/{yyyymmdd}/*.csv` with metadata (filters, counts).
-  - [ ] Add a PowerShell `scripts/export_call_lists.ps1` wrapper.
-  - [ ] Document how to schedule (Windows Task Scheduler example).
+  - [x] New `src/icp/cli/export_call_lists.py` with presets:
+    - [x] "Top A/B by segment", "Revenue-only with high relationship", "Heavy fleet expansion".
+  - [x] Write to `reports/call_lists/{yyyymmdd}/*.csv` with metadata (filters, counts).
+  - [x] Add a PowerShell `scripts/export_call_lists.ps1` wrapper.
+  - [x] Document how to schedule (Windows Task Scheduler example).
   - Done when: running one command produces dated call list packs.
 
 ## Sales Enablement: Propensity Tags & Playbooks
@@ -98,4 +98,3 @@ This checklist captures engineering improvements and sales enablement features. 
   - [ ] Add "Risers/Fallers" preset to call list exports.
 - [ ] Simple propensity model
   - [ ] Train a logistic model using past conversions (if available) to add a `propensity_score` alongside rule-based tags.
-

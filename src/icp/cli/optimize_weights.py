@@ -12,7 +12,7 @@ import numpy as np
 from icp.optimization import objective, calculate_grades, TARGET_GRADE_DISTRIBUTION, cumulative_lift
 from icp.divisions import available_divisions
 from icp import data_access as da
-from icp.schema import canonicalize_customer_id
+from icp.schema import canonicalize_customer_id, COL_CUSTOMER_ID
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -39,8 +39,8 @@ def _build_future_outcome(df: pd.DataFrame, division: str, horizon_q: int = 1) -
     """Build future GP outcome by division and horizon using Azure SQL aggregates."""
     engine = da.get_engine()
     q_goal = da.get_quarterly_profit_by_goal(engine)
-    if 'Customer ID' in q_goal.columns:
-        q_goal['Customer ID'] = canonicalize_customer_id(q_goal['Customer ID'])
+    if COL_CUSTOMER_ID in q_goal.columns:
+        q_goal[COL_CUSTOMER_ID] = canonicalize_customer_id(q_goal[COL_CUSTOMER_ID])
     # Prepare keys
     q_goal["_qkey"] = q_goal["Quarter"].map(_quarter_key_from_str)
     # Allowed goals by division
@@ -51,15 +51,15 @@ def _build_future_outcome(df: pd.DataFrame, division: str, horizon_q: int = 1) -
         # No rollup filtering needed
         q_roll = None
         # Use goal-level directly for hardware labels
-        q_div = q_goal_div[["Customer ID","_qkey","Profit"]].copy()
+        q_div = q_goal_div[[COL_CUSTOMER_ID,"_qkey","Profit"]].copy()
     else:
         # CRE: CAD + Specialty Software + Training/Services (Success Plan, Training)
         goals = {"CAD", "Specialty Software"}
         q_goal_div = q_goal[q_goal["Goal"].isin(goals)].copy()
         # Training subset from rollups
         q_roll = da.get_quarterly_profit_by_rollup(engine)
-        if 'Customer ID' in q_roll.columns:
-            q_roll['Customer ID'] = canonicalize_customer_id(q_roll['Customer ID'])
+        if COL_CUSTOMER_ID in q_roll.columns:
+            q_roll[COL_CUSTOMER_ID] = canonicalize_customer_id(q_roll[COL_CUSTOMER_ID])
         q_roll["_qkey"] = q_roll["Quarter"].map(_quarter_key_from_str)
         is_train = q_roll["Goal"] == "Training/Services"
         ir = q_roll["item_rollup"].astype(str).str.strip().str.lower()
@@ -68,8 +68,8 @@ def _build_future_outcome(df: pd.DataFrame, division: str, horizon_q: int = 1) -
         q_roll = q_roll[mask_allowed]
         # Combine CAD+Specialty (goal-level) with CRE Training subset (rollup-level)
         q_div = pd.concat([
-            q_goal_div[["Customer ID","_qkey","Profit"]],
-            q_roll[["Customer ID","_qkey","Profit"]]
+            q_goal_div[[COL_CUSTOMER_ID,"_qkey","Profit"]],
+            q_roll[[COL_CUSTOMER_ID,"_qkey","Profit"]]
         ], ignore_index=True)
 
     # Build as_of quarter per account
@@ -98,16 +98,16 @@ def _build_future_outcome(df: pd.DataFrame, division: str, horizon_q: int = 1) -
     # Sum outcome for the exact future quarter (or extend across multiple horizons if desired)
     # Here: single next quarter horizon; build mapping series
     m_goal = (
-        q_div.groupby(["Customer ID", "_qkey"])['Profit'].sum()
+        q_div.groupby([COL_CUSTOMER_ID, "_qkey"])['Profit'].sum()
         .rename('gp')
     )
-    ids = canonicalize_customer_id(df['Customer ID']) if 'Customer ID' in df.columns else df.index.astype(str)
+    ids = canonicalize_customer_id(df[COL_CUSTOMER_ID]) if COL_CUSTOMER_ID in df.columns else df.index.astype(str)
     keys = list(zip(ids.astype(str), future_q))
     y_goal = pd.Series([m_goal.get(k, 0.0) for k in keys], index=df.index)
 
     if q_roll is not None:
         m_roll = (
-            q_roll.set_index(["Customer ID","_qkey"])['Profit']
+            q_roll.set_index([COL_CUSTOMER_ID,"_qkey"])['Profit']
             .rename('gp_roll')
         )
         y_roll = pd.Series([m_roll.get(k, 0.0) for k in keys], index=df.index)
@@ -126,6 +126,8 @@ def run_optimization(
     group_col: str = 'Industry',
     horizons: list[int] | None = None,
     append_history: bool = False,
+    include_size: bool = False,
+    out_path: str | None = None,
 ):
     print("Loading scored accounts data...")
     path = ROOT / 'data' / 'processed' / 'icp_scored_accounts.csv'
@@ -133,8 +135,8 @@ def run_optimization(
         print("Error: `data/processed/icp_scored_accounts.csv` not found. Run scoring first.")
         return
     df = pd.read_csv(path)
-    if 'Customer ID' not in df.columns:
-        print("Error: 'Customer ID' missing in scored CSV.")
+    if COL_CUSTOMER_ID not in df.columns:
+        print(f"Error: '{COL_CUSTOMER_ID}' missing in scored CSV.")
         return
 
     # Component features (size_score deprecated; optimization uses 3 components)
@@ -164,6 +166,20 @@ def run_optimization(
     else:
         cols_ok = False
         print("Error: neither 'relationship_score' nor 'Software_score' present.")
+    size_column = None
+    if include_size:
+        for candidate in ("size_score", "Size_score", "size_component"):
+            if candidate in df.columns:
+                size_column = candidate
+                break
+        if size_column is None:
+            print("[WARN] --include-size requested but no size column found; continuing without size.")
+            include_size = False
+
+    if include_size and size_column:
+        X['size_score'] = pd.to_numeric(df[size_column], errors='coerce').fillna(0.0)
+        weight_names.append('size_score')
+
     if not cols_ok or 'vertical_score' not in X.columns:
         print("Error: Required score columns missing; cannot proceed.")
         return
@@ -204,7 +220,7 @@ def run_optimization(
                 y=yf,
                 lambda_param=lambda_param,
                 weight_names=weight_names,
-                include_size=False,
+                include_size=include_size,
                 groups=gf,
                 lift_weight=0.05,
                 stability_weight=0.05,
@@ -216,10 +232,18 @@ def run_optimization(
     study.optimize(fold_objective, n_trials=n_trials, show_progress_bar=True)
 
     best = study.best_params
-    # Enforce size=0 and normalize
-    best['size_score'] = 0.0
-    tot = sum(best.values())
-    best = {k: v / tot for k, v in best.items()}
+    normalized_keys = weight_names.copy()
+    weights_subset = {name: best.get(name, 0.0) for name in normalized_keys}
+    tot = sum(weights_subset.values())
+    if tot <= 0:
+        print("Error: optimizer returned invalid weights.")
+        return
+    weights_subset = {name: (value / tot) for name, value in weights_subset.items()}
+    if include_size:
+        weights_subset.setdefault('size_score', best.get('size_score', 0.0))
+    else:
+        weights_subset['size_score'] = 0.0
+    best = weights_subset
 
     # Recompute key metrics for reporting across folds
     weights = np.array([best[name] for name in weight_names])
@@ -254,7 +278,8 @@ def run_optimization(
     stab_mean = float(np.mean(agg_stab)) if agg_stab else 0.0
 
     # Save per-division weights structure
-    out_path = ROOT / 'artifacts' / 'weights' / 'optimized_weights.json'
+    default_out = ROOT / 'artifacts' / 'weights' / 'optimized_weights.json'
+    out_path = Path(out_path) if out_path else default_out
     out_path.parent.mkdir(parents=True, exist_ok=True)
     # Try to capture the as_of_date used in scoring
     as_of_val = None
@@ -350,6 +375,8 @@ if __name__ == '__main__':
     parser.add_argument("--group-col", type=str, default="Industry", help="Group column for stability (optional)")
     parser.add_argument("--horizons", type=str, default=None, help="Comma-separated future horizons in quarters, e.g. '1,2'")
     parser.add_argument("--append-history", action="store_true", help="Append this run's meta to meta_history in optimized_weights.json")
+    parser.add_argument("--include-size", action="store_true", help="Allow the optimization to allocate weight to the legacy size component")
+    parser.add_argument("--out", type=str, default=None, help="Custom output path for optimized_weights.json")
     args = parser.parse_args()
 
     hz = None
@@ -366,4 +393,6 @@ if __name__ == '__main__':
         group_col=args.group_col,
         horizons=hz,
         append_history=bool(args.append_history),
+        include_size=bool(args.include_size),
+        out_path=args.out,
     )

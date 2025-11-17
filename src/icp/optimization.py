@@ -137,20 +137,30 @@ def objective(
     w_vertical = trial.suggest_float('vertical_score', v_min, v_max)
     w_adoption = trial.suggest_float('adoption_score', a_min, a_max)
     w_relationship = trial.suggest_float('relationship_score', r_min, r_max)
+    s_min, s_max = (0.0, 0.20)
+    w_size = trial.suggest_float('size_score', s_min, s_max) if include_size else 0.0
 
-    total = w_vertical + w_adoption + w_relationship
+    total = w_vertical + w_adoption + w_relationship + w_size
     if total <= 0:
         raise optuna.exceptions.TrialPruned()
     w_vertical /= total
     w_adoption /= total
     w_relationship /= total
-    if not (v_min <= w_vertical <= v_max and a_min <= w_adoption <= a_max and r_min <= w_relationship <= r_max):
+    if include_size:
+        w_size /= total
+    if not (
+        v_min <= w_vertical <= v_max
+        and a_min <= w_adoption <= a_max
+        and r_min <= w_relationship <= r_max
+        and ((not include_size) or (s_min <= w_size <= s_max))
+    ):
         raise optuna.exceptions.TrialPruned()
 
     weights_dict = {
         'vertical_score': w_vertical,
         'adoption_score': w_adoption,
         'relationship_score': w_relationship,
+        'size_score': w_size if include_size else 0.0,
     }
     # Any unknown components (e.g., legacy size_score) get weight 0.0
     weights = np.array([weights_dict.get(name, 0.0) for name in X.columns])

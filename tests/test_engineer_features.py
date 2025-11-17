@@ -27,8 +27,8 @@ def test_engineer_features_training_filter_and_printer_count():
     ])
 
     # Attach raw attributes as expected by engineer_features
-    setattr(master, '_assets_raw', assets)
-    setattr(master, '_profit_rollup_raw', profit_roll)
+    master.attrs['_assets_raw'] = assets
+    master.attrs['_profit_rollup_raw'] = profit_roll
 
     # Minimal asset weights (defaults inside function handle missing weights)
     asset_weights = {"focus_goals": ["Printer", "Printer Accessorials", "Scanners", "Geomagic", "Training/Services"], "weights": {}}
@@ -48,3 +48,47 @@ def test_engineer_features_training_filter_and_printer_count():
     assert row['cre_adoption_assets'] == 0
     assert row['cre_adoption_profit'] == 0
     assert row['cre_relationship_profit'] == pytest.approx(1.0)
+
+
+def test_engineer_features_relationship_profit_normalizes_goal_case():
+    master = pd.DataFrame({'Customer ID': ['C-001'], 'Industry': ['Healthcare']})
+
+    profit_roll = pd.DataFrame([
+        {'Customer ID': 'C-001', 'Goal': 'cad', 'item_rollup': 'Software', 'Profit_Since_2023': 150},
+        {'Customer ID': 'C-001', 'Goal': 'specialty software', 'item_rollup': 'Nesting', 'Profit_Since_2023': 250},
+        {'Customer ID': 'C-001', 'Goal': 'printers', 'item_rollup': 'FDM', 'Profit_Since_2023': 50},
+    ])
+
+    master.attrs['_profit_rollup_raw'] = profit_roll
+
+    asset_weights = {"focus_goals": ["Printers", "CAD", "Specialty Software"], "weights": {}}
+
+    out = engineer_features(master, asset_weights)
+
+    row = out.iloc[0]
+    assert row['relationship_profit'] == 400
+
+
+def test_engineer_features_uses_gp_history_from_attrs():
+    master = pd.DataFrame({'Customer ID': ['cust-99'], 'Industry': ['Manufacturing']})
+
+    gp_last90 = pd.DataFrame([
+        {'Customer ID': 'cust-99', 'GP_Last_ND': 120},
+        {'Customer ID': 'cust-99', 'GP_Last_ND': 30},
+    ])
+
+    gp_monthly12 = pd.DataFrame([
+        {'Customer ID': 'cust-99', 'Year': 2024, 'Month': 1, 'Profit': 0},
+        {'Customer ID': 'cust-99', 'Year': 2024, 'Month': 2, 'Profit': 50},
+        {'Customer ID': 'cust-99', 'Year': 2024, 'Month': 3, 'Profit': 150},
+    ])
+
+    master.attrs['_gp_last90'] = gp_last90
+    master.attrs['_gp_monthly12'] = gp_monthly12
+
+    out = engineer_features(master, {"focus_goals": [], "weights": {}})
+
+    row = out.iloc[0]
+    assert row['GP_Last_90D'] == pytest.approx(150)
+    assert row['Months_Active_12M'] == 2
+    assert row['GP_Trend_Slope_12M'] == pytest.approx(75.0)

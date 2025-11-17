@@ -9,6 +9,13 @@ import numpy as np
 import pandas as pd
 
 from icp.divisions import DivisionConfig, get_division_config
+from icp.schema import (
+    COL_INDUSTRY,
+    COL_INDUSTRY_SUBLIST,
+    COL_PROFIT_SINCE_2023_TOTAL,
+    COL_HW_REV,
+    COL_CONS_REV,
+)
 
 
 def _sum_numeric(df: pd.DataFrame, columns: Iterable[str]) -> pd.Series:
@@ -31,12 +38,12 @@ def calculate_industry_performance(
         perf = _sum_numeric(df, config.performance_columns)
     elif config.adoption.profit_column and config.adoption.profit_column in df.columns:
         perf = pd.to_numeric(df[config.adoption.profit_column], errors="coerce").fillna(0)
-    elif "Profit_Since_2023_Total" in df.columns:
-        perf = pd.to_numeric(df["Profit_Since_2023_Total"], errors="coerce").fillna(0)
+    elif COL_PROFIT_SINCE_2023_TOTAL in df.columns:
+        perf = pd.to_numeric(df[COL_PROFIT_SINCE_2023_TOTAL], errors="coerce").fillna(0)
     else:
         fallback_cols = [
-            "Total Hardware Revenue",
-            "Total Consumable Revenue",
+            COL_HW_REV,
+            COL_CONS_REV,
             "Total Service Bureau Revenue",
         ]
         perf = _sum_numeric(df, fallback_cols)
@@ -55,7 +62,7 @@ def aggregate_by_industry(df: pd.DataFrame, min_sample: int = 10) -> pd.DataFram
     """Aggregate performance metrics by industry using adoption-adjusted success."""
 
     df = df.copy()
-    df["Industry_clean"] = df["Industry"].fillna("Unknown").astype(str).str.strip()
+    df["Industry_clean"] = df[COL_INDUSTRY].fillna("Unknown").astype(str).str.strip()
     df.loc[df["Industry_clean"] == "", "Industry_clean"] = "Unknown"
 
     def calc_adoption_metrics(group: pd.DataFrame) -> pd.Series:
@@ -81,7 +88,11 @@ def aggregate_by_industry(df: pd.DataFrame, min_sample: int = 10) -> pd.DataFram
             }
         )
 
-    industry_stats = df.groupby("Industry_clean").apply(calc_adoption_metrics).reset_index()
+    industry_stats = (
+        df.groupby("Industry_clean", group_keys=False, sort=False)
+        .apply(calc_adoption_metrics, include_groups=False)
+        .reset_index()
+    )
 
     sufficient_sample = industry_stats["customer_count"] >= min_sample
     small_industries = industry_stats[~sufficient_sample]

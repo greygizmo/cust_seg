@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Sequence
+import re
 
 import numpy as np
 import pandas as pd
@@ -21,6 +23,7 @@ SRC_DIR = ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.append(str(SRC_DIR))
 
+LOG_DIR = ROOT / "reports" / "logs"
 # Try to import scoring utilities. The dashboard gracefully handles environments
 # where the scoring module is unavailable (e.g., minimal deployments).
 try:  # pragma: no cover - optional import for local environments
@@ -145,7 +148,8 @@ COLUMN_CANDIDATES = {
     "cross_division_balance_score": ["cross_division_balance_score"],
     "hw_to_sw_cross_sell_score": ["hw_to_sw_cross_sell_score"],
     "sw_to_hw_cross_sell_score": ["sw_to_hw_cross_sell_score"],
-    "training_to_hw_ratio": ["training_to_hw_ratio"],
+    "printer_count": ["printer_count", "Printers", "Qty_Printers"],
+    "contact_email": ["Primary_Contact_Email", "primary_contact_email", "RP_Primary_Email", "RP_Primary_email"],
 }
 
 NUMERIC_DEFAULTS = {
@@ -185,6 +189,7 @@ NUMERIC_DEFAULTS = {
     "hw_to_sw_cross_sell_score": 0.0,
     "sw_to_hw_cross_sell_score": 0.0,
     "training_to_hw_ratio": 0.0,
+    "printer_count": 0.0,
 }
 
 
@@ -202,6 +207,13 @@ class FilterState:
     search_text: str
     profit_key: str
     profit_label: str
+    division_mode: str
+    hw_grades: Sequence[str]
+    cre_grades: Sequence[str]
+    am_territories: Sequence[str]
+    cad_territories: Sequence[str]
+    hw_reps: Sequence[str]
+    cre_reps: Sequence[str]
 
 
 @st.cache_data(show_spinner=False)
@@ -226,6 +238,24 @@ def load_portfolio_data() -> tuple[pd.DataFrame, Path | None]:
             return df, path
 
     return create_sample_portfolio(), None
+
+
+@st.cache_data(show_spinner=False)
+def load_neighbors_data() -> pd.DataFrame:
+    """Load neighbor artifact if available."""
+
+    candidate_files = [
+        ROOT / "artifacts" / "account_neighbors.csv",
+        ROOT / "data" / "processed" / "account_neighbors.csv",
+        ROOT / "reports" / "account_neighbors.csv",
+    ]
+    for path in candidate_files:
+        if path.exists():
+            try:
+                return pd.read_csv(path)
+            except Exception:
+                continue
+    return pd.DataFrame()
 
 
 def create_sample_portfolio(num_accounts: int = 300, seed: int = 7) -> pd.DataFrame:
@@ -320,6 +350,12 @@ def prepare_portfolio(df: pd.DataFrame) -> pd.DataFrame:
     """Standardize column names, fill gaps, and compute derived metrics."""
 
     df = df.copy()
+    bins = [-np.inf, 0.33, 0.66, np.inf]
+    band_labels = ["Low", "Medium", "High"]
+
+    def _score_band(series: pd.Series) -> pd.Series:
+        cats = pd.cut(series, bins=bins, labels=band_labels, include_lowest=True)
+        return cats.cat.add_categories(["Unknown"]).fillna("Unknown").astype(str)
 
     # Normalize column availability
     for canonical, candidates in COLUMN_CANDIDATES.items():
@@ -366,11 +402,20 @@ def prepare_portfolio(df: pd.DataFrame) -> pd.DataFrame:
         df["activity_segment"] = np.where(df["profit_last_q"] > 0, "Warm", "Dormant")
     df["activity_segment"] = df["activity_segment"].fillna("Unknown").astype(str)
 
-    df["territory"] = df.get("territory", df.get("AM_Territory", "Unassigned"))
+    df["am_territory"] = df.get("AM_Territory", df.get("territory", "Unassigned"))
+    df["am_territory"] = df["am_territory"].fillna("Unassigned").astype(str)
+    df["cad_territory"] = df.get("CAD_Territory", df["am_territory"])
+    df["cad_territory"] = df["cad_territory"].fillna(df["am_territory"]).astype(str)
+    df["territory"] = df.get("territory", df["am_territory"])
     df["territory"] = df["territory"].fillna("Unassigned").astype(str)
 
-    df["sales_rep"] = df.get("sales_rep", df.get("am_sales_rep", "Unassigned"))
-    df["sales_rep"] = df["sales_rep"].fillna("Unassigned").astype(str)
+    df["hw_owner"] = df.get("am_sales_rep", df.get("sales_rep", "Unassigned"))
+    df["hw_owner"] = df["hw_owner"].fillna("Unassigned").astype(str)
+    df["cre_owner"] = df.get("cre_sales_rep", df["hw_owner"])
+    df["cre_owner"] = df["cre_owner"].fillna(df["hw_owner"]).astype(str)
+    df["sales_rep"] = df["hw_owner"]
+    if "cre_sales_rep" not in df.columns:
+        df["cre_sales_rep"] = df["cre_owner"]
 
     df["industry"] = df.get("industry", df.get("Industry", "Unknown"))
     df["industry"] = df["industry"].fillna("Unknown").astype(str)
@@ -378,6 +423,11 @@ def prepare_portfolio(df: pd.DataFrame) -> pd.DataFrame:
     df["adoption_maturity"] = df[["component_adoption", "component_relationship"]].mean(axis=1)
     df["whitespace_score"] = (1 - df["adoption_maturity"]).clip(0, 1)
     df["whitespace_value"] = df["profit_since_2023"] * df["whitespace_score"]
+    df["adoption_band"] = _score_band(df["component_adoption"])
+    df["relationship_band"] = _score_band(df["component_relationship"])
+    df["printer_count"] = pd.to_numeric(df.get("printer_count"), errors="coerce").fillna(0.0)
+    df["revenue_only_flag"] = (df["printer_count"] <= 0).astype(bool)
+    df["heavy_fleet_flag"] = (df["printer_count"] >= 10).astype(bool)
 
     df["delta_13w_pct"] = (
         df["delta_13w_pct"].replace([np.inf, -np.inf], np.nan).clip(-1, 1)
@@ -450,6 +500,21 @@ def prepare_portfolio(df: pd.DataFrame) -> pd.DataFrame:
         labels=["<30", "30-45", "45-65", "65-80", "80+"],
         include_lowest=True,
     )
+    df["score_band"] = df["score_band"].astype(str)
+    df["score_improved_flag"] = (
+        df["delta_13w_pct"].fillna(0) >= 0.1
+    ) | (df["momentum_segment"] == "Surging")
+
+    contact_email = None
+    for candidate in COLUMN_CANDIDATES.get("contact_email", []):
+        if candidate in df.columns:
+            contact_email = df[candidate]
+            break
+    if contact_email is None:
+        df["contact_email"] = ""
+    else:
+        df["contact_email"] = contact_email.fillna("").astype(str).str.strip()
+
     return df
 
 
@@ -468,20 +533,72 @@ def render_sidebar(df: pd.DataFrame) -> FilterState:
     profit_key = selected_lens["key"]
     profit_label = selected_lens["label"]
 
+    division_options = ["Portfolio", "Hardware", "CRE", "Dual"]
+    division_mode = st.sidebar.radio(
+        "Division focus",
+        options=division_options,
+        index=min(division_options.index("Dual"), len(division_options) - 1),
+        help="Choose which division's metrics drive the visuals. Dual shows both.",
+        horizontal=True,
+    )
+
     min_score, max_score = float(df["score"].min()), float(df["score"].max())
+    default_lower = max(0.0, min_score)
+    default_upper = min(100.0, max_score)
     score_range = st.sidebar.slider(
         "ICP score range",
         min_value=0.0,
         max_value=100.0,
-        value=(min(30.0, min_score), max(85.0, max_score)),
+        value=(default_lower, default_upper),
         step=1.0,
     )
 
     grade_selection = st.sidebar.multiselect(
         "Grades",
         options=GRADE_ORDER,
-        default=GRADE_ORDER[:4],
+        default=GRADE_ORDER,
     )
+
+    am_territory_options = sorted(df["am_territory"].dropna().unique().tolist())
+    cad_territory_options = sorted(df["cad_territory"].dropna().unique().tolist())
+    hw_owner_options = sorted(df["hw_owner"].dropna().unique().tolist())
+    cre_owner_options = sorted(df["cre_owner"].dropna().unique().tolist())
+
+    with st.sidebar.expander("Hardware focus", expanded=division_mode in ("Hardware", "Dual")):
+        hw_grades = st.multiselect(
+            "Hardware grades",
+            options=GRADE_ORDER,
+            default=["A", "B"],
+            help="Used for HW-specific KPIs and call lists.",
+        )
+        am_territories = st.multiselect(
+            "AM territories",
+            options=am_territory_options,
+            default=am_territory_options,
+        )
+        hw_reps = st.multiselect(
+            "HW account owners",
+            options=hw_owner_options,
+            default=hw_owner_options,
+        )
+
+    with st.sidebar.expander("CRE focus", expanded=division_mode in ("CRE", "Dual")):
+        cre_grades = st.multiselect(
+            "CRE grades",
+            options=GRADE_ORDER,
+            default=["A", "B"],
+            help="Used for CRE-specific KPIs and call lists.",
+        )
+        cad_territories = st.multiselect(
+            "CAD territories",
+            options=cad_territory_options,
+            default=cad_territory_options or am_territory_options,
+        )
+        cre_reps = st.multiselect(
+            "CRE account owners",
+            options=cre_owner_options,
+            default=cre_owner_options or hw_owner_options,
+        )
 
     segment_options = sorted(df["customer_segment"].dropna().unique().tolist())
     segments = st.sidebar.multiselect(
@@ -501,7 +618,7 @@ def render_sidebar(df: pd.DataFrame) -> FilterState:
     industries = st.sidebar.multiselect(
         "Industry",
         options=industry_options,
-        default=industry_options[: min(10, len(industry_options))],
+        default=industry_options,
     )
 
     territory_options = sorted(df["territory"].dropna().unique().tolist())
@@ -555,6 +672,13 @@ def render_sidebar(df: pd.DataFrame) -> FilterState:
         search_text=search_text.strip(),
         profit_key=profit_key,
         profit_label=profit_label,
+        division_mode=division_mode,
+        hw_grades=hw_grades or GRADE_ORDER,
+        cre_grades=cre_grades or GRADE_ORDER,
+        am_territories=am_territories or am_territory_options,
+        cad_territories=cad_territories or cad_territory_options or am_territory_options,
+        hw_reps=hw_reps or hw_owner_options,
+        cre_reps=cre_reps or cre_owner_options or hw_owner_options,
     )
 
 
@@ -570,6 +694,10 @@ def apply_filters(df: pd.DataFrame, filters: FilterState) -> pd.DataFrame:
         & df["sales_rep"].isin(filters.reps)
         & df["activity_segment"].isin(filters.activities)
         & (df[filters.profit_key] >= filters.min_profit)
+        & df["am_territory"].isin(filters.am_territories)
+        & df["cad_territory"].isin(filters.cad_territories)
+        & df["hw_owner"].isin(filters.hw_reps)
+        & df["cre_owner"].isin(filters.cre_reps)
     )
 
     df_filtered = df[mask].copy()
@@ -681,6 +809,53 @@ def render_kpis(df: pd.DataFrame, filters: FilterState) -> None:
         f"<div class='metric-card'><h4>{card['title']}</h4><div class='value'>{card['value']}</div><div class='context'>{card['context']}</div></div>"
         for card in cards
     ) + "</div>", unsafe_allow_html=True)
+
+    hw_df = df[df["ICP_grade_hardware"].notna()]
+    cre_df = df[df["ICP_grade_cre"].notna()]
+    if not hw_df.empty or not cre_df.empty:
+        st.markdown("#### Division snapshots")
+        col_hw, col_cre = st.columns(2)
+        with col_hw:
+            render_division_snapshot(
+                hw_df,
+                "Hardware",
+                grade_col="ICP_grade_hardware",
+                selected_grades=filters.hw_grades,
+                profit_col=filters.profit_key,
+            )
+        with col_cre:
+            render_division_snapshot(
+                cre_df,
+                "CRE",
+                grade_col="ICP_grade_cre",
+                selected_grades=filters.cre_grades,
+                profit_col=filters.profit_key,
+            )
+
+
+def render_division_snapshot(
+    division_df: pd.DataFrame,
+    label: str,
+    grade_col: str,
+    selected_grades: Sequence[str],
+    profit_col: str,
+) -> None:
+    if division_df.empty:
+        st.info(f"No {label.lower()} accounts available in the current view.")
+        return
+    total = len(division_df)
+    ab_df = division_df[division_df[grade_col].isin(selected_grades)]
+    ab_count = len(ab_df)
+    total_profit = division_df[profit_col].sum()
+    ab_profit = ab_df[profit_col].sum()
+    share = (ab_count / total * 100) if total else 0.0
+    profit_share = (ab_profit / total_profit * 100) if total_profit else 0.0
+    st.metric(
+        f"{label} A/B Accounts",
+        f"{ab_count:,}",
+        f"{share:.1f}% of {total:,}",
+    )
+    st.caption(f"{label} GP: {format_currency(ab_profit)} ({profit_share:.1f}% of {format_currency(total_profit)})")
 
 
 def format_currency(value: float) -> str:
@@ -1357,6 +1532,398 @@ def render_playbooks(df: pd.DataFrame, filters: FilterState) -> None:
             )
 
 
+def load_validation_log_entries(max_files: int = 3, max_lines: int = 80) -> list[dict]:
+    if not LOG_DIR.exists():
+        return []
+    entries: list[dict] = []
+    files = sorted(LOG_DIR.glob("validation_*.log"), reverse=True)
+    for path in files[:max_files]:
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except Exception:
+            continue
+        entries.append({"path": path, "lines": lines[-max_lines:]})
+    return entries
+
+
+def persist_call_list(table: pd.DataFrame, label: str) -> Path:
+    safe_label = re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_") or "call_list"
+    target_dir = ROOT / "reports" / "call_lists" / "manual"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    path = target_dir / f"{safe_label}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    table.to_csv(path, index=False)
+    return path
+
+
+def render_call_list_builder(df: pd.DataFrame, filters: FilterState) -> None:
+    st.markdown("#### Call List Builder")
+    if df.empty:
+        st.info("No accounts available for the current filters.")
+        return
+
+    builder_df = df.copy()
+    hw_tab, cre_tab = st.tabs(["Hardware list", "CRE list"])
+    with hw_tab:
+        render_division_call_list(builder_df, filters, division="hardware")
+    with cre_tab:
+        render_division_call_list(builder_df, filters, division="cre")
+
+
+def render_division_call_list(builder_df: pd.DataFrame, filters: FilterState, division: str) -> None:
+    if division == "hardware":
+        label = "Hardware"
+        grade_col = "ICP_grade_hardware"
+        score_col = "ICP_score_hardware"
+        territory_col = "am_territory"
+        owner_col = "hw_owner"
+        grade_defaults = filters.hw_grades
+        adoption_col = "Hardware_score"
+        relationship_col = "Software_score"
+    else:
+        label = "CRE"
+        grade_col = "ICP_grade_cre"
+        score_col = "ICP_score_cre"
+        territory_col = "cad_territory"
+        owner_col = "cre_owner"
+        grade_defaults = filters.cre_grades
+        adoption_col = "cre_adoption_assets"
+        relationship_col = "cre_relationship_profit"
+
+    if grade_col not in builder_df.columns or builder_df[grade_col].dropna().empty:
+        st.info(f"No {label.lower()} accounts available for call list generation.")
+        return
+
+    div_df = builder_df[builder_df[grade_col].notna()].copy()
+    segments = sorted(div_df["customer_segment"].dropna().unique().tolist())
+    industries = sorted(div_df["industry"].dropna().unique().tolist())
+    territories = sorted(div_df[territory_col].dropna().unique().tolist())
+    reps = sorted(div_df[owner_col].dropna().unique().tolist())
+    adoption_bands = sorted(div_df["adoption_band"].dropna().unique().tolist())
+    relationship_bands = sorted(div_df["relationship_band"].dropna().unique().tolist())
+
+    col1, col2 = st.columns(2)
+    with col1:
+        selected_segments = st.multiselect(f"{label} segments", options=segments, default=segments or [])
+        selected_industries = st.multiselect(f"{label} industries", options=industries, default=industries or [])
+        selected_territories = st.multiselect(
+            f"{label} territories",
+            options=territories,
+            default=territories or [],
+        )
+    with col2:
+        selected_grades = st.multiselect(
+            f"{label} grades",
+            options=GRADE_ORDER,
+            default=grade_defaults or ["A", "B"],
+        )
+        selected_reps = st.multiselect(
+            f"{label} owners",
+            options=reps,
+            default=reps or [],
+        )
+        selected_relationship = st.multiselect(
+            "Relationship band",
+            options=relationship_bands,
+            default=relationship_bands or [],
+        )
+
+    col3, col4, col5 = st.columns(3)
+    with col3:
+        selected_adoption = st.multiselect(
+            "Adoption band",
+            options=adoption_bands,
+            default=adoption_bands or [],
+        )
+    with col4:
+        revenue_only = st.checkbox("Revenue-only (no printers)" if division == "hardware" else "Revenue-only accounts")
+        heavy_fleet = st.checkbox("Heavy fleet (≥10 printers)", value=False, disabled=division != "hardware")
+    with col5:
+        improved_scores = st.checkbox("Newly improved score")
+        min_profit = st.number_input(
+            f"Min {filters.profit_label} ($)",
+            min_value=0.0,
+            value=0.0,
+            step=5000.0,
+        )
+
+    mask = (
+        div_df["customer_segment"].isin(selected_segments)
+        & div_df["industry"].isin(selected_industries)
+        & div_df[territory_col].isin(selected_territories)
+        & div_df[owner_col].isin(selected_reps)
+        & div_df[grade_col].isin(selected_grades)
+        & div_df["adoption_band"].isin(selected_adoption)
+        & div_df["relationship_band"].isin(selected_relationship)
+        & (div_df[filters.profit_key] >= min_profit)
+    )
+    if revenue_only and "revenue_only_flag" in div_df.columns:
+        mask &= div_df["revenue_only_flag"]
+    if heavy_fleet and "heavy_fleet_flag" in div_df.columns:
+        mask &= div_df["heavy_fleet_flag"]
+    if improved_scores and "score_improved_flag" in div_df.columns:
+        mask &= div_df["score_improved_flag"]
+
+    scoped = div_df.loc[mask].copy()
+    if scoped.empty:
+        st.warning(f"No {label.lower()} accounts match the selected filters.")
+        return
+
+    scoped = scoped.sort_values([score_col if score_col in scoped else "score", filters.profit_key], ascending=[False, False])
+    scoped = scoped.reset_index(drop=True)
+    scoped.insert(0, "Rank", np.arange(1, len(scoped) + 1))
+
+    adoption_series = scoped.get(adoption_col, scoped.get("component_adoption"))
+    relationship_series = scoped.get(relationship_col, scoped.get("component_relationship"))
+
+    table = pd.DataFrame(
+        {
+            "Rank": scoped["Rank"],
+            "Customer ID": scoped["customer_id"],
+            "Company": scoped["company_name"],
+            f"{label} Territory": scoped[territory_col],
+            f"{label} Owner": scoped[owner_col],
+            f"ICP Grade ({label})": scoped.get(grade_col),
+            f"ICP Score ({label})": scoped.get(score_col, scoped["score"]).round(1),
+            "Adoption Score": adoption_series.round(3) if adoption_series is not None else np.nan,
+            "Relationship Score": relationship_series.round(3) if relationship_series is not None else np.nan,
+            filters.profit_label: scoped[filters.profit_key].round(0),
+            "Printers": scoped["printer_count"].round().astype(int) if "printer_count" in scoped else 0,
+            "Suggested Playbook": scoped.get("call_to_action"),
+        }
+    )
+    st.markdown(f"**{len(table):,}** {label.lower()} accounts match the current criteria.")
+    st.dataframe(table, use_container_width=True, hide_index=True)
+
+    csv_bytes = table.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        f"Download {label.lower()} call list (CSV)",
+        data=csv_bytes,
+        file_name=f"{label.lower()}_call_list.csv",
+        mime="text/csv",
+        use_container_width=False,
+    )
+
+    email_values: list[str] = []
+    if "contact_email" in scoped.columns:
+        email_values.extend(scoped["contact_email"].dropna().astype(str).str.strip().tolist())
+    email_values = sorted({e for e in email_values if e})
+    email_blob = ";".join(email_values)
+
+    st.text_area(
+        f"{label} email list",
+        value=email_blob,
+        height=80,
+        placeholder="No contact emails available for the current list.",
+    )
+
+    list_label = st.text_input(f"{label} list label", value=f"{label.lower()}_call_list")
+    save_key = f"call_list_saved_path_{label.lower()}"
+    saved_path = st.session_state.get(save_key)
+    if st.button(f"Save {label.lower()} call list"):
+        path = persist_call_list(table, list_label)
+        st.session_state[save_key] = str(path)
+        saved_path = str(path)
+        rel = path.relative_to(ROOT)
+        st.success(f"Saved {label} call list to {rel}")
+    if saved_path:
+        st.text_input(f"{label} CSV path", value=saved_path, key=f"{label}_call_list_path_copy")
+
+
+def render_manager_hq(df: pd.DataFrame, filters: FilterState) -> None:
+    st.markdown("#### Manager HQ")
+    if df.empty:
+        st.info("No accounts available for the current filters.")
+        return
+
+    profit_col = filters.profit_key
+    hw_df = df[df["ICP_grade_hardware"].notna()].copy()
+    hw_df["is_ab"] = hw_df["ICP_grade_hardware"].isin(filters.hw_grades)
+    cre_df = df[df["ICP_grade_cre"].notna()].copy()
+    cre_df["is_ab"] = cre_df["ICP_grade_cre"].isin(filters.cre_grades)
+
+    def summarize(div_df: pd.DataFrame, territory_col: str, owner_col: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+        if div_df.empty:
+            return pd.DataFrame(), pd.DataFrame()
+        territory_summary = (
+            div_df.groupby(territory_col)
+            .agg(
+                Accounts=("customer_id", "nunique"),
+                AB_Accounts=("is_ab", "sum"),
+                Profit=(profit_col, "sum"),
+            )
+            .sort_values("Profit", ascending=False)
+        )
+        territory_summary["AB_Share"] = np.where(
+            territory_summary["Accounts"] > 0,
+            territory_summary["AB_Accounts"] / territory_summary["Accounts"],
+            0.0,
+        )
+        rep_summary = (
+            div_df.groupby(owner_col)
+            .agg(
+                Accounts=("customer_id", "nunique"),
+                AB_Accounts=("is_ab", "sum"),
+                Profit=(profit_col, "sum"),
+            )
+            .sort_values("Profit", ascending=False)
+        )
+        return territory_summary.reset_index().rename(columns={territory_col: "Territory", owner_col: "Owner"}), rep_summary.reset_index().rename(columns={owner_col: "Owner"})
+
+    hw_territory, hw_reps = summarize(hw_df, "am_territory", "hw_owner")
+    cre_territory, cre_reps = summarize(cre_df, "cad_territory", "cre_owner")
+
+    st.markdown("##### Territory coverage")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.caption("Hardware")
+        if hw_territory.empty:
+            st.info("No hardware accounts.")
+        else:
+            st.dataframe(hw_territory, use_container_width=True, hide_index=True)
+            download_dataframe(hw_territory, "hardware_territory_summary.csv")
+    with col2:
+        st.caption("CRE")
+        if cre_territory.empty:
+            st.info("No CRE accounts.")
+        else:
+            st.dataframe(cre_territory, use_container_width=True, hide_index=True)
+            download_dataframe(cre_territory, "cre_territory_summary.csv")
+
+    st.markdown("##### Top owners by GP")
+    col3, col4 = st.columns(2)
+    with col3:
+        st.caption("Hardware owners")
+        if hw_reps.empty:
+            st.info("No hardware owners available.")
+        else:
+            st.dataframe(hw_reps.head(15), use_container_width=True, hide_index=True)
+    with col4:
+        st.caption("CRE owners")
+        if cre_reps.empty:
+            st.info("No CRE owners available.")
+        else:
+            st.dataframe(cre_reps.head(15), use_container_width=True, hide_index=True)
+
+
+def download_dataframe(df: pd.DataFrame, filename: str) -> None:
+    csv = df.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        f"Download {filename}",
+        data=csv,
+        file_name=filename,
+        mime="text/csv",
+        use_container_width=False,
+    )
+
+
+def render_neighbor_lab(df: pd.DataFrame, neighbors: pd.DataFrame, filters: FilterState) -> None:
+    st.markdown("#### Look-alike Lab")
+    if neighbors.empty:
+        st.info("Neighbor artifact not found. Run the neighbors pipeline to enable this view.")
+        return
+    if df.empty:
+        st.info("No accounts loaded.")
+        return
+
+    options_df = (
+        df[["customer_id", "company_name", "industry"]]
+        .dropna(subset=["customer_id"])
+        .sort_values("company_name")
+    )
+    options = options_df.apply(
+        lambda row: f"{row['company_name']} ({row['customer_id']}) • {row['industry']}",
+        axis=1,
+    ).tolist()
+    if not options:
+        st.info("No accounts available for selection.")
+        return
+
+    selected_label = st.selectbox("Anchor account", options)
+    selected_id = selected_label.split("(")[-1].split(")")[0].strip()
+    top_n = st.slider("Neighbors to display", min_value=5, max_value=50, value=15, step=5)
+
+    outbound = neighbors[neighbors["account_id"] == selected_id].copy()
+    inbound = neighbors[neighbors["neighbor_account_id"] == selected_id].copy()
+
+    cols_to_merge = [c for c in [
+        "customer_id",
+        "company_name",
+        "industry",
+        "am_territory",
+        "cad_territory",
+        "hw_owner",
+        "cre_owner",
+        "ICP_grade_hardware",
+        "ICP_grade_cre",
+        "ICP_score_hardware",
+        "ICP_score_cre",
+        filters.profit_key,
+    ] if c in df.columns]
+
+    def _prepare(table: pd.DataFrame, join_col: str) -> pd.DataFrame:
+        if table.empty:
+            return table
+        merged = table.merge(
+            df[cols_to_merge],
+            left_on=join_col,
+            right_on="customer_id",
+            how="left",
+            suffixes=("", "_neighbor"),
+        )
+        display_cols = {
+            "neighbor_account_id": "Neighbor ID",
+            "account_id": "Account ID",
+            "neighbor_rank": "Rank",
+            "sim_overall": "Similarity",
+        }
+        rename_map = {col: display_cols[col] for col in display_cols if col in merged.columns}
+        merged = merged.rename(columns=rename_map)
+        return merged
+
+    outbound_display = _prepare(outbound.sort_values("neighbor_rank").head(top_n), "neighbor_account_id")
+    inbound_display = _prepare(inbound.sort_values("neighbor_rank").head(top_n), "account_id")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.caption("Accounts similar to the anchor")
+        if outbound_display.empty:
+            st.info("No outbound neighbors for this account.")
+        else:
+            st.dataframe(outbound_display, use_container_width=True, hide_index=True)
+            download_dataframe(outbound_display, "neighbors_outbound.csv")
+    with col2:
+        st.caption("Accounts that reference this anchor")
+        if inbound_display.empty:
+            st.info("No inbound neighbors for this account.")
+        else:
+            st.dataframe(inbound_display, use_container_width=True, hide_index=True)
+            download_dataframe(inbound_display, "neighbors_inbound.csv")
+
+
+def render_scoring_details(df: pd.DataFrame) -> None:
+    st.markdown("#### Scoring Details & Validation")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Accounts loaded", f"{len(df):,}")
+    with col2:
+        as_of = df.get("as_of_date")
+        as_of_label = str(pd.Series(as_of).dropna().iloc[0]) if as_of is not None and len(pd.Series(as_of).dropna()) else "N/A"
+        st.metric("Latest as-of date", as_of_label)
+
+    entries = load_validation_log_entries()
+    if not entries:
+        st.info("No validation logs captured yet. Run the scoring CLI to generate validation entries.")
+        return
+
+    for idx, entry in enumerate(entries):
+        with st.expander(entry["path"].name, expanded=(idx == 0)):
+            if entry["lines"]:
+                st.code("\n".join(entry["lines"]))
+            else:
+                st.write("No validation entries recorded in this file.")
+            st.caption(f"Location: {entry['path']}")
+
+
 def render_account_table(df: pd.DataFrame, filters: FilterState) -> None:
     watchlist = opportunity_watchlist(df, filters)
     st.markdown("#### Opportunity Watchlist (Top 30)")
@@ -1375,7 +1942,7 @@ def render_account_table(df: pd.DataFrame, filters: FilterState) -> None:
     )
 
 
-def render_dashboard(df: pd.DataFrame, filters: FilterState) -> None:
+def render_dashboard(df: pd.DataFrame, filters: FilterState, neighbors: pd.DataFrame) -> None:
     filtered = apply_filters(df, filters)
 
     st.title("Revenue Acceleration Command Center")
@@ -1392,12 +1959,16 @@ def render_dashboard(df: pd.DataFrame, filters: FilterState) -> None:
     render_operating_pulse(filtered)
 
     st.markdown("---")
-    tab1, tab2, tab3, tab4 = st.tabs(
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(
         [
             "Score & Composition",
             "Coverage & Territory",
             "Expansion & Momentum",
             "Execution Hub",
+            "Call List Builder",
+            "Manager HQ",
+            "Look-alike Lab",
+            "Scoring Details",
         ]
     )
 
@@ -1444,10 +2015,23 @@ def render_dashboard(df: pd.DataFrame, filters: FilterState) -> None:
         with playbook_tab:
             render_playbooks(filtered, filters)
 
+    with tab5:
+        render_call_list_builder(filtered, filters)
+
+    with tab6:
+        render_manager_hq(filtered, filters)
+
+    with tab7:
+        render_neighbor_lab(filtered, neighbors, filters)
+
+    with tab8:
+        render_scoring_details(df)
+
 
 def main() -> None:
     raw_df, source_path = load_portfolio_data()
     df = prepare_portfolio(raw_df)
+    neighbors = load_neighbors_data()
 
     filters = render_sidebar(df)
 
@@ -1458,7 +2042,7 @@ def main() -> None:
     else:
         st.caption(f"Loaded portfolio from **{source_path.relative_to(ROOT)}**")
 
-    render_dashboard(df, filters)
+    render_dashboard(df, filters, neighbors)
 
 
 if __name__ == "__main__":

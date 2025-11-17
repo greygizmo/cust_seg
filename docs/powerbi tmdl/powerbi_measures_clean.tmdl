@@ -1,0 +1,208 @@
+createOrReplace
+
+  ref table 'icp_scored_accounts v1.5'
+
+    // ---------- Core portfolio measures ----------
+
+    measure 'Customers' =
+        DISTINCTCOUNT ( 'icp_scored_accounts v1.5'[Customer ID] )
+      formatString: "0"
+
+    measure 'Profit' =
+        SUM ( 'icp_scored_accounts v1.5'[GP_Since_2023_Total] )
+      formatString: "$#,0;($#,0);$#,0"
+
+    // Hardware / software component presence (used as filters)
+
+    measure 'Customers_HW' =
+        CALCULATE (
+            [Customers],
+            'icp_scored_accounts v1.5'[Hardware_score] > 0
+        )
+      formatString: "0"
+
+    measure 'Customers_SW' =
+        CALCULATE (
+            [Customers],
+            'icp_scored_accounts v1.5'[Software_score] > 0
+        )
+      formatString: "0"
+
+    // ---------- Percent-of-total helpers ----------
+
+    measure 'Pct Customers' =
+        DIVIDE (
+            [Customers],
+            CALCULATE ( [Customers], ALL ( 'icp_scored_accounts v1.5' ) )
+        )
+      formatString: "0%;-0%;0%"
+
+    measure 'Pct Profit' =
+        DIVIDE (
+            [Profit],
+            CALCULATE ( [Profit], ALL ( 'icp_scored_accounts v1.5' ) )
+        )
+      formatString: "0%;-0%;0%"
+
+    // ---------- A/B coverage (hardware grades) ----------
+
+    measure 'Customers_AB_HW' =
+        CALCULATE (
+            [Customers],
+            'icp_scored_accounts v1.5'[ICP_grade_hardware] IN { "A", "B" }
+        )
+      formatString: "0"
+
+    measure 'Pct Customers AB HW' =
+        DIVIDE (
+            [Customers_AB_HW],
+            CALCULATE ( [Customers], ALL ( 'icp_scored_accounts v1.5' ) )
+        )
+      formatString: "0%;-0%;0%"
+
+    measure 'Profit_AB_HW' =
+        CALCULATE (
+            [Profit],
+            'icp_scored_accounts v1.5'[ICP_grade_hardware] IN { "A", "B" }
+        )
+      formatString: "$#,0;($#,0);$#,0"
+
+    measure 'Pct Profit AB HW' =
+        DIVIDE (
+            [Profit_AB_HW],
+            CALCULATE ( [Profit], ALL ( 'icp_scored_accounts v1.5' ) )
+        )
+      formatString: "0%;-0%;0%"
+
+    // ---------- Hardware vs software share ----------
+
+    measure 'Revenue_HW' =
+        SUM ( 'icp_scored_accounts v1.5'[Total Hardware Revenue] )
+            + SUM ( 'icp_scored_accounts v1.5'[Total Consumable Revenue] )
+      formatString: "$#,0;($#,0);$#,0"
+
+    measure 'Revenue_SW' =
+        SUM ( 'icp_scored_accounts v1.5'[Total Software License Revenue] )
+            + SUM ( 'icp_scored_accounts v1.5'[Total SaaS Revenue] )
+            + SUM ( 'icp_scored_accounts v1.5'[Total Maintenance Revenue] )
+      formatString: "$#,0;($#,0);$#,0"
+
+    measure 'HW Revenue Share' =
+        DIVIDE (
+            [Revenue_HW],
+            [Revenue_HW] + [Revenue_SW]
+        )
+      formatString: "0%;-0%;0%"
+
+    measure 'SW Revenue Share' =
+        DIVIDE (
+            [Revenue_SW],
+            [Revenue_HW] + [Revenue_SW]
+        )
+      formatString: "0%;-0%;0%"
+
+    // ---------- Territory / owner level KPIs ----------
+
+    measure 'Customers_AB_Territory_HW' =
+        CALCULATE (
+            [Customers_AB_HW],
+            ALLEXCEPT ( 'icp_scored_accounts v1.5', 'icp_scored_accounts v1.5'[AM_Territory] )
+        )
+      formatString: "0"
+
+    measure 'Profit_AB_Territory_HW' =
+        CALCULATE (
+            [Profit_AB_HW],
+            ALLEXCEPT ( 'icp_scored_accounts v1.5', 'icp_scored_accounts v1.5'[AM_Territory] )
+        )
+      formatString: "$#,0;($#,0);$#,0"
+
+    // ---------- CRE-focused measures (CRE reps) ----------
+
+    measure 'Customers_CRE' =
+        CALCULATE (
+            [Customers],
+            NOT ISBLANK ( 'icp_scored_accounts v1.5'[ICP_score_cre] )
+        )
+      formatString: "0"
+
+    measure 'Customers_AB_CRE' =
+        CALCULATE (
+            [Customers],
+            'icp_scored_accounts v1.5'[ICP_grade_cre] IN { "A", "B" }
+        )
+      formatString: "0"
+
+    measure 'Pct Customers AB CRE' =
+        DIVIDE (
+            [Customers_AB_CRE],
+            CALCULATE ( [Customers_CRE], ALL ( 'icp_scored_accounts v1.5' ) )
+        )
+      formatString: "0%;-0%;0%"
+
+    measure 'Profit_CRE' =
+        [Revenue_SW]
+      formatString: "$#,0;($#,0);$#,0"
+
+    measure 'Profit_AB_CRE' =
+        CALCULATE (
+            [Profit_CRE],
+            'icp_scored_accounts v1.5'[ICP_grade_cre] IN { "A", "B" }
+        )
+      formatString: "$#,0;($#,0);$#,0"
+
+    measure 'Pct Profit AB CRE' =
+        DIVIDE (
+            [Profit_AB_CRE],
+            CALCULATE ( [Profit_CRE], ALL ( 'icp_scored_accounts v1.5' ) )
+        )
+      formatString: "0%;-0%;0%"
+
+    measure 'Customers_AB_Territory_CRE' =
+        CALCULATE (
+            [Customers_AB_CRE],
+            ALLEXCEPT ( 'icp_scored_accounts v1.5', 'icp_scored_accounts v1.5'[AM_Territory] )
+        )
+      formatString: "0"
+
+    measure 'Profit_AB_Territory_CRE' =
+        CALCULATE (
+            [Profit_AB_CRE],
+            ALLEXCEPT ( 'icp_scored_accounts v1.5', 'icp_scored_accounts v1.5'[AM_Territory] )
+        )
+      formatString: "$#,0;($#,0);$#,0"
+
+  ref table 'account_neighbors'
+
+    // ---------- Neighbor similarity helpers ----------
+
+    measure 'similarity_p75' =
+        PERCENTILEX.INC ( ALL ( 'account_neighbors' ), 'account_neighbors'[sim_overall], 0.75 )
+
+    measure 'inbound_neighbor_count' =
+        VAR MeID =
+            SELECTEDVALUE ( 'icp_scored_accounts v1.5'[Customer ID] )
+        RETURN
+            COUNTROWS (
+                FILTER (
+                    'account_neighbors',
+                    'account_neighbors'[neighbor_account_id] = MeID
+                )
+            )
+
+    measure 'inbound_neighbor_count_norm' =
+        VAR x =
+            [inbound_neighbor_count]
+        VAR mn =
+            MINX (
+                ALLSELECTED ( 'icp_scored_accounts v1.5' ),
+                [inbound_neighbor_count]
+            )
+        VAR mx =
+            MAXX (
+                ALLSELECTED ( 'icp_scored_accounts v1.5' ),
+                [inbound_neighbor_count]
+            )
+        RETURN
+            DIVIDE ( x - mn, mx - mn )
+

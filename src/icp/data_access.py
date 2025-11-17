@@ -13,6 +13,7 @@ import os
 from typing import Optional
 
 import pandas as pd
+from icp.schema import COL_CUSTOMER_ID
 try:
     from sqlalchemy import create_engine, text
 except ModuleNotFoundError:  # pragma: no cover - optional dependency for tests
@@ -89,9 +90,9 @@ def get_customers_since_2023(engine=None) -> pd.DataFrame:
     """
     engine = engine or get_engine()
     sql = text(
-        """
+        f"""
         SELECT 
-            s.CompanyId AS [Customer ID],
+            s.CompanyId AS [{COL_CUSTOMER_ID}],
             MAX(CAST(s.New_Business AS varchar(500))) AS [CRM Full Name]
         FROM dbo.table_saleslog_detail s
         WHERE s.Rec_Date >= :since_date
@@ -110,9 +111,9 @@ def get_profit_since_2023_by_goal(engine=None) -> pd.DataFrame:
     """
     engine = engine or get_engine()
     sql = text(
-        """
+        f"""
         SELECT
-            s.CompanyId AS [Customer ID],
+            s.CompanyId AS [{COL_CUSTOMER_ID}],
             t.Goal      AS Goal,
             SUM(COALESCE(s.GP,0) + COALESCE(s.Term_GP,0)) AS Profit_Since_2023
         FROM dbo.table_saleslog_detail s
@@ -135,9 +136,9 @@ def get_profit_since_2023_by_rollup(engine=None) -> pd.DataFrame:
     """
     engine = engine or get_engine()
     sql = text(
-        """
+        f"""
         SELECT
-            s.CompanyId AS [Customer ID],
+            s.CompanyId AS [{COL_CUSTOMER_ID}],
             icl.Item_Rollup AS item_rollup,
             t.Goal      AS Goal,
             SUM(COALESCE(s.GP,0) + COALESCE(s.Term_GP,0)) AS Profit_Since_2023
@@ -162,9 +163,9 @@ def get_quarterly_profit_by_goal(engine=None) -> pd.DataFrame:
     """
     engine = engine or get_engine()
     sql = text(
-        """
+        f"""
         SELECT
-            s.CompanyId AS [Customer ID],
+            s.CompanyId AS [{COL_CUSTOMER_ID}],
             CONCAT(YEAR(s.Rec_Date),'Q', DATEPART(QUARTER, s.Rec_Date)) AS [Quarter],
             t.Goal AS Goal,
             SUM(COALESCE(s.GP,0) + COALESCE(s.Term_GP,0)) AS Profit
@@ -189,9 +190,9 @@ def get_quarterly_profit_by_rollup(engine=None) -> pd.DataFrame:
     """
     engine = engine or get_engine()
     sql = text(
-        """
+        f"""
         SELECT
-            s.CompanyId AS [Customer ID],
+            s.CompanyId AS [{COL_CUSTOMER_ID}],
             CONCAT(YEAR(s.Rec_Date),'Q', DATEPART(QUARTER, s.Rec_Date)) AS [Quarter],
             t.Goal AS Goal,
             icl.Item_Rollup AS item_rollup,
@@ -217,9 +218,9 @@ def get_quarterly_profit_total(engine=None) -> pd.DataFrame:
     """
     engine = engine or get_engine()
     sql = text(
-        """
+        f"""
         SELECT
-            s.CompanyId AS [Customer ID],
+            s.CompanyId AS [{COL_CUSTOMER_ID}],
             CONCAT(YEAR(s.Rec_Date),'Q', DATEPART(QUARTER, s.Rec_Date)) AS [Quarter],
             SUM(COALESCE(s.GP,0) + COALESCE(s.Term_GP,0)) AS Profit
         FROM dbo.table_saleslog_detail s
@@ -238,9 +239,9 @@ def get_profit_last_days(engine=None, days: int = 90) -> pd.DataFrame:
     """
     engine = engine or get_engine()
     sql = text(
-        """
+        f"""
         SELECT
-            s.CompanyId AS [Customer ID],
+            s.CompanyId AS [{COL_CUSTOMER_ID}],
             SUM(COALESCE(s.GP,0) + COALESCE(s.Term_GP,0)) AS GP_Last_ND
         FROM dbo.table_saleslog_detail s
         WHERE s.Rec_Date >= DATEADD(DAY, -:days, GETDATE())
@@ -258,9 +259,9 @@ def get_monthly_profit_last_n(engine=None, months: int = 12) -> pd.DataFrame:
     """
     engine = engine or get_engine()
     sql = text(
-        """
+        f"""
         SELECT
-            s.CompanyId AS [Customer ID],
+            s.CompanyId AS [{COL_CUSTOMER_ID}],
             YEAR(s.Rec_Date) AS [Year],
             MONTH(s.Rec_Date) AS [Month],
             SUM(COALESCE(s.GP,0) + COALESCE(s.Term_GP,0)) AS Profit
@@ -282,9 +283,9 @@ def get_assets_and_seats(engine=None) -> pd.DataFrame:
     engine = engine or get_engine()
     # Switch to the unified all-products view to include hardware assets
     sql = text(
-        """
+        f"""
         SELECT
-            p.Customer_Internal_Id AS [Customer ID],
+            p.Customer_Internal_Id AS [{COL_CUSTOMER_ID}],
             p.item_rollup,
             t.Goal,
             COUNT(*) AS asset_count,
@@ -316,9 +317,9 @@ def get_tx_for_features(engine=None, months_back: int = 18) -> pd.DataFrame:
     """
     engine = engine or get_engine()
     sql = text(
-        """
+        f"""
         SELECT
-            s.CompanyId                                   AS [Customer ID],
+            s.CompanyId                                   AS [{COL_CUSTOMER_ID}],
             CAST(s.Rec_Date AS date)                      AS [date],
             CONCAT('D', CONVERT(varchar(10), CAST(s.Rec_Date AS date), 23)) AS invoice_id,
             icl.Item_Rollup                               AS item_rollup,
@@ -347,11 +348,13 @@ def get_customer_headers(engine=None) -> pd.DataFrame:
     """
     engine = engine or get_engine()
     sql = text(
-        """
+        f"""
         SELECT
-            CAST(c.internalid AS varchar(50))      AS [Customer ID],
+            CAST(c.internalid AS varchar(50))      AS [{COL_CUSTOMER_ID}],
             c.entityid,
             c.am_sales_rep,
+            c.CAD_Territory,
+            c.salesrep_Name AS cre_sales_rep,
             c.AM_Territory,
             c.edu_assets
         FROM dbo.customer_cleaned_headers c
@@ -369,9 +372,9 @@ def get_primary_contacts(engine=None) -> pd.DataFrame:
     """
     engine = engine or get_engine()
     sql = text(
-        """
+        f"""
         SELECT
-            CAST(ch.[Company ID] AS varchar(50)) AS [Customer ID],
+            CAST(ch.[Company ID] AS varchar(50)) AS [{COL_CUSTOMER_ID}],
             ch.[Name] AS [Name],
             ch.[email] AS [email],
             ch.[phone] AS [phone]
@@ -393,9 +396,9 @@ def get_account_primary_contacts(engine=None) -> pd.DataFrame:
     """
     engine = engine or get_engine()
     sql = text(
-        """
+        f"""
         SELECT
-            CAST(ch.[Company ID] AS varchar(50)) AS [Customer ID],
+            CAST(ch.[Company ID] AS varchar(50)) AS [{COL_CUSTOMER_ID}],
             ch.[Name] AS [Name],
             ch.[email] AS [email],
             ch.[phone] AS [phone]
@@ -421,9 +424,9 @@ def get_customer_shipping(engine=None) -> pd.DataFrame:
     # Try primary source first
     try:
         sql = text(
-            """
+            f"""
             SELECT
-                CAST(c.internalid AS varchar(50)) AS [Customer ID],
+                CAST(c.internalid AS varchar(50)) AS [{COL_CUSTOMER_ID}],
                 c.ShippingAddr1,
                 c.ShippingAddr2,
                 c.ShippingCity,
@@ -438,9 +441,9 @@ def get_customer_shipping(engine=None) -> pd.DataFrame:
         # Fallback to cleaned headers if customer_customerOnly not available
         try:
             sql2 = text(
-                """
+                f"""
                 SELECT
-                    CAST(c.internalid AS varchar(50)) AS [Customer ID],
+                    CAST(c.internalid AS varchar(50)) AS [{COL_CUSTOMER_ID}],
                     c.ShippingAddr1,
                     c.ShippingAddr2,
                     c.ShippingCity,
@@ -454,5 +457,5 @@ def get_customer_shipping(engine=None) -> pd.DataFrame:
         except Exception:
             # No shipping available
             return pd.DataFrame(columns=[
-                'Customer ID','ShippingAddr1','ShippingAddr2','ShippingCity','ShippingState','ShippingZip','ShippingCountry'
+                COL_CUSTOMER_ID,'ShippingAddr1','ShippingAddr2','ShippingCity','ShippingState','ShippingZip','ShippingCountry'
             ])

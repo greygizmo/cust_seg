@@ -127,3 +127,28 @@ def test_load_dynamic_industry_weights_falls_back_to_static(monkeypatch):
     assert weights['unknown'] == pytest.approx(fake_config.neutral_vertical_score)
     assert weights[''] == pytest.approx(fake_config.neutral_vertical_score)
     assert weights[None] == pytest.approx(fake_config.neutral_vertical_score)
+
+
+def test_load_dynamic_industry_weights_skips_none_path(monkeypatch):
+    config = replace(
+        get_division_config('hardware'),
+        industry_weights_file=None,
+        neutral_vertical_score=0.41,
+    )
+
+    original_exists = Path.exists
+    repo_root = Path(scoring_module.__file__).resolve().parents[2]
+    candidate_strings = {
+        str(repo_root / 'artifacts' / 'weights' / 'industry_weights.json'),
+        str(Path.cwd() / 'industry_weights.json'),
+    }
+
+    def fake_exists(self):  # type: ignore[override]
+        if str(self) in candidate_strings:
+            return False
+        return original_exists(self)
+
+    monkeypatch.setattr(Path, 'exists', fake_exists)
+
+    weights = load_dynamic_industry_weights(config)
+    assert weights['unknown'] == pytest.approx(config.neutral_vertical_score)

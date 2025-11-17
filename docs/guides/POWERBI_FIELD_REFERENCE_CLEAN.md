@@ -12,7 +12,7 @@ It focuses on what you can safely use in Power BI after the latest schema cleanu
 - `Customer ID` — Canonical ID (string; preserves leading zeros).
 - `Company Name` — Customer display name.
 - `activity_segment` — Warm/Cold activity flag.
-- `am_sales_rep`, `AM_Territory`, `edu_assets` — Account owner, territory, EDU assets.
+- `am_sales_rep`, `cre_sales_rep`, `AM_Territory`, `CAD_Territory`, `edu_assets` — Hardware/CAD account owners and territories, plus EDU assets.
 
 ### Contacts (Optional)
 - `RP_Primary_*` — Designated primary hardware contact.
@@ -140,4 +140,3 @@ Columns:
 
 Notes:
 - The neighbors pipeline uses exact blockwise cosine and a hybrid embedding across numeric, categorical, text, and ALS blocks.
-
