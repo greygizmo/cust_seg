@@ -206,3 +206,61 @@ createOrReplace
         RETURN
             DIVIDE ( x - mn, mx - mn )
 
+  ref table 'icp_account_playbooks'
+
+    // ---------- Playbook pulse measures ----------
+
+    measure 'Playbook Accounts' =
+        DISTINCTCOUNT ( 'icp_account_playbooks'[Customer ID] )
+      formatString: "0"
+
+    measure 'Playbook Profit' =
+        SUM ( 'icp_account_playbooks'[GP_Since_2023_Total] )
+      formatString: "$#,0;($#,0);$#,0"
+
+    measure 'Playbook Accounts by Primary' =
+        CALCULATE ( [Playbook Accounts], ALL ( 'icp_account_playbooks' ), VALUES ( 'icp_account_playbooks'[playbook_primary] ) )
+      formatString: "0"
+
+    measure 'Playbook Profit by Primary' =
+        CALCULATE ( [Playbook Profit], ALL ( 'icp_account_playbooks' ), VALUES ( 'icp_account_playbooks'[playbook_primary] ) )
+      formatString: "$#,0;($#,0);$#,0"
+
+    measure 'Playbook Accounts %' =
+        DIVIDE (
+            [Playbook Accounts by Primary],
+            CALCULATE ( [Playbook Accounts], ALL ( 'icp_account_playbooks' ) )
+        )
+      formatString: "0%;-0%;0%"
+
+    measure 'Playbook Profit %' =
+        DIVIDE (
+            [Playbook Profit by Primary],
+            CALCULATE ( [Playbook Profit], ALL ( 'icp_account_playbooks' ) )
+        )
+      formatString: "0%;-0%;0%"
+
+    measure 'Hero Neighbor Share' =
+        VAR denom =
+            CALCULATE ( [Playbook Accounts], ALL ( 'icp_account_playbooks' ) )
+        VAR num =
+            CALCULATE (
+                [Playbook Accounts],
+                'icp_account_playbooks'[is_hero_neighbor] = TRUE ()
+            )
+        RETURN
+            DIVIDE ( num, denom )
+      formatString: "0%;-0%;0%"
+
+    measure 'Orphan Hero Neighbor Share' =
+        VAR denom =
+            CALCULATE ( [Playbook Accounts], ALL ( 'icp_account_playbooks' ) )
+        VAR num =
+            CALCULATE (
+                [Playbook Accounts],
+                'icp_account_playbooks'[is_hero_orphan_neighbor] = TRUE ()
+            )
+        RETURN
+            DIVIDE ( num, denom )
+      formatString: "0%;-0%;0%"
+
