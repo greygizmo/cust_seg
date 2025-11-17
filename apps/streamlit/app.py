@@ -242,6 +242,26 @@ def load_portfolio_data() -> tuple[pd.DataFrame, Path | None]:
 
 
 @st.cache_data(show_spinner=False)
+def load_playbooks_data() -> pd.DataFrame:
+    """Load account playbooks artifact if available."""
+
+    candidate_files = [
+        ROOT / "artifacts" / "account_playbooks.csv",
+        ROOT / "data" / "processed" / "account_playbooks.csv",
+    ]
+    for path in candidate_files:
+        if path.exists():
+            try:
+                df = pd.read_csv(path)
+                if "customer_id" in df.columns:
+                    df["customer_id"] = df["customer_id"].astype(str)
+                return df
+            except Exception:
+                continue
+    return pd.DataFrame()
+
+
+@st.cache_data(show_spinner=False)
 def load_neighbors_data() -> pd.DataFrame:
     """Load neighbor artifact if available."""
 
@@ -1693,6 +1713,10 @@ def render_division_call_list(builder_df: pd.DataFrame, filters: FilterState, di
     adoption_series = scoped.get(adoption_col, scoped.get("component_adoption"))
     relationship_series = scoped.get(relationship_col, scoped.get("component_relationship"))
 
+    suggested = scoped.get("playbook_primary")
+    if suggested is None or suggested.isna().all():
+        suggested = scoped.get("call_to_action")
+
     table = pd.DataFrame(
         {
             "Rank": scoped["Rank"],
@@ -1706,7 +1730,7 @@ def render_division_call_list(builder_df: pd.DataFrame, filters: FilterState, di
             "Relationship Score": relationship_series.round(3) if relationship_series is not None else np.nan,
             filters.profit_label: scoped[filters.profit_key].round(0),
             "Printers": scoped["printer_count"].round().astype(int) if "printer_count" in scoped else 0,
-            "Suggested Playbook": scoped.get("call_to_action"),
+            "Suggested Playbook": suggested,
         }
     )
     st.markdown(f"**{len(table):,}** {label.lower()} accounts match the current criteria.")
@@ -2383,6 +2407,10 @@ def render_dashboard(df: pd.DataFrame, filters: FilterState, neighbors: pd.DataF
 def main() -> None:
     raw_df, source_path = load_portfolio_data()
     df = prepare_portfolio(raw_df)
+    # Attach playbooks artifact if available
+    playbooks = load_playbooks_data()
+    if not playbooks.empty and "customer_id" in playbooks.columns:
+        df = df.merge(playbooks[["customer_id", "playbook_primary", "playbook_tags", "playbook_rationale"]], on="customer_id", how="left")
     neighbors = load_neighbors_data()
 
     filters = render_sidebar(df)
