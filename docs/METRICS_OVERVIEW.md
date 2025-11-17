@@ -28,8 +28,8 @@ Goal/rollup totals (joined to customer-level when available):
 
 Scores and grades (exported):
 - `Hardware_score` (adoption component), `Software_score` (relationship component)
-- `ICP_score_hardware`, `ICP_grade_hardware` (Hardware division, 0ñ100 normalized, AñF)
-- `ICP_score_cre`, `ICP_grade_cre` (CRE division, 0ñ100 normalized, AñF)
+- `ICP_score_hardware`, `ICP_grade_hardware` (Hardware division, 0ÔøΩ100 normalized, AÔøΩF)
+- `ICP_score_cre`, `ICP_grade_cre` (CRE division, 0ÔøΩ100 normalized, AÔøΩF)
 
 Notes:
 - List-builder dynamics and mix (e.g., `spend_13w`, momentum scores, HW/SW share, cross-division balance and breadth, top_subdivision, HHI, POV tags) are produced from Azure SQL and appended to the scored CSV for BI, but do not feed back into the ICP computation directly.
@@ -40,16 +40,16 @@ Output file:
 ## Source and Target Tables (SQL)
 
 Source tables in `AZSQL_DB` (e.g., `db-goeng-netsuite-prod`):
-- `dbo.table_saleslog_detail` ó transactional GP/Term_GP (profit) by item and date; drives profit aggregates and spend dynamics.
-- `dbo.items_category_limited` ó item ? `item_rollup` mapping used to join transactions to rollups and goals.
-- `dbo.analytics_product_tags` ó goal, super_division, and taxonomy tags per `item_rollup`; used for division/goal classification.
-- `dbo.table_Product_Info_cleaned_headers` ó product/asset headers; drives assets/seats, adoption signals, and portfolio breadth.
-- `dbo.customer_cleaned_headers` ó customer attributes (AM, territory, EDU, fallback shipping) used in identity and ownership features.
-- `dbo.customer_customerOnly` ó preferred source for shipping address fields when available.
-- `dbo.contact_clean_headers` ó contact headers used to derive RP Primary and Account Primary contacts.
+- `dbo.table_saleslog_detail` ÔøΩ transactional GP/Term_GP (profit) by item and date; drives profit aggregates and spend dynamics.
+- `dbo.items_category_limited` ÔøΩ item ? `item_rollup` mapping used to join transactions to rollups and goals.
+- `dbo.analytics_product_tags` ÔøΩ goal, super_division, and taxonomy tags per `item_rollup`; used for division/goal classification.
+- `dbo.table_Product_Info_cleaned_headers` ÔøΩ product/asset headers; drives assets/seats, adoption signals, and portfolio breadth.
+- `dbo.customer_cleaned_headers` ÔøΩ customer attributes (AM, territory, EDU, fallback shipping) used in identity and ownership features.
+- `dbo.customer_customerOnly` ÔøΩ preferred source for shipping address fields when available.
+- `dbo.contact_clean_headers` ÔøΩ contact headers used to derive RP Primary and Account Primary contacts.
 
 Target table in `ICP_AZSQL_DB` (e.g., `db-goeng-icp-prod`), when configured:
-- `dbo.customer_icp` ó full scored accounts table (same schema as `icp_scored_accounts.csv`), replaced on each scoring run.
+- `dbo.customer_icp` ÔøΩ full scored accounts table (same schema as `icp_scored_accounts.csv`), replaced on each scoring run.
 
 ## Neighbors Artifact (exact, blockwise)
 
@@ -66,6 +66,62 @@ Neighbors columns:
 
 Output file:
 - `artifacts/account_neighbors.csv`
+
+## Playbooks Artifact (rule-based CRO/CFO motions)
+
+The playbooks CLI (`python -m icp.cli.build_playbooks`) generates a compact artifact of rule-based tags and plays:
+
+Input:
+- Scored accounts (`data/processed/icp_scored_accounts.csv`)
+- Neighbors (`artifacts/account_neighbors.csv`, optional)
+
+Key columns:
+- `Customer ID`, `Company Name`, `customer_id`
+- `playbook_primary` ‚Äì single headline motion to run for the account.
+- `playbook_tags` ‚Äì semicolon-delimited list of all matching tags (for example, "HW Expansion Sprint; Training & Services Attach").
+- `playbook_rationale` ‚Äì short natural-language explanation of *why* those tags fired.
+- Convenience metrics copied from scored accounts:
+  - `GP_Since_2023_Total`, `ICP_score_hardware`, `ICP_grade_hardware`, `ICP_score_cre`, `ICP_grade_cre`
+  - `whitespace_score`, `hw_share_12m`, `sw_share_12m`, `CRE_Training`, `days_since_last_order`
+  - `customer_segment`, `recency_bucket`
+- Neighbor-based flags:
+  - `is_hero` ‚Äì A-grade, high-GP ‚Äúhero‚Äù accounts.
+  - `is_hero_neighbor` ‚Äì accounts that appear as neighbors of at least one hero.
+  - `is_hero_orphan_neighbor` ‚Äì hero neighbors that are dormant/long-recency.
+  - `hero_neighbor_count` ‚Äì number of hero accounts that reference this account as a neighbor.
+
+Output file:
+- `artifacts/account_playbooks.csv`
+
+## Pulse Artifacts (snapshots for trend tracking)
+
+The pulse CLI (`python -m icp.cli.build_pulse_artifacts`) produces small snapshot tables summarizing portfolio, neighbors, and playbooks at a point in time.
+
+Inputs:
+- Scored accounts (`data/processed/icp_scored_accounts.csv`)
+- Neighbors (`artifacts/account_neighbors.csv`)
+- Playbooks (`artifacts/account_playbooks.csv`)
+
+Outputs (all under `artifacts/`):
+
+- `pulse_portfolio.csv` ‚Äì one row per snapshot with:
+  - `snapshot_ts_utc`, `as_of_date`
+  - `accounts_total`, `gp_total`
+  - `accounts_ab_hw`, `gp_ab_hw`
+  - `accounts_ab_cre`, `gp_ab_cre`
+
+- `pulse_neighbors.csv` ‚Äì one row per snapshot with:
+  - `snapshot_ts_utc`
+  - `accounts_with_neighbors`, `neighbor_edges`, `avg_neighbors_per_account`
+  - `inbound_neighbors_avg`, `inbound_neighbors_p95`
+  - `hero_count`, `hero_neighbor_count`, `orphan_hero_neighbor_count`
+
+- `pulse_playbooks.csv` ‚Äì multiple rows per snapshot (one per `playbook_primary`), including:
+  - `snapshot_ts_utc`
+  - `playbook_primary`
+  - `accounts`, `gp_total`
+  - `hero_neighbor` (whether any hero neighbors are in that playbook)
+  - `accounts_pct`, `gp_pct` (share of accounts and GP for that playbook at the snapshot)
 
 ## Configuration (current)
 

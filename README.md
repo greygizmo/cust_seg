@@ -7,6 +7,8 @@ End-to-end pipeline to score GoEngineer Digital Manufacturing accounts from Azur
 - `dbo.customer_icp` (optional) - when `ICP_AZSQL_DB` is set, the same scored accounts are written to this database table
 - `reports/figures/*.png` - batch visuals
 - `artifacts/account_neighbors.csv` - exact top-K neighbors per account (optional stage)
+- `artifacts/account_playbooks.csv` - rule-based playbooks and tags per account (CRO/CFO-friendly motions)
+- `artifacts/pulse_*.csv` - compact “pulse” snapshots for portfolio, neighbors, and playbooks
 
 ## Quick start
 - Baseline scoring (no neighbors/visuals):
@@ -15,6 +17,10 @@ End-to-end pipeline to score GoEngineer Digital Manufacturing accounts from Azur
   - `python -m icp.cli.score_accounts --neighbors-only --in-scored data/processed/icp_scored_accounts.csv`
 - Disable ALS in neighbors (override config):
   - `python -m icp.cli.score_accounts --neighbors-only --no-als`
+- Build rule-based playbooks/tags after scoring + neighbors:
+  - `python -m icp.cli.build_playbooks --in-scored data/processed/icp_scored_accounts.csv --neighbors artifacts/account_neighbors.csv --out artifacts/account_playbooks.csv`
+- Build pulse artifacts for trend tracking:
+  - `python -m icp.cli.build_pulse_artifacts --in-scored data/processed/icp_scored_accounts.csv --neighbors artifacts/account_neighbors.csv --playbooks artifacts/account_playbooks.csv --out-root artifacts`
 
 ## Configuration
 Edit `config.toml`:

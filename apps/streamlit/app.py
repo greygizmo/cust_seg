@@ -2276,6 +2276,103 @@ def render_neighbor_lab(df: pd.DataFrame, neighbors: pd.DataFrame, filters: Filt
             inbound_cols = [c for c in inbound_cols if c in inbound_display.columns]
             inbound_table = inbound_display[inbound_cols].rename(columns={'neighbor_rank': 'Rank', 'company_name': 'Company', 'sim_overall': 'Similarity'})
             st.dataframe(inbound_table, use_container_width=True, hide_index=True)
+
+
+def render_pulse(df: pd.DataFrame, neighbors: pd.DataFrame, filters: FilterState) -> None:
+    """High-level pulse: portfolio, neighbors, and playbooks."""
+
+    st.markdown("#### Portfolio Pulse")
+    profit_col = filters.profit_key
+    profit_label = filters.profit_label
+
+    total_accounts = df["customer_id"].nunique() if "customer_id" in df.columns else len(df)
+    total_profit = float(pd.to_numeric(df.get(profit_col, 0.0), errors="coerce").fillna(0.0).sum())
+
+    hw_grade = df.get("ICP_grade_hardware", pd.Series("", index=df.index)).astype(str)
+    cre_grade = df.get("ICP_grade_cre", pd.Series("", index=df.index)).astype(str)
+    ab_hw = df[hw_grade.isin(["A", "B"])]
+    ab_cre = df[cre_grade.isin(["A", "B"])]
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Accounts (filtered)", f"{total_accounts:,}")
+    c2.metric(f"{profit_label} (filtered)", format_currency(total_profit))
+    c3.metric(
+        "A/B HW & CRE share",
+        f"{(len(ab_hw)/total_accounts*100 if total_accounts else 0):.1f}% HW / {(len(ab_cre)/total_accounts*100 if total_accounts else 0):.1f}% CRE",
+    )
+
+    st.markdown("##### Playbook mix")
+    if "playbook_primary" in df.columns:
+        pb = df[df["playbook_primary"].notna() & df["playbook_primary"].astype(str).str.strip().ne("")]
+        if pb.empty:
+            st.info("No playbook assignments yet for the current filters.")
+        else:
+            agg = (
+                pb.groupby("playbook_primary")
+                .agg(
+                    Accounts=("customer_id", "nunique"),
+                    Profit=(profit_col, "sum"),
+                )
+                .sort_values("Profit", ascending=False)
+                .reset_index()
+            )
+            total_pb_accounts = agg["Accounts"].sum()
+            total_pb_profit = agg["Profit"].sum()
+            agg["Accounts %"] = agg["Accounts"] / total_pb_accounts if total_pb_accounts else 0.0
+            agg["Profit %"] = agg["Profit"] / total_pb_profit if total_pb_profit else 0.0
+            st.dataframe(agg, use_container_width=True, hide_index=True)
+            fig_pb = px.bar(
+                agg,
+                x="playbook_primary",
+                y="Profit %",
+                title="GP share by primary playbook",
+            )
+            st.plotly_chart(fig_pb, use_container_width=True)
+    else:
+        st.info("Playbook artifact not loaded; run build_playbooks first to enable this view.")
+
+    st.markdown("##### Neighbor Pulse")
+    if neighbors.empty:
+        st.info("Neighbor artifact not loaded; run the neighbors pipeline to see neighbor metrics.")
+        return
+
+    if "customer_id" not in df.columns:
+        st.info("Customer IDs not available in the current view; cannot scope neighbor metrics.")
+        return
+
+    ids = df["customer_id"].astype(str)
+    nb = neighbors[neighbors["account_id"].isin(ids)].copy()
+    if nb.empty:
+        st.info("No neighbor edges found for accounts in the current filters.")
+        return
+
+    accounts_with_neighbors = ids.nunique()
+    neighbor_edges = len(nb)
+    avg_neighbors = float(neighbor_edges / accounts_with_neighbors) if accounts_with_neighbors else 0.0
+
+    inbound_counts = nb["neighbor_account_id"].value_counts()
+    inbound_mean = float(inbound_counts.mean()) if not inbound_counts.empty else 0.0
+    inbound_p95 = float(inbound_counts.quantile(0.95)) if not inbound_counts.empty else 0.0
+
+    c4, c5, c6 = st.columns(3)
+    c4.metric("Accounts with neighbors", f"{accounts_with_neighbors:,}")
+    c5.metric("Avg neighbors per account", f"{avg_neighbors:.1f}")
+    c6.metric("Avg inbound neighbors (p95)", f"{inbound_mean:.1f} ({inbound_p95:.0f} p95)")
+
+    col_sim, col_inbound = st.columns(2)
+    with col_sim:
+        try:
+            fig_sim = px.histogram(nb, x="sim_overall", nbins=20, title="Neighbor similarity distribution")
+            st.plotly_chart(fig_sim, use_container_width=True)
+        except Exception:
+            st.info("Could not plot similarity histogram.")
+    with col_inbound:
+        try:
+            inbound_df = inbound_counts.rename("count").reset_index(names="neighbor_account_id")
+            fig_in = px.histogram(inbound_df, x="count", nbins=20, title="Inbound neighbor counts")
+            st.plotly_chart(fig_in, use_container_width=True)
+        except Exception:
+            st.info("Could not plot inbound neighbor counts.")
 def render_scoring_details(df: pd.DataFrame) -> None:
     st.markdown("#### Scoring Details & Validation")
     col1, col2 = st.columns(2)
@@ -2335,7 +2432,7 @@ def render_dashboard(df: pd.DataFrame, filters: FilterState, neighbors: pd.DataF
     render_operating_pulse(filtered)
 
     st.markdown("---")
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(
         [
             "Score & Composition",
             "Coverage & Territory",
@@ -2344,6 +2441,7 @@ def render_dashboard(df: pd.DataFrame, filters: FilterState, neighbors: pd.DataF
             "Call List Builder",
             "Manager HQ",
             "Look-alike Lab",
+            "Pulse",
             "Scoring Details",
         ]
     )
@@ -2401,6 +2499,9 @@ def render_dashboard(df: pd.DataFrame, filters: FilterState, neighbors: pd.DataF
         render_neighbor_lab(filtered, neighbors, filters)
 
     with tab8:
+        render_pulse(filtered, neighbors, filters)
+
+    with tab9:
         render_scoring_details(df)
 
 

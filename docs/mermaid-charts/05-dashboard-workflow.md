@@ -11,9 +11,8 @@ artifacts/weights/optimized_weights.json<br/>Fallback to DEFAULT_WEIGHTS if miss
     end
 
     subgraph "Main Dashboard Display"
-        HeaderSection[Header Section<br/> ICP SCORING DASHBOARD + Call List Builder
-Shows current segment filter]
-        MetricCards[Key Metrics Cards<br/>6 Interactive Metric Cards:<br/>- Total Customers<br/>- Average ICP Score<br/>- High-Value Customers (70)<br/>- Total Revenue<br/>- High-Value GP<br/>- High-Value Percentage]
+        HeaderSection[Header Section<br/> Revenue Acceleration Command Center<br/>Shows active filters and profit lens]
+        MetricCards[Key Metrics Cards<br/>Portfolio KPIs + Division Snapshots:<br/>- Accounts in Focus<br/>- GP under Lens<br/>- A/B Coverage<br/>- Expansion White Space<br/>- Average ICP Score]
     end
 
     subgraph "Customer Segmentation Controls"
@@ -35,34 +34,28 @@ Shows current segment filter]
     end
 
     subgraph "Interactive Visualizations"
-        subgraph "Primary Charts Row 1"
-            ICPDistribution[ICP Score Distribution<br/>Histogram + Box Plot<br/>Shows score spread and percentiles<br/>Updates with weight changes<br/>Hardware / CRE aware]
-            GradeDistribution[Customer Grade Distribution<br/>Pie Chart (A-F)<br/>Shows grade distribution<br/>Color-coded by grade]
+        subgraph "Primary Charts"
+            ScoreComposition[Score & Composition<br/>Grade mix, score distribution, component radar<br/>Hardware / CRE aware]
+            CoverageTerritory[Coverage & Territory<br/>Industry performance, territory heatmap<br/>AM_Territory / CAD_Territory]
+            ExpansionMomentum[Expansion & Momentum<br/>Whitespace vs profit, momentum vs engagement<br/>Recency buckets and segments]
         end
 
-        subgraph "Primary Charts Row 2"
-            WeightDistribution[Weight Distribution Radar<br/>5-axis radar chart<br/>Shows current weight allocation<br/>Visual weight comparison]
-            ScoreByIndustry[Average Score by Industry<br/>Horizontal bar chart<br/>Top 15 industries by score<br/>Shows customer count per industry]
+        subgraph "Execution & Lists"
+            ExecutionHub[Execution Hub<br/>Opportunity Watchlist + Playbooks<br/>Tag-driven actions]
+            CallListBuilder[Dual-division Call List Builder<br/>HW and CRE tabs<br/>Filters: segment, industry, territories, owners, bands<br/>Export CSV and email lists]
         end
 
-        subgraph "Additional Analytics"
-            SegmentComparison[Segment Comparison Charts<br/>When "All Segments" selected<br/>- Average score by segment<br/>- Customer count by segment<br/>- Revenue by segment<br/>- A-grade distribution by segment]
+        subgraph "Managers & Neighbors"
+            ManagerHQ[Manager HQ<br/>Hero accounts by territory<br/>Underpenetrated neighbors, orphan look-alikes<br/>Neighbor activation pulse]
+            LookalikeLab[Look-alike Lab<br/>Anchor account selector<br/>Similar neighbors with traits/gaps<br/>Stage into Call List Builder]
+            PulseTab[Pulse Tab<br/>Portfolio pulse (A/B, GP)<br/>Playbook mix<br/>Neighbor health (similarity, inbound counts)]
         end
-    end
 
-    subgraph "Data Export & Details"
-        TopCustomersTable[Top Scoring Customers Table
-Columns: Company, Industry,
-ICP_score_hardware, ICP_score_cre, ICP_grade_hardware, ICP_grade_cre, Component Scores
-Sortable and searchable]
-        CSVExport[Export Current View
-Download [Segment] Scores (CSV)
-Filtered data with current weights
-Includes all scores and metadata]
-        CallListBuilder[Call List Builder
-Filters: segment, industry, adoption/relationship bands
-Toggles: revenue-only, heavy fleet, A/B only
-Export CSV to reports/call_lists/]
+        subgraph "Data Export & Details"
+            TopCustomersTable[Account Tables & Details<br/>Sortable tables with company, scores, tags, playbooks]
+            CSVExport[Export Current View<br/>Download call lists and filtered tables (CSV)<br/>Feed CRM or offline analysis]
+            ScoringDetails[Scoring Details & Validation<br/>Schema checks, validation logs, run metadata]
+        end
     end
 
     subgraph "User Interaction Flow"
@@ -83,11 +76,14 @@ Export CSV to reports/call_lists/]
     SegmentSelector --> DataFiltering
 
     DataFiltering --> MetricCards
-    DataFiltering --> ICPDistribution
-    DataFiltering --> GradeDistribution
-    DataFiltering --> WeightDistribution
-    DataFiltering --> ScoreByIndustry
-    DataFiltering --> TopCustomersTable
+    DataFiltering --> ScoreComposition
+    DataFiltering --> CoverageTerritory
+    DataFiltering --> ExpansionMomentum
+    DataFiltering --> ExecutionHub
+    DataFiltering --> CallListBuilder
+    DataFiltering --> ManagerHQ
+    DataFiltering --> LookalikeLab
+    DataFiltering --> PulseTab
 
     SidebarControls --> WeightSliders
     WeightSliders --> OptimizationStatus
@@ -97,18 +93,15 @@ Export CSV to reports/call_lists/]
     ScoreRecalculation --> DataUpdate
 
     DataUpdate --> MetricCards
-    DataUpdate --> ICPDistribution
-    DataUpdate --> GradeDistribution
-    DataUpdate --> WeightDistribution
-    DataUpdate --> ScoreByIndustry
+    DataUpdate --> ScoreComposition
+    DataUpdate --> CoverageTerritory
+    DataUpdate --> ExpansionMomentum
     DataUpdate --> TopCustomersTable
-    DataUpdate --> CallListBuilder
 
     MetricCards --> ChartInteraction
-    ICPDistribution --> ChartInteraction
-    GradeDistribution --> ChartInteraction
-    WeightDistribution --> ChartInteraction
-    ScoreByIndustry --> ChartInteraction
+    ScoreComposition --> ChartInteraction
+    CoverageTerritory --> ChartInteraction
+    ExpansionMomentum --> ChartInteraction
 
     TopCustomersTable --> DataExport
     DataExport --> CSVExport
