@@ -44,6 +44,7 @@ st.set_page_config(
 )
 
 GRADE_ORDER = ["A", "B", "C", "D", "F"]
+GRADE_SCORE = {grade: len(GRADE_ORDER) - idx for idx, grade in enumerate(GRADE_ORDER)}
 GRADE_COLOR_MAP = {
     "A": "#1b9e77",
     "B": "#66a61e",
@@ -1562,6 +1563,23 @@ def render_call_list_builder(df: pd.DataFrame, filters: FilterState) -> None:
         return
 
     builder_df = df.copy()
+    staged_ids: list[str] = st.session_state.get("neighbor_staged_ids", [])
+    if staged_ids:
+        st.success(f"{len(staged_ids)} look-alike accounts are staged from the Look-alike Lab.")
+        focus_neighbors = st.checkbox(
+            "Limit lists to staged look-alikes",
+            value=True,
+            help="Use the staged neighbor selection from the Look-alike Lab to narrow these call lists.",
+            key="call_list_neighbor_focus",
+        )
+        if focus_neighbors:
+            builder_df = builder_df[builder_df["customer_id"].isin(staged_ids)].copy()
+            if builder_df.empty:
+                st.warning("None of the staged look-alikes match the current filters.")
+        if st.button("Clear staged look-alikes"):
+            st.session_state["neighbor_staged_ids"] = []
+            st.toast("Cleared staged look-alikes.")
+
     hw_tab, cre_tab = st.tabs(["Hardware list", "CRE list"])
     with hw_tab:
         render_division_call_list(builder_df, filters, division="hardware")
@@ -1729,82 +1747,194 @@ def render_division_call_list(builder_df: pd.DataFrame, filters: FilterState, di
         st.text_input(f"{label} CSV path", value=saved_path, key=f"{label}_call_list_path_copy")
 
 
-def render_manager_hq(df: pd.DataFrame, filters: FilterState) -> None:
-    st.markdown("#### Manager HQ")
+def render_manager_hq(df: pd.DataFrame, filters: FilterState, neighbors: pd.DataFrame) -> None:
+    st.markdown('#### Manager HQ')
     if df.empty:
-        st.info("No accounts available for the current filters.")
+        st.info('No accounts available for the current filters.')
         return
+    neighbors = neighbors.copy()
+    if not neighbors.empty:
+        neighbors['account_id'] = neighbors['account_id'].astype(str)
+        neighbors['neighbor_account_id'] = neighbors['neighbor_account_id'].astype(str)
 
     profit_col = filters.profit_key
-    hw_df = df[df["ICP_grade_hardware"].notna()].copy()
-    hw_df["is_ab"] = hw_df["ICP_grade_hardware"].isin(filters.hw_grades)
-    cre_df = df[df["ICP_grade_cre"].notna()].copy()
-    cre_df["is_ab"] = cre_df["ICP_grade_cre"].isin(filters.cre_grades)
+    hero_limit = 3
 
-    def summarize(div_df: pd.DataFrame, territory_col: str, owner_col: str) -> tuple[pd.DataFrame, pd.DataFrame]:
-        if div_df.empty:
-            return pd.DataFrame(), pd.DataFrame()
-        territory_summary = (
-            div_df.groupby(territory_col)
-            .agg(
-                Accounts=("customer_id", "nunique"),
-                AB_Accounts=("is_ab", "sum"),
-                Profit=(profit_col, "sum"),
+    detail_cols = [
+        'customer_id',
+        'company_name',
+        'am_territory',
+        'cad_territory',
+        'hw_owner',
+        'cre_owner',
+        'ICP_grade_hardware',
+        'ICP_grade_cre',
+        profit_col,
+        'whitespace_score',
+        'GP_QoQ_Growth',
+        'activity_segment',
+        'days_since_last_order',
+        'score_improved_flag',
+    ]
+    detail_cols = [c for c in detail_cols if c in df.columns]
+    detail_df = df[detail_cols].copy()
+    detail_df['customer_id'] = detail_df['customer_id'].astype(str)
+
+    def grade_value(grade: str | float | None) -> int:
+        if grade is None or pd.isna(grade):
+            return 0
+        return GRADE_SCORE.get(str(grade).upper(), 0)
+
+    def compute_neighbor_stats(hero: pd.Series, territory_col: str, grade_col: str) -> dict[str, float]:
+        if neighbors.empty or detail_df.empty:
+            return {'total_neighbors': 0, 'under_count': 0, 'uplift': 0.0, 'orphan_count': 0, 'orphan_gp': 0.0}
+        hero_id = str(hero['customer_id'])
+        hero_neighbors = neighbors[neighbors['account_id'] == hero_id]
+        if hero_neighbors.empty:
+            return {'total_neighbors': 0, 'under_count': 0, 'uplift': 0.0, 'orphan_count': 0, 'orphan_gp': 0.0}
+        merged = hero_neighbors.merge(
+            detail_df,
+            left_on='neighbor_account_id',
+            right_on='customer_id',
+            how='left',
+            suffixes=('', '_neighbor'),
+        )
+        merged = merged[merged[territory_col] == hero.get(territory_col)]
+        if merged.empty:
+            return {'total_neighbors': 0, 'under_count': 0, 'uplift': 0.0, 'orphan_count': 0, 'orphan_gp': 0.0}
+
+        neighbor_profit = pd.to_numeric(merged.get(profit_col), errors='coerce').fillna(0.0)
+        hero_profit = float(hero.get(profit_col, 0.0))
+        hero_whitespace = float(hero.get('whitespace_score', 0.0))
+        grade_rank_hero = grade_value(hero.get(grade_col))
+        grade_rank_neighbors = merged.get(grade_col).map(grade_value)
+        whitespace_neighbors = pd.to_numeric(merged.get('whitespace_score'), errors='coerce').fillna(0.0)
+        under_mask = (
+            (grade_rank_neighbors < grade_rank_hero)
+            | (neighbor_profit < hero_profit)
+            | (whitespace_neighbors > hero_whitespace)
+        )
+        under_neighbors = merged[under_mask]
+        uplift = float(np.maximum(hero_profit - pd.to_numeric(under_neighbors.get(profit_col), errors='coerce').fillna(0.0), 0).sum())
+
+        dormancy = merged.get('activity_segment', '').astype(str).str.lower().eq('dormant')
+        long_recency = pd.to_numeric(merged.get('days_since_last_order'), errors='coerce') > 180
+        orphan_mask = dormancy | long_recency
+        orphan_neighbors = merged[orphan_mask.fillna(False)]
+        orphan_gp = float(pd.to_numeric(orphan_neighbors.get(profit_col), errors='coerce').fillna(0.0).sum())
+
+        return {
+            'total_neighbors': int(len(merged)),
+            'under_count': int(len(under_neighbors)),
+            'uplift': uplift,
+            'orphan_count': int(len(orphan_neighbors)),
+            'orphan_gp': orphan_gp,
+        }
+
+    def build_heroes(div_df: pd.DataFrame, grade_col: str, territory_col: str, owner_col: str, division_label: str) -> pd.DataFrame:
+        if div_df.empty or grade_col not in div_df.columns:
+            return pd.DataFrame()
+        heroes = (
+            div_df[div_df[grade_col].isin(['A'])]
+            .sort_values([territory_col, profit_col, 'GP_QoQ_Growth'], ascending=[True, False, False])
+            .groupby(territory_col)
+            .head(hero_limit)
+            .copy()
+        )
+        if heroes.empty:
+            return pd.DataFrame()
+        records: list[dict[str, object]] = []
+        for _, hero in heroes.iterrows():
+            stats = compute_neighbor_stats(hero, territory_col, grade_col)
+            records.append(
+                {
+                    'Division': division_label,
+                    'Territory': hero.get(territory_col, 'Unassigned'),
+                    'Hero ID': hero.get('customer_id'),
+                    'Company': hero.get('company_name', 'Unknown'),
+                    'Owner': hero.get(owner_col, 'Unassigned'),
+                    'Grade': hero.get(grade_col, 'N/A'),
+                    'Hero GP': hero.get(profit_col, 0.0),
+                    'QoQ Growth': hero.get('GP_QoQ_Growth', np.nan),
+                    'Whitespace': hero.get('whitespace_score', np.nan),
+                    'Neighbors in Territory': stats['total_neighbors'],
+                    'Underpenetrated Neighbors': stats['under_count'],
+                    'Potential GP Uplift': stats['uplift'],
+                    'Orphan Look-alikes': stats['orphan_count'],
+                    'Orphan GP': stats['orphan_gp'],
+                }
             )
-            .sort_values("Profit", ascending=False)
+        return pd.DataFrame.from_records(records)
+
+    hw_df = df[df['ICP_grade_hardware'].notna()].copy()
+    cre_df = df[df['ICP_grade_cre'].notna()].copy()
+    hw_heroes = build_heroes(hw_df, 'ICP_grade_hardware', 'am_territory', 'hw_owner', 'Hardware')
+    cre_heroes = build_heroes(cre_df, 'ICP_grade_cre', 'cad_territory', 'cre_owner', 'CRE')
+
+    hero_tables = [hw_heroes, cre_heroes]
+    hero_all = pd.concat([h for h in hero_tables if not h.empty], ignore_index=True) if any(not h.empty for h in hero_tables) else pd.DataFrame()
+
+    st.markdown('##### Hero accounts by territory')
+    tabs = st.tabs(['Hardware heroes', 'CRE heroes'])
+    with tabs[0]:
+        if hw_heroes.empty:
+            st.info('No hardware heroes surfaced (need grade A accounts).')
+        else:
+            st.dataframe(hw_heroes, use_container_width=True, hide_index=True)
+            download_dataframe(hw_heroes, 'hardware_heroes.csv')
+    with tabs[1]:
+        if cre_heroes.empty:
+            st.info('No CRE heroes surfaced (need grade A accounts).')
+        else:
+            st.dataframe(cre_heroes, use_container_width=True, hide_index=True)
+            download_dataframe(cre_heroes, 'cre_heroes.csv')
+
+    if not hero_all.empty:
+        st.markdown('##### Territory neighbor coverage')
+        terr_summary = (
+            hero_all.groupby(['Division', 'Territory'])
+            .agg({
+                'Hero ID': 'nunique',
+                'Underpenetrated Neighbors': 'sum',
+                'Potential GP Uplift': 'sum',
+                'Orphan Look-alikes': 'sum',
+            })
+            .rename(columns={'Hero ID': 'Hero Count'})
+            .reset_index()
         )
-        territory_summary["AB_Share"] = np.where(
-            territory_summary["Accounts"] > 0,
-            territory_summary["AB_Accounts"] / territory_summary["Accounts"],
-            0.0,
-        )
-        rep_summary = (
-            div_df.groupby(owner_col)
-            .agg(
-                Accounts=("customer_id", "nunique"),
-                AB_Accounts=("is_ab", "sum"),
-                Profit=(profit_col, "sum"),
-            )
-            .sort_values("Profit", ascending=False)
-        )
-        return territory_summary.reset_index().rename(columns={territory_col: "Territory", owner_col: "Owner"}), rep_summary.reset_index().rename(columns={owner_col: "Owner"})
+        st.dataframe(terr_summary, use_container_width=True, hide_index=True)
+        download_dataframe(terr_summary, 'territory_neighbor_coverage.csv')
+    else:
+        st.info('No hero accounts available to summarize by territory.')
 
-    hw_territory, hw_reps = summarize(hw_df, "am_territory", "hw_owner")
-    cre_territory, cre_reps = summarize(cre_df, "cad_territory", "cre_owner")
-
-    st.markdown("##### Territory coverage")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.caption("Hardware")
-        if hw_territory.empty:
-            st.info("No hardware accounts.")
+    hero_ids = hero_all['Hero ID'].dropna().astype(str).unique().tolist() if not hero_all.empty else []
+    if hero_ids and not neighbors.empty and 'customer_id' in df.columns:
+        hero_neighbor_ids = neighbors[neighbors['account_id'].isin(hero_ids)]['neighbor_account_id'].astype(str).unique().tolist()
+        base_cols = ['customer_id', profit_col]
+        flags_df = df[base_cols].copy()
+        if 'GP_QoQ_Growth' in df.columns:
+            flags_df['GP_QoQ_Growth'] = df['GP_QoQ_Growth']
         else:
-            st.dataframe(hw_territory, use_container_width=True, hide_index=True)
-            download_dataframe(hw_territory, "hardware_territory_summary.csv")
-    with col2:
-        st.caption("CRE")
-        if cre_territory.empty:
-            st.info("No CRE accounts.")
+            flags_df['GP_QoQ_Growth'] = 0.0
+        if 'score_improved_flag' in df.columns:
+            flags_df['score_improved_flag'] = df['score_improved_flag']
         else:
-            st.dataframe(cre_territory, use_container_width=True, hide_index=True)
-            download_dataframe(cre_territory, "cre_territory_summary.csv")
-
-    st.markdown("##### Top owners by GP")
-    col3, col4 = st.columns(2)
-    with col3:
-        st.caption("Hardware owners")
-        if hw_reps.empty:
-            st.info("No hardware owners available.")
-        else:
-            st.dataframe(hw_reps.head(15), use_container_width=True, hide_index=True)
-    with col4:
-        st.caption("CRE owners")
-        if cre_reps.empty:
-            st.info("No CRE owners available.")
-        else:
-            st.dataframe(cre_reps.head(15), use_container_width=True, hide_index=True)
-
-
+            flags_df['score_improved_flag'] = False
+        flags_df['customer_id'] = flags_df['customer_id'].astype(str)
+        flags_df['is_hero_neighbor'] = flags_df['customer_id'].isin(hero_neighbor_ids)
+        flags_df['is_neighbor_activated'] = flags_df['is_hero_neighbor'] & flags_df.get('score_improved_flag', False)
+        activated_gp = float(flags_df.loc[flags_df['is_neighbor_activated'], profit_col].sum())
+        activated_growth = safe_mean(flags_df.loc[flags_df['is_neighbor_activated'], 'GP_QoQ_Growth'])
+        rest_growth = safe_mean(flags_df.loc[~flags_df['is_hero_neighbor'], 'GP_QoQ_Growth'])
+        rest_gp = float(flags_df.loc[flags_df['is_hero_neighbor'], profit_col].sum())
+        st.markdown('##### Neighbor activation (QBR pulse)')
+        qa, qb, qc = st.columns(3)
+        qa.metric('Activated look-alike GP', format_currency(activated_gp))
+        qb.metric('Activated QoQ GP%', format_percent(activated_growth, decimals=1))
+        qc.metric('Baseline QoQ GP%', format_percent(rest_growth, decimals=1))
+        st.caption('Activated look-alikes are hero neighbors flagged with improving scores.')
+    else:
+        st.info('Neighbor activation metrics require hero accounts and neighbor artifacts. Run the full pipeline to enable this view.')
 def download_dataframe(df: pd.DataFrame, filename: str) -> None:
     csv = df.to_csv(index=False).encode("utf-8")
     st.download_button(
@@ -1817,89 +1947,311 @@ def download_dataframe(df: pd.DataFrame, filename: str) -> None:
 
 
 def render_neighbor_lab(df: pd.DataFrame, neighbors: pd.DataFrame, filters: FilterState) -> None:
-    st.markdown("#### Look-alike Lab")
+    st.markdown('#### Look-alike Lab')
     if neighbors.empty:
-        st.info("Neighbor artifact not found. Run the neighbors pipeline to enable this view.")
+        st.info('Neighbor artifact not found. Run the neighbors pipeline to enable this view.')
         return
-    if df.empty:
-        st.info("No accounts loaded.")
+    neighbors = neighbors.copy()
+    neighbors['account_id'] = neighbors['account_id'].astype(str)
+    neighbors['neighbor_account_id'] = neighbors['neighbor_account_id'].astype(str)
+    scoped_df = df[df['customer_id'].notna()].copy()
+    scoped_df['customer_id'] = scoped_df['customer_id'].astype(str)
+    if scoped_df.empty:
+        st.info('No accounts available in the current filters.')
         return
 
-    options_df = (
-        df[["customer_id", "company_name", "industry"]]
-        .dropna(subset=["customer_id"])
-        .sort_values("company_name")
-    )
+    options_df = scoped_df[['customer_id', 'company_name', 'industry']].sort_values('company_name')
     options = options_df.apply(
-        lambda row: f"{row['company_name']} ({row['customer_id']}) • {row['industry']}",
+        lambda row: f"{row['company_name']} ({row['customer_id']}) - {row['industry']}",
         axis=1,
     ).tolist()
     if not options:
-        st.info("No accounts available for selection.")
+        st.info('No accounts available for selection.')
         return
 
-    selected_label = st.selectbox("Anchor account", options)
-    selected_id = selected_label.split("(")[-1].split(")")[0].strip()
-    top_n = st.slider("Neighbors to display", min_value=5, max_value=50, value=15, step=5)
+    col_anchor, col_lens = st.columns([0.65, 0.35])
+    with col_anchor:
+        selected_label = st.selectbox('Anchor account', options)
+    with col_lens:
+        lens_options = ['Hardware', 'CRE', 'Dual']
+        lens_default = lens_options.index(filters.division_mode) if filters.division_mode in lens_options else 2
+        lens = st.radio('Division lens', lens_options, index=lens_default, horizontal=True)
+    top_n = st.slider('Neighbors to display', min_value=5, max_value=50, value=15, step=5)
 
-    outbound = neighbors[neighbors["account_id"] == selected_id].copy()
-    inbound = neighbors[neighbors["neighbor_account_id"] == selected_id].copy()
+    selected_id = selected_label.split('(')[-1].split(')')[0].strip()
+    anchor_row = scoped_df[scoped_df['customer_id'] == selected_id]
+    if anchor_row.empty:
+        st.warning('Selected account not found in the current dataset.')
+        return
+    anchor = anchor_row.iloc[0]
+    profit_col = filters.profit_key
+    profit_label = filters.profit_label
+    anchor_profit = float(anchor.get(profit_col, 0.0))
+    anchor_whitespace = float(anchor.get('whitespace_score', 0.0))
+    anchor_training = float(anchor.get('CRE_Training', 0.0))
 
-    cols_to_merge = [c for c in [
-        "customer_id",
-        "company_name",
-        "industry",
-        "am_territory",
-        "cad_territory",
-        "hw_owner",
-        "cre_owner",
-        "ICP_grade_hardware",
-        "ICP_grade_cre",
-        "ICP_score_hardware",
-        "ICP_score_cre",
-        filters.profit_key,
-    ] if c in df.columns]
+    outbound = neighbors[neighbors['account_id'] == selected_id].copy().sort_values('neighbor_rank').head(top_n)
+    inbound = neighbors[neighbors['neighbor_account_id'] == selected_id].copy().sort_values('neighbor_rank').head(top_n)
+    if outbound.empty:
+        st.info('No neighbors available for this anchor account.')
+        return
 
-    def _prepare(table: pd.DataFrame, join_col: str) -> pd.DataFrame:
-        if table.empty:
-            return table
-        merged = table.merge(
-            df[cols_to_merge],
+    detail_cols = [
+        'customer_id',
+        'company_name',
+        'industry',
+        'customer_segment',
+        'activity_segment',
+        'am_territory',
+        'cad_territory',
+        'hw_owner',
+        'cre_owner',
+        'ICP_grade_hardware',
+        'ICP_grade_cre',
+        'ICP_score_hardware',
+        'ICP_score_cre',
+        'hw_share_12m',
+        'sw_share_12m',
+        'whitespace_score',
+        'CRE_Training',
+        'printer_count',
+        'call_to_action',
+        'GP_T4Q_Total',
+        'GP_LastQ_Total',
+        'GP_QoQ_Growth',
+        'days_since_last_order',
+        'score_improved_flag',
+    ]
+    if profit_col not in detail_cols:
+        detail_cols.append(profit_col)
+    detail_cols = [c for c in detail_cols if c in scoped_df.columns]
+    detail_df = scoped_df[detail_cols].copy()
+
+    def enrich(table: pd.DataFrame, join_col: str) -> pd.DataFrame:
+        local = table.copy()
+        local[join_col] = local[join_col].astype(str)
+        merged = local.merge(
+            detail_df,
             left_on=join_col,
-            right_on="customer_id",
-            how="left",
-            suffixes=("", "_neighbor"),
+            right_on='customer_id',
+            how='left',
         )
-        display_cols = {
-            "neighbor_account_id": "Neighbor ID",
-            "account_id": "Account ID",
-            "neighbor_rank": "Rank",
-            "sim_overall": "Similarity",
-        }
-        rename_map = {col: display_cols[col] for col in display_cols if col in merged.columns}
-        merged = merged.rename(columns=rename_map)
+        merged['Profit (GP)'] = pd.to_numeric(merged.get(profit_col), errors='coerce').fillna(0.0)
+        merged['GP Gap vs Anchor'] = merged['Profit (GP)'] - anchor_profit
+        merged['Whitespace'] = pd.to_numeric(merged.get('whitespace_score'), errors='coerce').fillna(0.0)
+        merged['Whitespace Gap'] = merged['Whitespace'] - anchor_whitespace
+        merged['CRE Training'] = pd.to_numeric(merged.get('CRE_Training'), errors='coerce').fillna(0.0)
+        merged['CRE Training Gap'] = merged['CRE Training'] - anchor_training
+        merged['_hw_share_raw'] = pd.to_numeric(merged.get('hw_share_12m'), errors='coerce')
+        merged['_cre_share_raw'] = pd.to_numeric(merged.get('sw_share_12m'), errors='coerce')
+        merged['HW Share'] = merged['_hw_share_raw']
+        merged['CRE Share'] = merged['_cre_share_raw']
+        merged['Printer Count'] = pd.to_numeric(merged.get('printer_count'), errors='coerce').fillna(0.0)
+        merged['Days Since Last Order'] = pd.to_numeric(merged.get('days_since_last_order'), errors='coerce')
+        merged['Neighbor ID'] = merged[join_col]
+        merged['Company'] = merged.get('company_name', '')
+        merged['Add to Call List'] = False
         return merged
 
-    outbound_display = _prepare(outbound.sort_values("neighbor_rank").head(top_n), "neighbor_account_id")
-    inbound_display = _prepare(inbound.sort_values("neighbor_rank").head(top_n), "account_id")
+    outbound_enriched = enrich(outbound, 'neighbor_account_id')
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.caption("Accounts similar to the anchor")
-        if outbound_display.empty:
-            st.info("No outbound neighbors for this account.")
+    st.markdown('##### Anchor snapshot')
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric('Company', anchor.get('company_name', 'Unknown'))
+    c2.metric('Industry', anchor.get('industry', 'Unknown'))
+    c3.metric('GP (Lens)', format_currency(anchor_profit))
+    c4.metric('Whitespace', format_percent(anchor_whitespace, decimals=0))
+
+    st.markdown('##### Neighbor summary')
+    neighbor_similarity = float(pd.to_numeric(outbound_enriched['sim_overall'], errors='coerce').mean())
+    neighbor_whitespace = float(pd.to_numeric(outbound_enriched['Whitespace'], errors='coerce').sum())
+    c5, c6, c7 = st.columns(3)
+    c5.metric('Neighbors', f"{len(outbound_enriched):,}")
+    c6.metric('Avg similarity', f"{neighbor_similarity:.3f}")
+    c7.metric('Total whitespace', format_currency(neighbor_whitespace))
+
+    shared_traits: list[str] = []
+    opp_gaps: list[str] = []
+    same_industry = share_true(outbound_enriched['industry'] == anchor.get('industry'))
+    if same_industry and same_industry >= 0.5:
+        shared_traits.append(f"{format_percent(same_industry, 0)} share the **{anchor.get('industry', 'industry')}** profile.")
+    same_segment = share_true(outbound_enriched['customer_segment'] == anchor.get('customer_segment'))
+    if same_segment and same_segment >= 0.4:
+        shared_traits.append(f"{format_percent(same_segment, 0)} are in the **{anchor.get('customer_segment', 'segment')}** segment.")
+
+    grade_col = 'ICP_grade_hardware' if lens == 'Hardware' else 'ICP_grade_cre'
+    if lens == 'Dual':
+        grade_col = None
+    if grade_col and grade_col in outbound_enriched.columns:
+        same_grade = share_true(outbound_enriched[grade_col] == anchor.get(grade_col))
+        if same_grade and same_grade >= 0.4:
+            shared_traits.append(f"{format_percent(same_grade, 0)} share the same {grade_col.split('_')[-1].upper()} grade ({anchor.get(grade_col, 'n/a')}).")
+
+    whitespace_opportunity = share_true(outbound_enriched['Whitespace Gap'] > 0)
+    if whitespace_opportunity and whitespace_opportunity > 0:
+        opp_gaps.append(f"{format_percent(whitespace_opportunity, 0)} have **more whitespace** than this anchor.")
+    profit_gap = share_true(outbound_enriched['GP Gap vs Anchor'] < 0)
+    if profit_gap and profit_gap > 0:
+        opp_gaps.append(f"{format_percent(profit_gap, 0)} trail the anchor's {profit_label.lower()} and could be upgraded.")
+
+    if lens in ('Hardware', 'Dual'):
+        anchor_hw_share = float(anchor.get('hw_share_12m', np.nan))
+        hw_series = pd.to_numeric(outbound_enriched['_hw_share_raw'], errors='coerce')
+        if not np.isnan(anchor_hw_share) and hw_series.notna().any():
+            hw_gap = share_true(hw_series < anchor_hw_share)
+            if hw_gap and hw_gap > 0:
+                opp_gaps.append(f"{format_percent(hw_gap, 0)} run with **less HW share** compared to the anchor.")
+        anchor_printers = pd.to_numeric(pd.Series([anchor.get('printer_count')]), errors='coerce').fillna(0.0).iloc[0]
+        if anchor_printers > 0:
+            printer_gap = share_true(pd.to_numeric(outbound_enriched['Printer Count'], errors='coerce') < anchor_printers)
+            if printer_gap and printer_gap > 0:
+                opp_gaps.append(f"{format_percent(printer_gap, 0)} have smaller fleets ??' easy HW expansion candidates.")
+
+    if lens in ('CRE', 'Dual'):
+        anchor_cre_share = float(anchor.get('sw_share_12m', np.nan))
+        cre_series = pd.to_numeric(outbound_enriched['_cre_share_raw'], errors='coerce')
+        if not np.isnan(anchor_cre_share) and cre_series.notna().any():
+            cre_gap = share_true(cre_series < anchor_cre_share)
+            if cre_gap and cre_gap > 0:
+                opp_gaps.append(f"{format_percent(cre_gap, 0)} buy **less CRE software** than the anchor.")
+        training_gap = share_true(outbound_enriched['CRE Training Gap'] < 0)
+        if training_gap and training_gap > 0:
+            opp_gaps.append(f"{format_percent(training_gap, 0)} underinvest in CRE training/services.")
+
+    col_traits, col_gaps = st.columns(2)
+    with col_traits:
+        st.caption('Shared traits')
+        if shared_traits:
+            st.markdown('\n'.join(f"- {text}" for text in shared_traits))
         else:
-            st.dataframe(outbound_display, use_container_width=True, hide_index=True)
-            download_dataframe(outbound_display, "neighbors_outbound.csv")
-    with col2:
-        st.caption("Accounts that reference this anchor")
+            st.write('No dominant shared traits detected.')
+    with col_gaps:
+        st.caption('Opportunity gaps')
+        if opp_gaps:
+            st.markdown('\n'.join(f"- {text}" for text in opp_gaps))
+        else:
+            st.write('Neighbors already match the anchor on the tracked signals.')
+
+    base_raw = [
+        'Add to Call List',
+        'neighbor_rank',
+        'Neighbor ID',
+        'Company',
+        'industry',
+        'am_territory',
+        'cad_territory',
+        'sim_overall',
+        'Profit (GP)',
+        'GP Gap vs Anchor',
+        'Whitespace',
+        'Whitespace Gap',
+        'Days Since Last Order',
+        'call_to_action',
+    ]
+    hw_raw = ['hw_owner', 'ICP_grade_hardware', 'ICP_score_hardware', 'Printer Count', 'HW Share']
+    cre_raw = ['cre_owner', 'ICP_grade_cre', 'ICP_score_cre', 'CRE Training', 'CRE Training Gap', 'CRE Share']
+    keep_raw = base_raw + hw_raw + cre_raw
+    keep_raw = [c for c in keep_raw if c in outbound_enriched.columns]
+
+    rename_map = {
+        'neighbor_rank': 'Rank',
+        'industry': 'Industry',
+        'am_territory': 'AM Territory',
+        'cad_territory': 'CAD Territory',
+        'hw_owner': 'HW Owner',
+        'cre_owner': 'CRE Owner',
+        'sim_overall': 'Similarity',
+        'call_to_action': 'Suggested Playbook',
+        'ICP_grade_hardware': 'ICP Grade (HW)',
+        'ICP_score_hardware': 'ICP Score (HW)',
+        'ICP_grade_cre': 'ICP Grade (CRE)',
+        'ICP_score_cre': 'ICP Score (CRE)',
+        'Printer Count': 'Printer Count',
+    }
+    neighbor_table = outbound_enriched[keep_raw].rename(columns=rename_map)
+
+    base_display = [
+        'Add to Call List',
+        'Rank',
+        'Neighbor ID',
+        'Company',
+        'Industry',
+        'AM Territory',
+        'CAD Territory',
+        'Similarity',
+        'Profit (GP)',
+        'GP Gap vs Anchor',
+        'Whitespace',
+        'Whitespace Gap',
+        'Days Since Last Order',
+        'Suggested Playbook',
+    ]
+    hw_display = ['HW Owner', 'ICP Grade (HW)', 'ICP Score (HW)', 'Printer Count', 'HW Share']
+    cre_display = ['CRE Owner', 'ICP Grade (CRE)', 'ICP Score (CRE)', 'CRE Training', 'CRE Training Gap', 'CRE Share']
+    if lens == 'Hardware':
+        display_order = base_display + hw_display
+    elif lens == 'CRE':
+        display_order = base_display + cre_display
+    else:
+        display_order = base_display + hw_display + cre_display
+    display_order = [c for c in display_order if c in neighbor_table.columns]
+    neighbor_table = neighbor_table[display_order]
+
+    if 'HW Share' in neighbor_table.columns:
+        neighbor_table['HW Share'] = pd.to_numeric(neighbor_table['HW Share'], errors='coerce').mul(100)
+    if 'CRE Share' in neighbor_table.columns:
+        neighbor_table['CRE Share'] = pd.to_numeric(neighbor_table['CRE Share'], errors='coerce').mul(100)
+
+    st.markdown('##### Similar neighbors')
+    edited_table = st.data_editor(
+        neighbor_table,
+        hide_index=True,
+        use_container_width=True,
+        num_rows='dynamic',
+        column_config={
+            'Add to Call List': st.column_config.CheckboxColumn(help='Select neighbors to stage in the Call List Builder.'),
+            'Similarity': st.column_config.NumberColumn(format='%.3f'),
+            'Profit (GP)': st.column_config.NumberColumn(format='$%0.0f'),
+            'GP Gap vs Anchor': st.column_config.NumberColumn(format='$%0.0f'),
+            'Whitespace': st.column_config.NumberColumn(format='%0.2f'),
+            'Whitespace Gap': st.column_config.NumberColumn(format='%0.2f'),
+            'CRE Training': st.column_config.NumberColumn(format='$%0.0f'),
+            'CRE Training Gap': st.column_config.NumberColumn(format='$%0.0f'),
+            'HW Share': st.column_config.NumberColumn(format='%0.0f%%'),
+            'CRE Share': st.column_config.NumberColumn(format='%0.0f%%'),
+        },
+        key=f'neighbor_editor_{selected_id}',
+    )
+    selected_neighbors = (
+        edited_table.loc[edited_table['Add to Call List'], 'Neighbor ID'].dropna().astype(str).unique().tolist()
+        if not edited_table.empty
+        else []
+    )
+    staged_now = False
+    col_stage, col_clear = st.columns([0.4, 0.6])
+    with col_stage:
+        if st.button('Stage selected neighbors in Call List Builder', disabled=not selected_neighbors):
+            st.session_state['neighbor_staged_ids'] = selected_neighbors
+            staged_now = True
+            st.toast(f'Staged {len(selected_neighbors)} neighbors for the Call List Builder.')
+    with col_clear:
+        if st.button('Clear staged neighbors', disabled=not st.session_state.get('neighbor_staged_ids')):
+            st.session_state['neighbor_staged_ids'] = []
+            st.toast('Cleared staged neighbors.')
+    if staged_now:
+        st.info('Jump to the Call List Builder tab to work this curated list.')
+
+    download_dataframe(neighbor_table.drop(columns=['Add to Call List'], errors='ignore'), 'neighbors_outbound.csv')
+
+    with st.expander('Accounts where this anchor appears as a neighbor'):
+        inbound_display = enrich(inbound, 'account_id')
         if inbound_display.empty:
-            st.info("No inbound neighbors for this account.")
+            st.info('No inbound references for this anchor.')
         else:
-            st.dataframe(inbound_display, use_container_width=True, hide_index=True)
-            download_dataframe(inbound_display, "neighbors_inbound.csv")
-
-
+            inbound_cols = ['neighbor_rank', 'Neighbor ID', 'company_name', 'industry', 'sim_overall', 'Profit (GP)']
+            inbound_cols = [c for c in inbound_cols if c in inbound_display.columns]
+            inbound_table = inbound_display[inbound_cols].rename(columns={'neighbor_rank': 'Rank', 'company_name': 'Company', 'sim_overall': 'Similarity'})
+            st.dataframe(inbound_table, use_container_width=True, hide_index=True)
 def render_scoring_details(df: pd.DataFrame) -> None:
     st.markdown("#### Scoring Details & Validation")
     col1, col2 = st.columns(2)
@@ -2019,7 +2371,7 @@ def render_dashboard(df: pd.DataFrame, filters: FilterState, neighbors: pd.DataF
         render_call_list_builder(filtered, filters)
 
     with tab6:
-        render_manager_hq(filtered, filters)
+        render_manager_hq(filtered, filters, neighbors)
 
     with tab7:
         render_neighbor_lab(filtered, neighbors, filters)
@@ -2047,3 +2399,7 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+
+

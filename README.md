@@ -68,3 +68,4 @@ All docs are in `docs/` and reflect the current behavior:
 - `docs/mermaid-charts/` - architecture and pipeline diagrams (including the neighbors stage)
 - `docs/guides/POWERBI_FIELD_REFERENCE.md` - column reference for sales/BI consumers
 - `docs/guides/POWERBI_DASHBOARD_GUIDE.md` - recommended Power BI model, measures, and dashboard pages
+ - `docs/sales-playbook.md` - step-by-step guide for sellers on how to build and work call lists (Streamlit + Power BI)

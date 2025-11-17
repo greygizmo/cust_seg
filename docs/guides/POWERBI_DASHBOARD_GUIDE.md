@@ -349,39 +349,43 @@ Each preset is just a bookmark capturing slicers/filters; they give users one-cl
 
 ---
 
-### 5.5 Similar Accounts / Neighbors
+### 5.5 Similar Accounts / Look-alike Lab
 
-**Purpose:** Suggest additional accounts that look like known winners for both HW and CRE.
+**Purpose:** Recreate the Streamlit Look-alike Lab so sellers can pick a hero account, inspect its closest neighbors, and push those neighbors into a call list with HW/CRE-specific context.
 
-**Relationships:**
+**Relationships & Modeling Tips**
 
-- `account_neighbors[account_id]` → `'icp_scored_accounts v1.5'[Customer ID]`
-- Optionally, also use `neighbor_account_id` to look up neighbor details via a second relationship or LOOKUPVALUE.
+- Load rtifacts/account_neighbors.csv as icp_account_neighbors.
+- Relationship 1 (anchor): icp_account_neighbors[account_id] -> 'icp_scored_accounts v1.5'[Customer ID].
+- Relationship 2 (neighbor): use TREATAS/LOOKUPVALUE to pull neighbor metrics by 
+eighbor_account_id, or create a second relationship via a duplicated table if you prefer a physical join.
+- Keep 
+eighbor_rank as Whole Number for sorting; treat similarity columns as decimals.
 
-**Slicers:**
+**Recommended Controls**
 
-- `Customer ID` or `Company Name` from `'icp_scored_accounts v1.5'`.
-- Division filter (Hardware vs CRE) using a simple disconnected table or grade/score selection.
+- Anchor slicer: concatenated Company Name / Customer ID field, filtered to A/B accounts in the current seller's AM/CAD territory (reuse the same slicers from the call list pages).
+- Division toggle: disconnected table with values Hardware, CRE, Dual; use it in measures to swap between HW and CRE stats.
+- Similarity threshold slider bound to icp_account_neighbors[sim_overall] (optional).
 
-**Visuals:**
+**Visual Blueprint**
 
-- **Neighbors table (HW focus):**
-  - Base filters: `ICP_grade_hardware` ∈ {A, B}
-  - Columns:
-    - `account_neighbors[neighbor_account_id]` (neighbor ID)
-    - Neighbor `Company Name` (via LOOKUPVALUE)
-    - `account_neighbors[neighbor_rank]`
-    - `account_neighbors[sim_overall]`
-    - Neighbor `ICP_grade_hardware`, `Hardware_score`, `GP_Since_2023_Total`
-  - Use `similarity_p75` and `inbound_neighbor_count_norm` measures to highlight “warm” neighbors and hubs.
+1. **Anchor summary cards (HW + CRE):** Display ICP_score_*, GP_Since_2023_Total, whitespace_score, days_since_last_order, etc., for the selected anchor.
+2. **Neighbor table:** Base visual = icp_account_neighbors. Add columns via LOOKUPVALUE or TREATAS to pull neighbor metrics: rank + similarity (
+eighbor_rank, sim_overall, sim_numeric, sim_text, sim_als), company/industry/territory, HW stats (grades/scores, GP_Since_2023_Total, hw_share_12m, printer_count, whitespace_score), CRE stats (grades/scores, cre_relationship_profit, CRE_Training, sw_share_12m), and opportunity deltas such as Neighbor GP Gap, Training Gap, Whitespace Gap. Use conditional formatting to highlight the largest opportunity signals.
+3. **Action buttons:** Buttons with bookmarks for "Send to Call List Builder" (captures current filters and navigates to the Call List page) and "Reset neighbors".
+4. **Helper visuals:** Cards for neighbor count, average similarity, total whitespace, plus a bar chart showing neighbor counts by territory vs the anchor, and a KPI for "Orphan look-alikes" (neighbors with Dormant activity or long recency).
 
-- **Neighbors table (CRE focus):**
-  - Same idea, but show neighbor `ICP_grade_cre`, `ICP_score_cre`, `Software_score`, `cre_relationship_profit`.
+**Manager / Leadership Add-ons**
 
-This lets a CRE or HW rep pick a high-performing account and see look-alikes worth pursuing.
+- Build a "Neighbor HQ" matrix grouped by AM/CAD territory with measures for Hero Accounts (A/B), Underpenetrated Neighbors, Potential Uplift (sum of whitespace gaps), and Orphan Look-alikes.
+- Add a QoQ GP comparison visual for neighbors vs the overall territory to make QBR storytelling easy.
 
----
+**Implementation Notes**
 
+- docs/powerbi tmdl/powerbi_measures_clean.tmdl already includes neighbor-friendly measures; extend it with whitespace-gap measures and keep _HW/_CRE suffixes so division context is always obvious.
+- Bookmark-driven navigation provides the "push to call list" experience with no custom code.
+- Refresh the dataset after every scoring+neighbor run to keep Power BI aligned with the Streamlit Look-alike Lab.
 ### 5.6 Scoring Details & Validation (Optional Ops Page)
 
 **Purpose:** Give analytics/ops a place to check schema, validation logs, and run status without leaving Power BI.
@@ -420,3 +424,4 @@ Without introducing new data, the highest-impact, low-risk UI enhancements you c
 - Surface **call-to-action / playbook text** from the scored CSV (or call-list exports) directly in Power BI tables so sellers see recommended motions side by side with scores and profit.
 
 Use this guide as the blueprint for your `.pbix` file; the schema and measures are aligned with the code and docs already in this repo.*** End Patch```} ***!
+

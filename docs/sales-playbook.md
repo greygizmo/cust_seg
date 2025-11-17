@@ -4,7 +4,10 @@ This guide shows how to build call lists using the ICP Dashboard.
 
 ## Where to Go
 - Launch: `streamlit run apps/streamlit/app.py`
-- In the app, open the **Execution Hub** tab and use the **Opportunity Watchlist** and **Playbooks** sections as your call list builder.
+- In the app:
+  - Use **Execution Hub - Opportunity Watchlist / Playbooks** for broad, filter-driven lists.
+  - Use **Call List Builder** for HW/CRE-specific lists with export and email tooling.
+  - Use **Look-alike Lab** to find accounts that look like your best A/B customers and stage those neighbors directly into Call List Builder.
 
 ## Filters to Start With
 - Segment: choose Strategic/Growth/Core based on goals.
@@ -16,17 +19,21 @@ This guide shows how to build call lists using the ICP Dashboard.
 
 ## Export & CRM
 - Use **Download watchlist** or the individual playbook download buttons to export CSV call lists.
+- In **Call List Builder**, use the HW/CRE tabs and the download buttons to export division-specific lists; copy the generated email list when needed.
 - Save exports under `reports/call_lists/YYYYMMDD/`.
 - Import CSV into CRM using the "ICP Call List" template mapping (see CRM docs).
 
 ## Tags & Talking Points
-- Upgrade Likely: high adoption, low relationship → discuss CAD/CPE packages.
-- Consumables Focus: high printers, steady usage → auto-replenishment offers.
-- Printer Expansion: heavy fleet, newer models in portfolio → trade-in/expansion.
+- Upgrade Likely: high adoption, low relationship � discuss CAD/CPE packages and CRE/software add-ons.
+- Consumables Focus: high printers, steady usage � auto-replenishment offers and contract attach.
+- Printer Expansion: heavy fleet, newer models in portfolio � trade-in/expansion to higher-end systems.
 - Cross-Division Push: filter for high `hw_to_sw_cross_sell_score` or `sw_to_hw_cross_sell_score` to pinpoint hardware-heavy or software-heavy accounts ready for the complementary motion.
-- Balanced Portfolio Wins: `cross_division_balance_score` near 1.0 highlights accounts with healthy HW/SW mix—prioritize for success story references.
-- Training Attachment: sort by `training_to_hw_ratio` or the new `training_to_cre_ratio` to see who has adopted services relative to the hardware or CRE footprint and target low-ratio accounts for enablement packages.
+- Balanced Portfolio Wins: `cross_division_balance_score` near 1.0 highlights accounts with healthy HW/SW mix�prioritize for success story references.
+- Training Attachment: sort by `training_to_hw_ratio` or `training_to_cre_ratio` to see who has adopted services relative to the hardware or CRE footprint and target low-ratio accounts for enablement packages.
+- Look-alike Replication: in **Look-alike Lab**, pick a hero A/B account, stage high-similarity neighbors with high whitespace or lower GP, then use Call List Builder to work those neighbors with the same play that worked on the hero.
+- Orphan Look-alikes: ask your manager which territories have many dormant/long-recency neighbors to your best accounts (Manager HQ). Focus reactivation plays there first.
 
 ## Tips
 - Sort by ICP Grade (A/B first), then by Adoption.
 - Use Recent Profit to avoid stale accounts.
+

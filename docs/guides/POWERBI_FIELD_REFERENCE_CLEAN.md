@@ -138,5 +138,25 @@ Columns:
 - `sim_overall`, `sim_numeric`, `sim_categorical`, `sim_text`, `sim_als`.
 - `neighbor_account_name`, `neighbor_industry`, `neighbor_segment`, `neighbor_territory`.
 
-Notes:
-- The neighbors pipeline uses exact blockwise cosine and a hybrid embedding across numeric, categorical, text, and ALS blocks.
+### Similarity Signals and Config (from `config.toml`)
+
+The similarity engine combines four normalized blocks before computing cosine neighbors:
+
+| Block | Inputs | Transform Highlights |
+|-------|--------|----------------------|
+| Numeric | All float columns from `icp_scored_accounts` except IDs/timestamps/factors already used elsewhere. This includes the GP windows (`GP_Since_2023_Total`, `GP_T4Q_Total`, `GP_LastQ_Total`, `GP_PrevQ_Total`), QoQ deltas, `ICP_score_hardware`, `ICP_score_cre`, adoption components, HW/CRE share metrics, whitespace scores, training ratios, CRE_Training, printer rollups (GP/Qty), cadence/recency/momentum scores, percentile helpers, and cross-division levers (`cross_division_balance_score`, `hw_to_sw_cross_sell_score`, etc.). | `log1p` applied to GP windows and total software license revenue. `logit` applied to share/score fields (`hw_share_12m`, `sw_share_12m`, `recency_score`, `magnitude_score`, `cadence_score`, `breadth_score_hw`). All numeric features are winsorized at 1% and converted to robust z-scores. |
+| Categorical | `industry`, `segment` (activity), `territory` (AM), `top_subdivision_12m`. | One-hot encoded and L2-normalized. |
+| Text | `industry_reasoning` enrichment notes. | Embedded via `features/text_embed.py` (currently OpenAI/miniLM). |
+| ALS | Account vectors built from Azure SQL profit rollup + assets (`_profit_rollup_raw`, `_assets_raw`), mixing rollup and goal level factors. | Implicit ALS with BM25 weighting, configurable factors/weights. |
+
+Default block weights (`[similarity]` in `config.toml`):
+- `w_numeric = 0.50`
+- `w_categorical = 0.15`
+- `w_text = 0.25`
+- `w_als = 0.10`
+
+You can clone `config.toml` (e.g., `config_hw.toml`, `config_cre.toml`) to adjust weights for division-specific neighbor artifacts without changing code.
+
+### Usage Notes
+- The artifact always includes at least the top `k_neighbors` (default 15) per account. The scoring CLI exposes `--skip-neighbors`, `--no-als`, and `--neighbors-only` if you want to regenerate neighbors for a specific config.
+- When bringing the table into Power BI, create a relationship from `account_neighbors[neighbor_account_id]` to `icp_scored_accounts[Customer ID]` so you can surface neighbor KPIs alongside the scored dataset.
