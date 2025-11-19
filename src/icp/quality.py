@@ -1,7 +1,6 @@
-"""
-Data quality and validation schemas using Pandera.
-"""
-import pandera as pa
+"""Data quality and validation schemas using Pandera."""
+
+import pandera.pandas as pa
 from pandera.typing import Series
 import pandas as pd
 from typing import Optional

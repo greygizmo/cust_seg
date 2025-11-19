@@ -8,7 +8,7 @@ from typing import Iterable, Tuple
 import pandas as pd
 
 try:
-    import pandera as pa
+    import pandera.pandas as pa
 
     PANDERA_AVAILABLE = True
 except ImportError:
