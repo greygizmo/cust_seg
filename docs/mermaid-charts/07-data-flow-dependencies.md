@@ -22,6 +22,7 @@ graph TB
         IndustryCleanupScript[scripts/clean/cleanup_industry_data.py]
         IndustryScoringScript[src/icp/industry.py]
         MainScoringScript[src/icp/cli/score_accounts.py]
+        QualityScript[src/icp/quality.py]
     end
 
     subgraph "Scoring & Optimization"
@@ -31,7 +32,8 @@ graph TB
     end
 
     subgraph "Dashboard & Visualization"
-        DashboardScript[apps/streamlit/app.py]
+    subgraph "Dashboard & Visualization"
+        DashboardScript[apps/dashboard.py]
         VisualizationOutputs[reports/figures/*.png]
     end
 
@@ -62,6 +64,8 @@ Historical backups]
     IndustryScoringScript --> IndustryWeightsJSON
 
     MainScoringScript --> ScoredAccountsCSV
+    MainScoringScript --> QualityScript
+    QualityScript --> ScoredAccountsCSV
     MainScoringScript --> VisualizationOutputs
     ScoredAccountsCSV --> DashboardScript
     ScoredAccountsCSV --> OptimizationScript

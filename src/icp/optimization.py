@@ -2,6 +2,12 @@ import optuna
 import numpy as np
 from scipy.stats import spearmanr
 import pandas as pd
+import os
+import json
+from pathlib import Path
+from typing import Dict
+
+from icp.divisions import DivisionConfig
 
 # Target A–F distribution
 TARGET_GRADE_DISTRIBUTION = {
@@ -201,3 +207,33 @@ def objective(
         + (-lift_weight) * (liftA - 1.0)
     )
     return combined
+
+def load_optimized_weights(division: DivisionConfig) -> Dict[str, float]:
+    """
+    Loads optimized weights for the given division.
+    Checks env var ICP_OPT_WEIGHTS_PATH first, then falls back to default artifact location.
+    If file missing or invalid, returns division defaults.
+    """
+    override = os.environ.get("ICP_OPT_WEIGHTS_PATH")
+    if override:
+        path = Path(override)
+    else:
+        # Default location: artifacts/weights/{division_key}_optimized_weights.json
+        root = Path(__file__).resolve().parents[3]
+        path = root / "artifacts" / "weights" / f"{division.key}_optimized_weights.json"
+    
+    try:
+        if path.exists():
+            with path.open("r", encoding="utf-8") as f:
+                weights = json.load(f)
+            # Ensure all required keys are present, falling back to defaults for missing ones
+            defaults = division.weight_dict()
+            for k, v in defaults.items():
+                if k not in weights:
+                    weights[k] = v
+            return weights
+    except Exception as e:
+        print(f"[WARN] Failed to load weights from {path}: {e}")
+    
+    print(f"[INFO] Using default weights for division '{division.key}'")
+    return division.weight_dict()

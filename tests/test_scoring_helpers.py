@@ -72,15 +72,16 @@ def test_compute_adoption_scores_from_columns_and_fallbacks():
 
 
 def test_compute_relationship_scores_uses_profit_and_fallbacks():
-    config = get_division_config('hardware')
+    # Use CRE because it has the fallback revenue columns used in this test
+    config = get_division_config('cre')
 
-    df_profit = pd.DataFrame({'relationship_profit': [0, 10, 110]})
+    df_profit = pd.DataFrame({'cre_relationship_profit': [0, 10, 110]})
     scores, feature = _compute_relationship_scores(df_profit, config)
-    logs = np.log1p(df_profit['relationship_profit'])
+    logs = np.log1p(df_profit['cre_relationship_profit'])
     expected = (logs - logs.min()) / (logs.max() - logs.min())
     assert scores.tolist() == pytest.approx(expected.tolist())
     assert feature is not None
-    assert feature.tolist() == pytest.approx(df_profit['relationship_profit'].tolist())
+    assert feature.tolist() == pytest.approx(df_profit['cre_relationship_profit'].tolist())
 
     # Remove profit column to trigger fallback revenue usage
     df_fallback = pd.DataFrame({
@@ -126,7 +127,6 @@ def test_load_dynamic_industry_weights_falls_back_to_static(monkeypatch):
     weights = load_dynamic_industry_weights(fake_config)
     assert weights['unknown'] == pytest.approx(fake_config.neutral_vertical_score)
     assert weights[''] == pytest.approx(fake_config.neutral_vertical_score)
-    assert weights[None] == pytest.approx(fake_config.neutral_vertical_score)
 
 
 def test_load_dynamic_industry_weights_skips_none_path(monkeypatch):

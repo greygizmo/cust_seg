@@ -1,4 +1,4 @@
-# Component Interaction Diagram
+
 
 ```mermaid
 graph TB
@@ -7,6 +7,7 @@ graph TB
         IndustryCleaner[scripts/clean/cleanup_industry_data.py<br/>Industry standardization utilities]
         IndustryScorer[src/icp/industry.py<br/>build_industry_weights()<br/>save_industry_weights()<br/>load_industry_weights()]
         MainProcessor[src/icp/cli/score_accounts.py<br/>main() - orchestrates data assembly & scoring<br/>assemble_master_from_db(), engineer_features(), build_visuals()]
+        QualityValidator[src/icp/quality.py<br/>validate_outputs()]
     end
 
     subgraph "Scoring Engine Layer"
@@ -15,10 +16,11 @@ graph TB
 
     subgraph "Optimization Layer"
         OptimizationRunner[src/icp/cli/optimize_weights.py<br/>run_optimization() - CLI wrapper]
-        ObjectiveFunction[src/icp/optimization.py<br/>objective() - Optuna objective function<br/>Spearman correlation + KL divergence]</n+    end
+        ObjectiveFunction[src/icp/optimization.py<br/>objective() - Optuna objective function<br/>Spearman correlation + KL divergence]
+    end
 
     subgraph "Dashboard Layer"
-        DashboardApp[apps/streamlit/app.py<br/>Main dashboard + Call List Builder<br/>Docs integration]
+        DashboardApp[apps/dashboard.py<br/>Main dashboard + Call List Builder<br/>Docs integration]
         StreamlitComponents[Streamlit UI Components<br/>st.sidebar, st.slider, st.selectbox<br/>st.columns, st.plotly_chart<br/>st.dataframe, st.download_button]
     end
 
@@ -46,6 +48,7 @@ archive/*]
     MainProcessor --> IndustryCleaner
     MainProcessor --> IndustryScorer
     MainProcessor --> ScoringLogic
+    MainProcessor --> QualityValidator
 
     IndustryScorer --> PandasLib
     IndustryScorer --> NumpyLib
@@ -133,7 +136,7 @@ This diagram shows how the Python modules and external libraries interact to for
   - Applies business constraints (weight limits, normalization)
 
 #### 4. Dashboard Layer
-- **apps/streamlit/app.py**: Main dashboard application with:
+- **apps/dashboard.py**: Main dashboard application with:
   - Real-time weight adjustment via sliders
   - Interactive charts using Plotly
   - Data export functionality
@@ -154,7 +157,7 @@ This diagram shows how the Python modules and external libraries interact to for
    - Optuna for parameter suggestion and study management
 
 #### Dashboard Operation:
-1. `apps/streamlit/app.py:main()` calls:
+1. `apps/dashboard.py:main()` calls:
    - `icp.scoring.calculate_scores()` for real-time recalculation
    - Plotly functions for chart generation
    - Streamlit components for UI rendering
@@ -194,7 +197,7 @@ Scored Data  Optimization  Better Weights  Improved Scoring
 ### Component Coupling:
 
 #### Tightly Coupled:
-- `icp.scoring` and `apps/streamlit/app.py` (real-time interaction)
+- `icp.scoring` and `apps/dashboard.py` (real-time interaction)
 - `src/icp/industry.py` and `icp.scoring` (shared data structures)
 
 #### Loosely Coupled:

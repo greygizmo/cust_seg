@@ -1,3 +1,4 @@
+
 # Features Used in Scoring
 
 This file summarizes the main features currently used by the baseline scoring pipeline. Additional feature modules exist and may be enabled later.
@@ -21,6 +22,12 @@ This file summarizes the main features currently used by the baseline scoring pi
 - `ICP_score_hardware`, `ICP_grade_hardware` (Hardware division)
 - `ICP_score_cre`, `ICP_grade_cre` (CRE division)
 
-## Optional time-series features (currently disabled)
-Feature modules are available for spend dynamics, momentum, health/concentration, POV tags, and whitespace analysis. These are disabled in the default run to reduce memory, but can be enabled in code when needed.
+## Active Time-Series & Enrichment Features
+The pipeline now enriches the output with advanced signals for BI and List Building:
+- **Spend Dynamics**: `spend_13w`, `spend_12m`, `delta_13w_pct`, `slope_13w`.
+- **Momentum**: `momentum_score`, `recency_score`, `cadence_score`.
+- **Cross-Division**: `cross_division_balance_score`, `hw_to_sw_cross_sell_score`.
+- **Whitespace**: `sw_to_hw_whitespace_score`, `sw_dominance_score`.
+- **POV**: `pov_primary`, `pov_tags_all`.
 
+These features are appended to `icp_scored_accounts.csv` after the core scoring logic.

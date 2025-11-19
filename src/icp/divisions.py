@@ -73,8 +73,6 @@ _BASE_CONFIGS: Dict[str, DivisionConfig] = {
             profit_column="relationship_profit",
             profit_goals=("CAD", "CPE", "Specialty Software"),
             revenue_fallback_columns=(
-                "Total Software License Revenue",
-                "Total SaaS Revenue",
                 "Total Maintenance Revenue",
             ),
         ),
@@ -109,6 +107,29 @@ _BASE_CONFIGS: Dict[str, DivisionConfig] = {
         # CRE industry performance considers CAD, Specialty Software, and
         # Training/Services restricted to CRE-specific rollups (set upstream as CRE_Training)
         performance_columns=("CAD", "Specialty Software", "CRE_Training"),
+        neutral_vertical_score=0.35,
+    ),
+    "cpe": DivisionConfig(
+        key="cpe",
+        label="CPE",
+        super_division="Software",
+        industry_weights_file=_root() / "artifacts" / "weights" / "cpe_industry_weights.json",
+        component_weights={"vertical": 0.25, "adoption": 0.45, "relationship": 0.30},
+        size_revenue_column=None,
+        size_revenue_fallback=None,
+        adoption=AdoptionConfig(
+            asset_column="cpe_adoption_assets",
+            profit_column="cpe_adoption_profit",
+            asset_goals=("CPE",),
+            profit_goals=("CPE",),
+            fallback_revenue_columns=("CPE",),
+        ),
+        relationship=RelationshipConfig(
+            profit_column="cpe_relationship_profit",
+            profit_goals=("CPE",),
+            revenue_fallback_columns=("CPE",),
+        ),
+        performance_columns=("CPE",),
         neutral_vertical_score=0.35,
     ),
 }

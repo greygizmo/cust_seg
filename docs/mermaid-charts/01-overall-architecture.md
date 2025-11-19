@@ -17,7 +17,10 @@ graph TB
         PublishICPSQL[src/icp/cli/publish_scored_to_db.py<br/>Publish CSV to dbo.customer_icp]
         IndustryBuilder[src/icp/industry.py<br/>Build/Load Industry Weights]
         SchemaValidation[src/icp/schema.py & validation.py<br/>Column constants & data checks]
+        OutputValidation[src/icp/quality.py<br/>Pandera Output Validation]
     end
+
+
 
     subgraph "Scoring Engine"
         ScoringLogic[src/icp/scoring.py<br/>Centralized Scoring Functions<br/>- Vertical (Industry)
@@ -29,7 +32,7 @@ graph TB
     end
 
     subgraph "Analytics & Visualization"
-        Dashboard[apps/streamlit/app.py<br/>Interactive Dashboard + Call List Builder]
+        Dashboard[apps/dashboard.py<br/>Streamlit Dashboard]
         VisualOutputs[reports/figures/*.png]
     end
 
@@ -56,6 +59,8 @@ graph TB
     ScoringLogic --> MainPipeline
 
     MainPipeline --> ScoredData
+    MainPipeline --> OutputValidation
+    OutputValidation --> ScoredData
     MainPipeline --> VisualOutputs
     ScoredData --> PublishICPSQL --> ICPTable
     ScoredData --> Dashboard
@@ -91,30 +96,6 @@ graph TB
     class Dashboard,VisualOutputs analytics
     class ConfigFiles,OptimizedWeights,IndustryWeights,ScoredData,ICPTable,NeighborsCSV storage
     class SimilarityBuilder,ALSVectors processing
-```
-
-## System Overview
-
-This architecture represents the updated **ICP Scoring System**. It assembles data directly from Azure SQL, enriches industry classifications (optional CSV), computes scores via centralized logic, and surfaces results in a Streamlit dashboard with a Call List Builder.
-
-### Key Features:
-- **Data-Driven Scoring**: Uses historical revenue data to calculate industry performance weights
-- **Machine Learning Optimization**: Employs Optuna to find optimal scoring weights
-- **Interactive Dashboard**: Real-time weight adjustment and visualization
-- **Multi-Source Data Integration**: Combines customer, sales, and enriched revenue data
-- **Automated Pipeline**: End-to-end processing from raw data to scored accounts
-
-### Architecture Layers:
-1. **Data Sources**: Azure SQL (customers, profit, assets) + optional enrichment CSV
-2. **Processing**: Orchestrated by `src/icp/cli/score_accounts.py` (validation, enrichment, features)
-3. **Scoring Engine**: `src/icp/scoring.py` with ML‑optimized weights (`artifacts/weights`)
-4. **Analytics**: `apps/streamlit/app.py` with Call List Builder and docs integration
-5. **Storage**: `data/processed`, `reports/figures`, `artifacts/weights`, configs in `configs/`
-
-### Data Flow:
-1. Raw data is cleaned and standardized
-2. Industry weights are calculated using historical performance data
-3. Customer scores are computed using the optimized weighting system
 4. Results are presented through an interactive dashboard
 5. The system continuously improves through ML optimization
 

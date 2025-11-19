@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from goe_icp_scoring import engineer_features
+from icp.features.engineering import engineer_features
 
 
 def test_engineer_features_training_filter_and_printer_count():
@@ -33,7 +33,9 @@ def test_engineer_features_training_filter_and_printer_count():
     # Minimal asset weights (defaults inside function handle missing weights)
     asset_weights = {"focus_goals": ["Printer", "Printer Accessorials", "Scanners", "Geomagic", "Training/Services"], "weights": {}}
 
-    out = engineer_features(master, asset_weights)
+    # Mock optimized weights
+    weights = {"vertical": 0.3, "adoption": 0.5, "relationship": 0.2}
+    out = engineer_features(master, asset_weights, weights)
 
     row = out.iloc[0]
     # Printer_count should sum Printer asset_count
@@ -63,7 +65,8 @@ def test_engineer_features_relationship_profit_normalizes_goal_case():
 
     asset_weights = {"focus_goals": ["Printers", "CAD", "Specialty Software"], "weights": {}}
 
-    out = engineer_features(master, asset_weights)
+    weights = {"vertical": 0.3, "adoption": 0.5, "relationship": 0.2}
+    out = engineer_features(master, asset_weights, weights)
 
     row = out.iloc[0]
     assert row['relationship_profit'] == 400
@@ -86,7 +89,8 @@ def test_engineer_features_uses_gp_history_from_attrs():
     master.attrs['_gp_last90'] = gp_last90
     master.attrs['_gp_monthly12'] = gp_monthly12
 
-    out = engineer_features(master, {"focus_goals": [], "weights": {}})
+    weights = {"vertical": 0.3, "adoption": 0.5, "relationship": 0.2}
+    out = engineer_features(master, {"focus_goals": [], "weights": {}}, weights)
 
     row = out.iloc[0]
     assert row['GP_Last_90D'] == pytest.approx(150)

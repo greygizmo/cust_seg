@@ -36,10 +36,10 @@ This checklist captures engineering improvements and sales enablement features. 
   - Done when: CLIs accept overrides and default to repo standards.
 
 ## CI/CD & Quality
-- [ ] Add GitHub Actions
-  - [ ] Workflow: setup Python, install deps (with cache), run ruff lint, run pytest.
-  - [ ] Add `ruff` config (line length, ignores) and wire pre-commit (optional).
-  - [ ] Artifact: upload `coverage.xml` (optional scope).
+- [x] Add GitHub Actions
+  - [x] Workflow: setup Python, install deps (with cache), run ruff lint, run pytest.
+  - [x] Add `ruff` config (line length, ignores) and wire pre-commit (optional).
+  - [x] Artifact: upload `coverage.xml` (optional scope).
   - Done when: PRs run lint/tests automatically.
 
 ## Sales Enablement: Call List Builder (Dashboard)
@@ -113,18 +113,18 @@ This checklist captures engineering improvements and sales enablement features. 
     - Done when: a new seller or manager can read the docs and immediately understand how to use similarity search in both Streamlit and Power BI to drive concrete motions.
 
 ## Sales Enablement: Propensity Tags & Playbooks
-- [ ] Add rule-based tags and talking points
-  - [ ] In `scoring.py` or `src/icp/insights.py`, create rules:
-    - [ ] "Upgrade Likely" (high adoption, low relationship), "Cross-sell CAD", "Consumables Focus", "Printer Expansion".
-  - [ ] Add `playbook` column with short talking points and next-step suggestions.
-  - [ ] Show tags in dashboard and include in exports.
+- [x] Add rule-based tags and talking points
+  - [x] In `scoring.py` or `src/icp/insights.py`, create rules:
+    - [x] "Upgrade Likely" (high adoption, low relationship), "Cross-sell CAD", "Consumables Focus", "Printer Expansion".
+  - [x] Add `playbook` column with short talking points and next-step suggestions.
+  - [x] Show tags in dashboard and include in exports.
   - Done when: each account has zero/more tags and a playbook string.
 
 ## Dashboard UX for Sales
-- [ ] Add "Prospect Explorer" and "Account 360"
-  - [ ] Prospect Explorer: table with live filters + detail panel (history snapshots, enrichment source).
-  - [ ] Account 360: single account view with trend sparklines, adoption breakdown, recent profit, tags/playbook.
-  - [ ] Add "Quick filters" buttons (A-grade only, revenue-only).
+- [x] Add "Prospect Explorer" and "Account 360"
+  - [x] Prospect Explorer: table with live filters + detail panel (history snapshots, enrichment source).
+  - [x] Account 360: single account view with trend sparklines, adoption breakdown, recent profit, tags/playbook.
+  - [x] Add "Quick filters" buttons (A-grade only, revenue-only).
   - Done when: sales can inspect one account deeply and navigate prospects easily.
 
 ## Docs & Onboarding

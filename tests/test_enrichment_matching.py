@@ -1,6 +1,6 @@
 import pandas as pd
 
-from goe_icp_scoring import apply_industry_enrichment
+from icp.etl.loader import apply_industry_enrichment
 
 
 def test_enrichment_matches_by_id_then_name_then_cleaned_name():

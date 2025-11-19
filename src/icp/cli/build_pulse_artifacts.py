@@ -19,7 +19,7 @@ from typing import Iterable
 import numpy as np
 import pandas as pd
 
-from icp.schema import COL_CUSTOMER_ID, COL_COMPANY_NAME, canonicalize_customer_id
+from icp.schema import COL_CUSTOMER_ID, canonicalize_customer_id
 
 ROOT = Path(__file__).resolve().parents[3]
 SCORED_DEFAULT = ROOT / "data" / "processed" / "icp_scored_accounts.csv"

@@ -1,6 +1,6 @@
 import pandas as pd
 
-from icp.cli import export_call_lists as call_lists
+from icp.reporting import call_lists
 from icp.schema import COL_COMPANY_NAME, COL_CUSTOMER_ID
 
 
@@ -56,7 +56,7 @@ def sample_scored_accounts() -> pd.DataFrame:
 
 def test_normalize_portfolio_generates_expected_columns():
     raw = sample_scored_accounts()
-    normalized = call_lists._normalize_portfolio(raw)
+    normalized = call_lists.normalize_portfolio(raw)
 
     assert normalized[COL_CUSTOMER_ID].tolist()[0] == "1001"
     required = {
@@ -70,12 +70,12 @@ def test_normalize_portfolio_generates_expected_columns():
 
 
 def test_presets_generate_non_empty_tables():
-    normalized = call_lists._normalize_portfolio(sample_scored_accounts())
-
+    normalized = call_lists.normalize_portfolio(sample_scored_accounts())
+    
     for preset in (
-        call_lists._preset_top_ab_by_segment,
-        call_lists._preset_revenue_only_high_relationship,
-        call_lists._preset_heavy_fleet_expansion,
+        call_lists.preset_top_ab_by_segment,
+        call_lists.preset_revenue_only_high_relationship,
+        call_lists.preset_heavy_fleet_expansion,
     ):
         table, meta = preset(normalized)
         assert "preset" in meta

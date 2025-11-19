@@ -3,11 +3,11 @@
 This guide shows how to build call lists using the ICP Dashboard.
 
 ## Where to Go
-- Launch: `streamlit run apps/streamlit/app.py`
+- Launch: `make dashboard` (or `streamlit run apps/dashboard.py`)
 - In the app:
-  - Use **Execution Hub - Opportunity Watchlist / Playbooks** for broad, filter-driven lists.
-  - Use **Call List Builder** for HW/CRE-specific lists with export and email tooling.
-  - Use **Look-alike Lab** to find accounts that look like your best A/B customers and stage those neighbors directly into Call List Builder.
+  - Use **Portfolio Overview** for high-level metrics.
+  - Use **Account Explorer** to filter and find accounts.
+  - Use **Neighbor Visualizer** to find accounts that look like your best A/B customers.
 
 ## Filters to Start With
 - Segment: choose Strategic/Growth/Core based on goals.

@@ -47,7 +47,7 @@ artifacts/weights/optimized_weights.json<br/>Fallback to DEFAULT_WEIGHTS if miss
 
         subgraph "Managers & Neighbors"
             ManagerHQ[Manager HQ<br/>Hero accounts by territory<br/>Underpenetrated neighbors, orphan look-alikes<br/>Neighbor activation pulse]
-            LookalikeLab[Look-alike Lab<br/>Anchor account selector<br/>Similar neighbors with traits/gaps<br/>Stage into Call List Builder]
+            LookalikeLab[Neighbor Visualizer<br/>Anchor account selector<br/>Similar neighbors with traits/gaps<br/>Stage into Call List Builder]
             PulseTab[Pulse Tab<br/>Portfolio pulse (A/B, GP)<br/>Playbook mix<br/>Neighbor health (similarity, inbound counts)]
         end
 

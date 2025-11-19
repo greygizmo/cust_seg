@@ -1,8 +1,5 @@
-import os
 import json
-from functools import partial
 from pathlib import Path
-from typing import Tuple
 
 import optuna
 import pandas as pd
@@ -29,7 +26,8 @@ def _quarter_key_from_str(qs: str) -> int:
     # Expect format 'YYYYQn'
     try:
         s = str(qs)
-        yr = int(s[0:4]); qn = int(s[-1])
+        yr = int(s[0:4])
+        qn = int(s[-1])
         return yr * 10 + qn
     except Exception:
         return 0
@@ -77,7 +75,8 @@ def _build_future_outcome(df: pd.DataFrame, division: str, horizon_q: int = 1) -
         as_of_q = df['as_of_date'].map(_quarter_key_from_date)
     else:
         # Fallback to latest completed quarter for all
-        now = pd.Timestamp.now(); as_of_q = pd.Series(_quarter_key_from_date(now), index=df.index)
+        now = pd.Timestamp.now()
+        as_of_q = pd.Series(_quarter_key_from_date(now), index=df.index)
 
     # Compute future quarter keys with proper year rollover (Q4 -> next year's Q1)
     def _add_quarters_key(qkey: int, add: int) -> int:
@@ -279,8 +278,9 @@ def run_optimization(
 
     # Save per-division weights structure
     default_out = ROOT / 'artifacts' / 'weights' / 'optimized_weights.json'
-    out_path = Path(out_path) if out_path else default_out
-    out_path.parent.mkdir(parents=True, exist_ok=True)
+    default_out = ROOT / 'artifacts' / 'weights' / 'optimized_weights.json'
+    final_out_path = Path(out_path) if out_path else default_out
+    final_out_path.parent.mkdir(parents=True, exist_ok=True)
     # Try to capture the as_of_date used in scoring
     as_of_val = None
     try:
@@ -315,8 +315,8 @@ def run_optimization(
     }
     # Merge with existing if present
     try:
-        if out_path.exists():
-            with out_path.open('r', encoding='utf-8') as f:
+        if final_out_path.exists():
+            with final_out_path.open('r', encoding='utf-8') as f:
                 old = json.load(f)
         else:
             old = {}
@@ -325,7 +325,9 @@ def run_optimization(
     # Merge strategy: merge weights dict by division, and store meta per-division
     if isinstance(old.get('weights'), dict):
         merged_weights = dict(old['weights'])
-        merged_weights.update(payload['weights'])
+        new_weights = payload['weights']
+        if isinstance(new_weights, dict):
+            merged_weights.update(new_weights)
         payload['weights'] = merged_weights
     # Merge meta
     old_meta = old.get('meta')
@@ -335,7 +337,9 @@ def run_optimization(
     elif isinstance(old_meta, dict) and isinstance(old.get('division'), str):
         # Convert legacy single-meta to per-division if possible
         meta_by_div = {old.get('division'): old_meta}
-    meta_by_div.update(payload['meta'])
+    new_meta = payload['meta']
+    if isinstance(new_meta, dict):
+        meta_by_div.update(new_meta)
     payload['meta'] = meta_by_div
 
     # Optional: append to meta history
@@ -347,7 +351,7 @@ def run_optimization(
         hist.append(entry)
         payload['meta_history'] = hist
 
-    with out_path.open('w', encoding='utf-8') as f:
+    with final_out_path.open('w', encoding='utf-8') as f:
         json.dump(payload, f, indent=4)
 
     print("\n--- Optimization Complete ---")
@@ -362,7 +366,7 @@ def run_optimization(
     print(f"Stability (std Spearman by {group_col}, mean): {div_meta['stability_std_spearman_mean']:.4f}")
     for hz, curve in div_meta['lift_curves'].items():
         print(f"Lift curve AUC (horizon {hz}Q): {curve.get('auc', 0.0):.4f}")
-    print(f"\nSaved optimized weights to {out_path}")
+    print(f"\nSaved optimized weights to {final_out_path}")
 
 
 if __name__ == '__main__':

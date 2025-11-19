@@ -13,16 +13,7 @@ from scipy.stats import norm
 from icp.divisions import DivisionConfig, get_division_config
 from icp.schema import (
     COL_INDUSTRY,
-    COL_BIG_BOX,
-    COL_SMALL_BOX,
-    COL_HW_REV,
-    COL_CONS_REV,
     COL_REL_LICENSE,
-    COL_REL_SAAS,
-    COL_REL_MAINT,
-    COL_RELATIONSHIP_PROFIT,
-    COL_ADOPTION_ASSETS,
-    COL_ADOPTION_PROFIT,
 )
 
 # --- Constants and Configurations ---
@@ -170,17 +161,17 @@ def _compute_relationship_scores(
 
     if config.relationship.profit_column and config.relationship.profit_column in df.columns:
         rel_safe = pd.to_numeric(df[config.relationship.profit_column], errors="coerce").fillna(0)
-        return _min_max_scale(np.log1p(rel_safe)), rel_safe
+        return _min_max_scale(np.log1p(rel_safe.clip(lower=0))), rel_safe
 
     if config.relationship.profit_goals:
         rel_series = _sum_columns(df, config.relationship.profit_goals)
         if rel_series.any():
-            return _min_max_scale(np.log1p(rel_series)), rel_series
+            return _min_max_scale(np.log1p(rel_series.clip(lower=0))), rel_series
 
     if config.relationship.revenue_fallback_columns:
         feature_series = _sum_columns(df, config.relationship.revenue_fallback_columns)
         if feature_series.any():
-            return _min_max_scale(np.log1p(feature_series)), feature_series
+            return _min_max_scale(np.log1p(feature_series.clip(lower=0))), feature_series
 
     return pd.Series(0.0, index=index, dtype=float), feature_series
 
@@ -233,19 +224,13 @@ def load_dynamic_industry_weights(division: str | DivisionConfig | None = None) 
     neutral = config.neutral_vertical_score
     fallback.setdefault("unknown", neutral)
     fallback.setdefault("", neutral)
-    fallback.setdefault(None, neutral)  # type: ignore[key-type]
+    # fallback.setdefault(None, neutral)  # Removed to satisfy mypy
     print("[INFO] No dynamic industry weights found, using static weights")
     return fallback
 
 def calculate_grades(scores):
     """
     Assigns A-F grades based on the percentile rank of the final scores.
-
-    Args:
-        scores (pd.Series): A series of final, normalized ICP scores.
-
-    Returns:
-        np.ndarray: An array of corresponding letter grades ('A' through 'F').
     """
     ranks = scores.rank(pct=True)
     grades = np.select(

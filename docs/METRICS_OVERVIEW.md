@@ -169,4 +169,14 @@ alpha = 40.0
 reg = 0.05
 iterations = 20
 use_bm25 = true
-```
+
+## Validation (Pandera)
+
+The pipeline now includes strict data validation using **Pandera** schemas defined in `src/icp/quality.py`.
+
+Validated artifacts:
+- **Scored Accounts**: Checks for existence of ID, Company, Industry, and Score columns.
+- **Neighbors**: Checks for `source_account_id`, `neighbor_account_id`, `similarity_score` (0-1), and `rank`.
+- **Playbooks**: Checks for `account_id` and `playbook_name`.
+
+To enforce validation and fail on errors, use the `--strict` flag when running `score_accounts.py`.

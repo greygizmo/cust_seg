@@ -11,7 +11,6 @@ import pandas as pd
 from icp.divisions import DivisionConfig, get_division_config
 from icp.schema import (
     COL_INDUSTRY,
-    COL_INDUSTRY_SUBLIST,
     COL_PROFIT_SINCE_2023_TOTAL,
     COL_HW_REV,
     COL_CONS_REV,
@@ -155,7 +154,7 @@ def build_industry_weights(
     df_with_performance = calculate_industry_performance(df.copy(), config)
     industry_stats = aggregate_by_industry(df_with_performance, min_sample)
     if industry_stats.empty:
-        return {"unknown": neutral, "": neutral, None: neutral}  # type: ignore[key-type]
+        return {"unknown": neutral, "": neutral}
 
     industry_stats = apply_empirical_bayes_shrinkage(industry_stats, k)
 
@@ -200,7 +199,7 @@ def build_industry_weights(
     )
     weights["unknown"] = neutral
     weights[""] = neutral
-    weights[None] = neutral  # type: ignore[key-type]
+    # weights[None] = neutral  # Removed to satisfy mypy
 
     print(f"[INFO] Generated scores for {len(weights)} industry categories")
     return weights

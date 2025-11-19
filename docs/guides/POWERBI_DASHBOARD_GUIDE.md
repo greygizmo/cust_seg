@@ -8,6 +8,9 @@ This guide describes a practical, opinionated Power BI dashboard built on top of
 
 It assumes **no new data sources** beyond what the pipeline already generates.
 
+> [!NOTE]
+> **Streamlit Dashboard**: For quick, local exploration of this data without Power BI, see `docs/guides/DASHBOARD_GUIDE.md` and run `make dashboard`.
+
 ---
 
 ## 1. Recommended Data Model

@@ -3,7 +3,6 @@ Company name normalization utilities
 """
 import re
 import unicodedata
-from typing import Optional
 
 
 def clean_company_name(name: str) -> str:

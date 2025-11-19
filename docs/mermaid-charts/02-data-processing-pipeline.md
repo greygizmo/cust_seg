@@ -14,6 +14,22 @@ graph TD
 
     subgraph "Stage 1: Data Loading (DB)"
         LoadCustomers[Load Customers]
+# Data Processing Pipeline
+
+```mermaid
+graph TD
+    %% Updated pipeline aligned with current repo
+    subgraph "Input Data Sources"
+        AzureCustomers[Azure SQL: Customers Since 2023]
+        AzureProfitGoal[Azure SQL: Profit Since 2023 by Goal]
+        AzureProfitRollup[Azure SQL: Profit Since 2023 by Rollup]
+        AzureQuarterly[Azure SQL: Quarterly Profit by Goal]
+        AzureAssets[Azure SQL: Assets & Seats]
+        IndustryFile[data/raw/TR - Industry Enrichment.csv (optional)]
+    end
+
+    subgraph "Stage 1: Data Loading (DB)"
+        LoadCustomers[Load Customers]
         LoadProfit[Load Profit (goal/rollup/quarterly)]
         LoadAssets[Load Assets & Seats]
         LoadIndustry[Load Industry Enrichment (optional)]
@@ -59,8 +75,9 @@ graph TD
         ApplyWeights[Use optimized_weights.json if available]
     end
 
-    subgraph "Stage 8: Outputs"
+    subgraph "Stage 8: Outputs & Validation"
         ScoredDataset[data/processed/icp_scored_accounts.csv]
+        OutputValidation[src/icp/quality.py<br/>Pandera Output Validation]
         VisualizationGeneration[reports/figures/*.png]
         MetadataStorage[artifacts/weights/*.json]
     end
@@ -87,7 +104,6 @@ graph TD
     LoadAssets --> AssetsAggregation --> MasterMerge
 
     MasterMerge --> AdoptionPreferred
-    MasterMerge --> AdoptionLegacy
     MasterMerge --> Relationship
 
     MasterMerge --> BuildWeights --> SaveWeights
@@ -95,14 +111,6 @@ graph TD
 
     AdoptionPreferred --> CalculateScores
     Relationship --> CalculateScores
-    CalculateScores --> ApplyWeights --> ScoredDataset
-    CalculateScores --> VisualizationGeneration
-    SaveWeights --> MetadataStorage
-
-    %% Neighbors flow (separate step)
-    ScoredDataset --> BuildVectors --> BlockwiseTopK --> NeighborsOut
-    LoadAssets --> BuildALS
-    LoadProfit --> BuildALS
     BuildALS --> BlockwiseTopK
 
     %% Styles

@@ -112,6 +112,8 @@ def _topk_neighbors_blockwise(V: np.ndarray, k: int, block_rows: int = 512) -> t
             idx_sorted = np.argsort(-S_blk, axis=1)[:, :k_eff]
             sims_sorted = np.take_along_axis(S_blk, idx_sorted, axis=1)
 
+        # Clip similarity values to [ -1.0, 1.0 ] to avoid floating‑point overflow
+        sims_sorted = np.clip(sims_sorted, -1.0, 1.0)
         out_idx[i0:i1, :] = idx_sorted.astype(np.int32, copy=False)
         out_sim[i0:i1, :] = sims_sorted.astype(np.float32, copy=False)
 

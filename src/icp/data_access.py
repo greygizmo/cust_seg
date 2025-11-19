@@ -32,16 +32,11 @@ except Exception:
 
 
 def _build_connection_url(database_override: Optional[str] = None) -> str:
-    """
-    Build an SQLAlchemy connection URL for Azure SQL using pyodbc.
 
-    Supports either SQL auth (AZSQL_USER/AZSQL_PWD) or interactive AAD
-    (when no user/pass provided) via the ODBC Driver 18 parameters.
-    """
-    server = os.getenv("AZSQL_SERVER", "").strip()
-    database = (database_override or os.getenv("AZSQL_DB", "")).strip()
-    user = os.getenv("AZSQL_USER", "").strip()
-    pwd = os.getenv("AZSQL_PWD", "").strip()
+    server = (os.getenv("AZSQL_SERVER") or "").strip()
+    database = (database_override or os.getenv("AZSQL_DB") or "").strip()
+    user = (os.getenv("AZSQL_USER") or "").strip()
+    pwd = (os.getenv("AZSQL_PWD") or "").strip()
 
     if not server or not database:
         raise RuntimeError("Missing AZSQL_SERVER or AZSQL_DB environment variables")
@@ -49,6 +44,7 @@ def _build_connection_url(database_override: Optional[str] = None) -> str:
     driver = "ODBC Driver 18 for SQL Server"
 
     if user and pwd:
+        print(f"[DEBUG] Connecting to {server}/{database} using SQL Authentication (User: {user})")
         # SQL authentication using DSN-less ODBC connection to safely handle special characters
         from urllib.parse import quote_plus
         odbc = (
@@ -57,6 +53,7 @@ def _build_connection_url(database_override: Optional[str] = None) -> str:
         )
         return f"mssql+pyodbc:///?odbc_connect={quote_plus(odbc)}"
     else:
+        print(f"[DEBUG] Connecting to {server}/{database} using ActiveDirectoryInteractive")
         # AAD interactive or MSI â€” rely on ODBC authentication parameter
         # Note: some environments require 'Authentication=ActiveDirectoryInteractive'
         # and omit UID/PWD entirely.
@@ -131,7 +128,10 @@ def get_profit_since_2023_by_goal(engine=None) -> pd.DataFrame:
 def get_profit_since_2023_by_rollup(engine=None) -> pd.DataFrame:
     """
     Profit (GP + Term_GP) since 2023-01-01 grouped by customer and item_rollup (with Goal).
-
+    
+    WARNING: This joins on analytics_product_tags. If an item_rollup maps to multiple Goals,
+    the profit will be duplicated for each Goal. Use with caution for aggregations.
+    
     Returns: [Customer ID, item_rollup, Goal, Profit_Since_2023]
     """
     engine = engine or get_engine()
@@ -152,6 +152,41 @@ def get_profit_since_2023_by_rollup(engine=None) -> pd.DataFrame:
         """
     )
     return pd.read_sql(sql, engine, params={"since_date": SINCE_DATE})
+
+
+def get_profit_since_2023_by_customer_rollup(engine=None) -> pd.DataFrame:
+    """
+    Profit (GP + Term_GP) since 2023-01-01 grouped by customer and item_rollup.
+    Does NOT join with Goals, ensuring no duplication of GP.
+
+    Returns: [Customer ID, item_rollup, Profit_Since_2023]
+    """
+    engine = engine or get_engine()
+    sql = text(
+        f"""
+        SELECT
+            s.CompanyId AS [{COL_CUSTOMER_ID}],
+            icl.Item_Rollup AS item_rollup,
+            SUM(COALESCE(s.GP,0) + COALESCE(s.Term_GP,0)) AS Profit_Since_2023
+        FROM dbo.table_saleslog_detail s
+        INNER JOIN dbo.items_category_limited icl
+            ON s.Item_internalid = icl.internalId
+        WHERE s.Rec_Date >= :since_date
+        GROUP BY s.CompanyId, icl.Item_Rollup
+        """
+    )
+    return pd.read_sql(sql, engine, params={"since_date": SINCE_DATE})
+
+
+def get_product_tags(engine=None) -> pd.DataFrame:
+    """
+    Fetch the mapping from item_rollup to Goal.
+    
+    Returns: [item_rollup, Goal]
+    """
+    engine = engine or get_engine()
+    sql = text("SELECT DISTINCT item_rollup, Goal FROM dbo.analytics_product_tags")
+    return pd.read_sql(sql, engine)
 
 
 def get_quarterly_profit_by_goal(engine=None) -> pd.DataFrame:
@@ -459,3 +494,8 @@ def get_customer_shipping(engine=None) -> pd.DataFrame:
             return pd.DataFrame(columns=[
                 COL_CUSTOMER_ID,'ShippingAddr1','ShippingAddr2','ShippingCity','ShippingState','ShippingZip','ShippingCountry'
             ])
+def get_sales_detail_since_2022(engine=None) -> pd.DataFrame:
+    """
+    Alias for get_tx_for_features to support legacy calls.
+    """
+    return get_tx_for_features(engine, months_back=18)

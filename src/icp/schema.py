@@ -24,6 +24,9 @@ COL_REL_LICENSE = "Total Software License Revenue"
 COL_REL_SAAS = "Total SaaS Revenue"
 COL_REL_MAINT = "Total Maintenance Revenue"
 
+# Alias for backward compatibility
+LICENSE_COL = COL_REL_LICENSE
+
 # Profit-based features (preferred)
 COL_PROFIT_SINCE_2023_TOTAL = "Profit_Since_2023_Total"
 COL_RELATIONSHIP_PROFIT = "relationship_profit"

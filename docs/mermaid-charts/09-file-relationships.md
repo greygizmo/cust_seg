@@ -6,13 +6,14 @@ graph TB
     subgraph "Main Scripts (Executable)"
         MainScoring[src/icp/cli/score_accounts.py<br/>PRIMARY EXECUTABLE<br/>End-to-end data assembly & scoring]
         Optimization[src/icp/cli/optimize_weights.py<br/>OPTIONAL EXECUTABLE<br/>Weight optimization with Optuna]
-        Dashboard[apps/streamlit/app.py<br/>WEB APP EXECUTABLE<br/>Interactive dashboard + Call List Builder]
+        Dashboard[apps/dashboard.py<br/>WEB APP EXECUTABLE<br/>Interactive dashboard + Call List Builder]
     end
 
     subgraph "Utility Modules (Imported)"
         IndustryUtils[scripts/clean/cleanup_industry_data.py]
         IndustryScoring[src/icp/industry.py]
         ScoringLogic[src/icp/scoring.py]
+        QualityLogic[src/icp/quality.py]
         OptimizationObj[src/icp/optimization.py]
     end
 
@@ -40,6 +41,7 @@ graph TB
     MainScoring --> IndustryUtils
     MainScoring --> IndustryScoring
     MainScoring --> ScoringLogic
+    MainScoring --> QualityLogic
 
         Dashboard --> ScoringLogic
         Dashboard --> NameUtils
