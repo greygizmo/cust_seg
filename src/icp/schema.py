@@ -252,7 +252,7 @@ def get_icp_scored_accounts_base_order() -> List[str]:
     `data/processed/icp_scored_accounts.csv`.
 
     Dynamic feature columns (e.g., spend dynamics, printer subdivision rollups,
-    percentiles, *_printers, *_cre, *_pctl) are appended in the CLI after this
+    percentiles, *_hw, *_cre, *_cpe, *_pctl) are appended in the CLI after this
     base order.
     """
     ordered: List[str] = []

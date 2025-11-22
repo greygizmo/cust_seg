@@ -14,6 +14,7 @@ from icp.schema import (
     canonicalize_customer_id,
 )
 from icp.etl.cleaner import clean_name
+from icp.features.engineering import _attach_helper_frame
 
 # TODO: Move these to configuration
 ROOT = Path(__file__).resolve().parents[3]
@@ -146,6 +147,8 @@ def load_industry_enrichment() -> pd.DataFrame:
         if "Reasoning" in df.columns:
             cols_to_return.append("Reasoning")
             print("[INFO] Including 'Reasoning' column from industry enrichment")
+        if "Cleaned Customer Name" in df.columns:
+            cols_to_return.append("Cleaned Customer Name")
         if "Customer" in df.columns:
             # Preserve the CRM string for name-based matching (e.g., "439775 Compusult Limited")
             df = df.rename(columns={"Customer": "CRM Full Name"})
@@ -199,6 +202,8 @@ def apply_industry_enrichment(df: pd.DataFrame, enrichment_df: pd.DataFrame) -> 
         updated["Industry_Reasoning"] = updated["Reasoning"]
         reasoning_matches = updated["Industry_Reasoning"].notna().sum()
         print(f"[INFO] Added reasoning for {reasoning_matches} customers")
+    else:
+        updated["Industry_Reasoning"] = pd.NA
     
     # Secondary match by CRM Full Name for any rows still missing Industry
     if COL_INDUSTRY in updated.columns and 'CRM Full Name' in enrichment_df.columns:
@@ -227,10 +232,54 @@ def apply_industry_enrichment(df: pd.DataFrame, enrichment_df: pd.DataFrame) -> 
                 missing = updated[COL_INDUSTRY_SUBLIST].isna()
                 updated.loc[missing, COL_INDUSTRY_SUBLIST] = updated.loc[missing, 'Industry Sub List_by_name']
 
+    # Tertiary fallback: match on cleaned company names (CRM label or standalone company name)
+    try:
+        if 'Cleaned Customer Name' in enrichment_df.columns:
+            name_source_col = 'Cleaned Customer Name'
+        elif 'CRM Full Name' in enrichment_df.columns:
+            name_source_col = 'CRM Full Name'
+        else:
+            name_source_col = None
+
+        if name_source_col:
+            if COL_COMPANY_NAME in updated.columns:
+                updated['_company_match_key'] = updated[COL_COMPANY_NAME].map(clean_name)
+            elif 'CRM Full Name' in updated.columns:
+                updated['_company_match_key'] = updated['CRM Full Name'].map(clean_name)
+            else:
+                updated['_company_match_key'] = None
+
+            slim = enrichment_df[[name_source_col, COL_INDUSTRY, COL_INDUSTRY_SUBLIST]].copy()
+            if "Reasoning" in enrichment_df.columns:
+                slim["Industry_Reasoning_by_name"] = enrichment_df["Reasoning"]
+            slim['_company_match_key'] = slim[name_source_col].map(clean_name)
+            slim = slim.dropna(subset=['_company_match_key']).drop_duplicates(subset=['_company_match_key'])
+            keep_cols = ['_company_match_key', COL_INDUSTRY, COL_INDUSTRY_SUBLIST]
+            if "Industry_Reasoning_by_name" in slim.columns:
+                keep_cols.append("Industry_Reasoning_by_name")
+            updated = updated.merge(
+                slim[keep_cols],
+                on="_company_match_key",
+                how="left",
+                suffixes=("", "_name_fallback"),
+            )
+            if f"{COL_INDUSTRY}_name_fallback" in updated.columns:
+                mask_ind = updated[COL_INDUSTRY].isna() & updated[f"{COL_INDUSTRY}_name_fallback"].notna()
+                updated.loc[mask_ind, COL_INDUSTRY] = updated.loc[mask_ind, f"{COL_INDUSTRY}_name_fallback"]
+            if f"{COL_INDUSTRY_SUBLIST}_name_fallback" in updated.columns:
+                mask_sub = updated[COL_INDUSTRY_SUBLIST].isna() & updated[f"{COL_INDUSTRY_SUBLIST}_name_fallback"].notna()
+                updated.loc[mask_sub, COL_INDUSTRY_SUBLIST] = updated.loc[mask_sub, f"{COL_INDUSTRY_SUBLIST}_name_fallback"]
+            if "Industry_Reasoning_by_name" in updated.columns:
+                mask_reason = updated["Industry_Reasoning"].isna() & updated["Industry_Reasoning_by_name"].notna()
+                updated.loc[mask_reason, "Industry_Reasoning"] = updated.loc[mask_reason, "Industry_Reasoning_by_name"]
+    except Exception as e:
+        print(f"[WARN] Name-based industry enrichment failed: {e}")
+
     # Clean up temporary columns
+    drop_exact = {"Reasoning", "Industry_by_name", "Industry Sub List_by_name", "_company_match_key", "Industry_Reasoning_by_name"}
     cols_to_drop = [
-        col for col in updated.columns 
-        if col.endswith(("_original", "_enriched")) or col in ("Reasoning", "Industry_by_name", "Industry Sub List_by_name")
+        col for col in updated.columns
+        if col.endswith(("_original", "_enriched", "_name_fallback")) or col in drop_exact
     ]
     updated = updated.drop(columns=[c for c in cols_to_drop if c in updated.columns])
 
@@ -287,6 +336,18 @@ def assemble_master_from_db() -> pd.DataFrame:
         print("  - Fetching assets for cold customer identification...")
         assets_all = da.get_assets_and_seats(engine)
         print(f"  - Assets fetched: {len(assets_all)} rows")
+        # Backfill Goal using product tags when missing
+        try:
+            tags = da.get_product_tags(engine)
+            if not tags.empty:
+                tags = tags.dropna(subset=["item_rollup"]).copy()
+                tags["item_rollup_norm"] = tags["item_rollup"].astype(str).str.strip().str.lower()
+                tag_map = dict(zip(tags["item_rollup_norm"], tags["Goal"]))
+                assets_all["item_rollup_norm"] = assets_all["item_rollup"].astype(str).str.strip().str.lower()
+                fill = assets_all["Goal"].fillna(assets_all["item_rollup_norm"].map(tag_map))
+                assets_all["Goal"] = fill
+        except Exception as e:
+            print(f"[WARN] Could not backfill asset Goal from tags: {e}")
         assets = assets_all.copy()
         if COL_CUSTOMER_ID in assets.columns:
             assets[COL_CUSTOMER_ID] = canonicalize_customer_id(assets[COL_CUSTOMER_ID])
@@ -402,12 +463,45 @@ def assemble_master_from_db() -> pd.DataFrame:
     print("  - Fetching profit by rollup...")
     profit_rollup = da.get_profit_since_2023_by_rollup(engine)
     print(f"  - Profit by rollup fetched: {len(profit_rollup)} rows")
+    # Backfill Goal for rollups using product tags when missing
+    try:
+        if 'tags' not in locals():
+            tags = da.get_product_tags(engine)
+        if not profit_rollup.empty and not tags.empty:
+            tags = tags.dropna(subset=["item_rollup"]).copy()
+            tags["item_rollup_norm"] = tags["item_rollup"].astype(str).str.strip().str.lower()
+            tag_map = dict(zip(tags["item_rollup_norm"], tags["Goal"]))
+            profit_rollup["item_rollup_norm"] = profit_rollup["item_rollup"].astype(str).str.strip().str.lower()
+            profit_rollup["Goal"] = profit_rollup["Goal"].fillna(profit_rollup["item_rollup_norm"].map(tag_map))
+    except Exception as e:
+        print(f"[WARN] Could not backfill profit rollup Goal from tags: {e}")
+    # Rebuild profit_goal from rollup (after backfill) for consistency
+    try:
+        if not profit_rollup.empty:
+            profit_goal = (
+                profit_rollup.groupby([COL_CUSTOMER_ID, "Goal"])["Profit_Since_2023"]
+                .sum()
+                .reset_index()
+            )
+    except Exception as e:
+        print(f"[WARN] Could not rebuild profit_goal from rollup: {e}")
     
     print("  - Fetching quarterly profit by goal...")
     profit_quarterly = da.get_quarterly_profit_by_goal(engine)
     print(f"  - Quarterly profit by goal fetched: {len(profit_quarterly)} rows")
-    # gp_last90 = da.get_profit_last_days(engine, 90) # Unused in assembly?
-    # gp_monthly12 = da.get_monthly_profit_last_n(engine, 12) # Unused in assembly?
+    try:
+        print("  - Fetching GP history windows...")
+        gp_last90 = da.get_profit_last_days(engine, 90)
+        print(f"  - GP last 90 days fetched: {len(gp_last90)} rows")
+    except Exception as e:
+        print(f"[WARN] Could not fetch GP last 90 days: {e}")
+        gp_last90 = pd.DataFrame()
+    try:
+        gp_monthly12 = da.get_monthly_profit_last_n(engine, 12)
+        print(f"  - Monthly GP (12M) fetched: {len(gp_monthly12)} rows")
+    except Exception as e:
+        print(f"[WARN] Could not fetch monthly GP history: {e}")
+        gp_monthly12 = pd.DataFrame()
 
     # Assets & seats
     # assets = da.get_assets_and_seats(engine) # Already fetched above as assets_all
@@ -571,5 +665,27 @@ def assemble_master_from_db() -> pd.DataFrame:
         if parts:
             agg = pd.concat(parts, axis=1).reset_index()
             master = master.merge(agg, on=COL_CUSTOMER_ID, how="left")
+
+    # Attach helper frames for downstream feature engineering (adoption/relationship, ALS, momentum)
+    try:
+        _attach_helper_frame(master, "_assets_raw", assets_all if "assets_all" in locals() else pd.DataFrame())
+    except Exception as e:
+        print(f"[WARN] Could not attach assets frame: {e}")
+    try:
+        _attach_helper_frame(master, "_profit_rollup_raw", profit_rollup if "profit_rollup" in locals() else pd.DataFrame())
+    except Exception as e:
+        print(f"[WARN] Could not attach profit rollup frame: {e}")
+    try:
+        _attach_helper_frame(master, "_profit_goal_raw", profit_goal if "profit_goal" in locals() else pd.DataFrame())
+    except Exception as e:
+        print(f"[WARN] Could not attach profit goal frame: {e}")
+    try:
+        _attach_helper_frame(master, "_gp_last90", gp_last90 if "gp_last90" in locals() else pd.DataFrame())
+    except Exception as e:
+        print(f"[WARN] Could not attach GP last90 frame: {e}")
+    try:
+        _attach_helper_frame(master, "_gp_monthly12", gp_monthly12 if "gp_monthly12" in locals() else pd.DataFrame())
+    except Exception as e:
+        print(f"[WARN] Could not attach monthly GP frame: {e}")
 
     return master

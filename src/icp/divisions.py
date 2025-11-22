@@ -90,14 +90,14 @@ _BASE_CONFIGS: Dict[str, DivisionConfig] = {
         adoption=AdoptionConfig(
             asset_column="cre_adoption_assets",
             profit_column="cre_adoption_profit",
-            # CRE adoption considers CAD and Specialty Software divisions
-            asset_goals=("CAD", "Specialty Software"),
-            profit_goals=("CAD", "Specialty Software"),
-            fallback_revenue_columns=("CAD", "Specialty Software"),
+            # CRE adoption considers CAD, Specialty Software, Draftsight, Miscellaneous, Training
+            asset_goals=("CAD", "Specialty Software", "Draftsight", "Miscellaneous", "Training"),
+            profit_goals=("CAD", "Specialty Software", "Draftsight", "Miscellaneous", "Training"),
+            fallback_revenue_columns=("CAD", "Specialty Software", "Draftsight", "Miscellaneous", "Training"),
         ),
         relationship=RelationshipConfig(
             profit_column="cre_relationship_profit",
-            profit_goals=("Specialty Software", "Training/Services"),
+            profit_goals=("Specialty Software", "Draftsight", "Miscellaneous", "Training/Services", "Training"),
             revenue_fallback_columns=(
                 "Total Software License Revenue",
                 "Total SaaS Revenue",

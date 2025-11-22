@@ -38,8 +38,24 @@ def _logit_cols(df: pd.DataFrame, cols: List[str], eps: float = 1e-3) -> pd.Data
 
 
 def _build_numeric_block(accounts: pd.DataFrame, cfg: Dict) -> np.ndarray:
-    drop = {"account_id", "account_name", "as_of_date", "run_timestamp_utc", "industry", "segment", "territory", cfg.get("text_column", "industry_reasoning")}
-    candidates = [c for c in accounts.columns if c not in drop and accounts[c].dtype.kind in "fc"]
+    drop = {
+        "account_id",
+        "account_name",
+        "as_of_date",
+        "run_timestamp_utc",
+        "industry",
+        "segment",
+        "territory",
+    }
+    # Explicit text columns should not bleed into numeric block
+    for tcol in cfg.get("text_columns", [cfg.get("text_column", "industry_reasoning")]):
+        drop.add(tcol)
+
+    explicit = cfg.get("numeric_include")
+    if explicit:
+        candidates = [c for c in explicit if c in accounts.columns]
+    else:
+        candidates = [c for c in accounts.columns if c not in drop and accounts[c].dtype.kind in "fc"]
     if not candidates:
         return np.zeros((len(accounts), 1), dtype="float32")
     df = accounts[candidates].copy()
@@ -147,9 +163,14 @@ def build_neighbors(accounts_df: pd.DataFrame, tx_joined: pd.DataFrame, cfg: Dic
     X_cat, _ = _build_categorical_block(accounts_df)
 
     # Text block
-    text_col = cfg.get("text_column", "industry_reasoning")
-    if text_col in accounts_df.columns and cfg.get("use_text", True):
-        X_txt = embed_text(accounts_df[text_col])
+    text_cols = cfg.get("text_columns") or [cfg.get("text_column", "industry_reasoning")]
+    if cfg.get("use_text", True):
+        available = [c for c in text_cols if c in accounts_df.columns]
+        if available:
+            text_series = accounts_df[available].astype(str).agg(" // ".join, axis=1)
+            X_txt = embed_text(text_series)
+        else:
+            X_txt = np.zeros((len(accounts_df), 1), dtype="float32")
     else:
         X_txt = np.zeros((len(accounts_df), 1), dtype="float32")
 

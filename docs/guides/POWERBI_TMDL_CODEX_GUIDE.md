@@ -81,6 +81,9 @@ A typical TMDL folder for one model (dataset):
 └── tables/
     ├── <TableA>.tmdl
     ├── <TableB>.tmdl
+    ├── icp_scored_accounts.tmdl
+    ├── icp_account_playbooks.tmdl
+    ├── account_neighbors.tmdl
     └── ...
 ```
 
@@ -409,6 +412,14 @@ using (var server = new Server())
 8. **Partitions:** For Import, ensure M scripts are source-parameterized (e.g., `ServerName`) to support environment promotion.  
 9. **Error Surfacing:** Emit minimal but actionable error messages; include file and line numbers when possible.  
 10. **Idempotence:** Generate TMDL that can be applied repeatedly without drift (avoid volatile ordering; let serializer manage `ref`).
+
+### SQL-First Patterns
+When migrating from CSV to SQL sources:
+1.  **M Query Updates**: Replace `Csv.Document` with `Sql.Database`.
+2.  **Type Mapping**: SQL sources have typed columns, so `Table.TransformColumnTypes` may be redundant but is often kept for explicit safety in Power BI.
+3.  **Server/DB Parameters**: Use variables or parameters for `ServerName` and `DatabaseName` to facilitate environment switching (Dev/Prod).
+4.  **Direct Query vs Import**: Default to Import for performance unless real-time data is strictly required.
+5.  **TMDL Partitions**: Ensure the `partition` block in TMDL reflects the new M script.
 
 ---
 

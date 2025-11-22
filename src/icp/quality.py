@@ -1,7 +1,6 @@
-"""
-Data quality and validation schemas using Pandera.
-"""
-import pandera as pa
+"""Data quality and validation schemas using Pandera."""
+
+import pandera.pandas as pa
 from pandera.typing import Series
 import pandas as pd
 from typing import Optional
@@ -94,9 +93,9 @@ def validate_outputs(
             # But we can check for the ones in ICP_SCHEMA_SCORES
             # For now, just validate the base schema
             ScoredAccountsSchema.validate(df)
-            print(f"✅ Scored accounts valid: {scored_path}")
+            print(f"[OK] Scored accounts valid: {scored_path}")
         except Exception as e:
-            print(f"❌ Scored accounts invalid: {scored_path}")
+            print(f"[WARN] Scored accounts invalid: {scored_path}")
             print(e)
             all_valid = False
             if raise_error:
@@ -107,9 +106,9 @@ def validate_outputs(
         try:
             df = pd.read_csv(neighbors_path)
             NeighborsSchema.validate(df)
-            print(f"✅ Neighbors valid: {neighbors_path}")
+            print(f"[OK] Neighbors valid: {neighbors_path}")
         except Exception as e:
-            print(f"❌ Neighbors invalid: {neighbors_path}")
+            print(f"[WARN] Neighbors invalid: {neighbors_path}")
             print(e)
             all_valid = False
             if raise_error:
@@ -120,9 +119,9 @@ def validate_outputs(
         try:
             df = pd.read_csv(playbooks_path)
             PlaybooksSchema.validate(df)
-            print(f"✅ Playbooks valid: {playbooks_path}")
+            print(f"[OK] Playbooks valid: {playbooks_path}")
         except Exception as e:
-            print(f"❌ Playbooks invalid: {playbooks_path}")
+            print(f"[WARN] Playbooks invalid: {playbooks_path}")
             print(e)
             all_valid = False
             if raise_error:

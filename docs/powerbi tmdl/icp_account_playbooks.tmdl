@@ -1,0 +1,122 @@
+table icp_account_playbooks
+	lineageTag: 9d8f7e6a-5b4c-4d3e-9f8a-7b6c5d4e3f2a
+
+	column customer_id
+		dataType: string
+		summarizeBy: none
+		sourceColumn: customer_id
+
+	column 'Customer ID'
+		dataType: string
+		summarizeBy: none
+		sourceColumn: "Customer ID"
+
+	column 'Company Name'
+		dataType: string
+		summarizeBy: none
+		sourceColumn: "Company Name"
+
+	column playbook_primary
+		dataType: string
+		summarizeBy: none
+		sourceColumn: playbook_primary
+
+	column playbook_tags
+		dataType: string
+		summarizeBy: none
+		sourceColumn: playbook_tags
+
+	column playbook_rationale
+		dataType: string
+		summarizeBy: none
+		sourceColumn: playbook_rationale
+
+	column GP_Since_2023_Total
+		dataType: double
+		summarizeBy: sum
+		sourceColumn: GP_Since_2023_Total
+
+	column ICP_score_hardware
+		dataType: double
+		summarizeBy: sum
+		sourceColumn: ICP_score_hardware
+
+	column ICP_grade_hardware
+		dataType: string
+		summarizeBy: none
+		sourceColumn: ICP_grade_hardware
+
+	column ICP_score_cre
+		dataType: double
+		summarizeBy: sum
+		sourceColumn: ICP_score_cre
+
+	column ICP_grade_cre
+		dataType: string
+		summarizeBy: none
+		sourceColumn: ICP_grade_cre
+
+	column whitespace_score
+		dataType: double
+		summarizeBy: sum
+		sourceColumn: whitespace_score
+
+	column hw_share_12m
+		dataType: double
+		summarizeBy: sum
+		sourceColumn: hw_share_12m
+
+	column sw_share_12m
+		dataType: double
+		summarizeBy: sum
+		sourceColumn: sw_share_12m
+
+	column CRE_Training
+		dataType: double
+		summarizeBy: sum
+		sourceColumn: CRE_Training
+
+	column days_since_last_order
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: days_since_last_order
+
+	column customer_segment
+		dataType: string
+		summarizeBy: none
+		sourceColumn: customer_segment
+
+	column recency_bucket
+		dataType: string
+		summarizeBy: none
+		sourceColumn: recency_bucket
+
+	column is_hero
+		dataType: boolean
+		summarizeBy: none
+		sourceColumn: is_hero
+
+	column is_hero_neighbor
+		dataType: boolean
+		summarizeBy: none
+		sourceColumn: is_hero_neighbor
+
+	column is_hero_orphan_neighbor
+		dataType: boolean
+		summarizeBy: none
+		sourceColumn: is_hero_orphan_neighbor
+
+	column hero_neighbor_count
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: hero_neighbor_count
+
+	partition icp_account_playbooks = m
+		mode: import
+		source =
+			let
+				ServerName = "sql-goeng-prod.database.windows.net",
+				DatabaseName = "db-goeng-icp-prod",
+				Source = Sql.Database(ServerName, DatabaseName, [Query="SELECT * FROM dbo.account_playbooks"])
+			in
+				Source

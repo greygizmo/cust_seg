@@ -145,7 +145,7 @@ This pipeline assembles data from Azure SQL, applies optional industry enrichmen
 
 ### Stage 5: Feature Engineering
 - Preferred adoption signals: adoption_assets and adoption_profit
-- Legacy fallback: weighted printers + HW/Consumable revenue
+- Dynamics: hardware/CRE/CPE spend trajectories at 13W and 12/24/36M horizons (no 52W/printer-only dynamics)
 - Relationship: relationship_profit preferred; fallback to software revenues
 
 ### Stage 6: Industry Weights

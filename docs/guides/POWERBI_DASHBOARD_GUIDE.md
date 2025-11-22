@@ -66,24 +66,24 @@ These are convenience tables: you can also drive everything directly off the sin
 
 ## 2. Loading Data into Power BI
 
-### 2.1 Load from CSV (recommended to start)
+### 2.1 Load from SQL (Recommended)
+
+1. **Get Data → SQL Server**.
+2. Server: `sql-goeng-prod.database.windows.net` (or check `AZSQL_SERVER` env var).
+3. Database: `db-goeng-icp-prod` (or check `ICP_AZSQL_DB` env var).
+4. Select `dbo.customer_icp`, `dbo.account_neighbors`, and `dbo.account_playbooks`.
+5. Ensure `Customer ID` is text (not Whole Number) in all tables.
+6. Rename `dbo.customer_icp` to `icp_scored_accounts v1.5` (to match TMDL).
+7. Rename `dbo.account_neighbors` to `account_neighbors`.
+8. Rename `dbo.account_playbooks` to `icp_account_playbooks` (to match TMDL).
+
+### 2.2 Load from CSV (Legacy/Local Dev)
 
 1. In Power BI Desktop: **Home → Get Data → Text/CSV**.
 2. Browse to `data/processed/icp_scored_accounts.csv`.
-3. In the preview, ensure **`Customer ID` is type *Text*** (not Whole Number or Decimal).
-4. Load. Rename the table to `icp_scored_accounts` (or `icp_scored_accounts v1` if you want to match the existing measures file).
-5. Repeat for:
-   - `artifacts/account_neighbors.csv` (optional)
-   - One of the dated folders under `reports/call_lists/` (optional)
-
-### 2.2 Load from SQL (optional)
-
-If you publish to `dbo.customer_icp` via `publish_scored_to_db.py`:
-
-1. **Get Data → SQL Server**.
-2. Server: use `AZSQL_SERVER`; Database: `ICP_AZSQL_DB` (from `.env`).
-3. Select `dbo.customer_icp` and import.
-4. Ensure `Customer ID` is text and otherwise follow the same modeling guidance.
+3. In the preview, ensure **`Customer ID` is type *Text***.
+4. Load.
+5. Repeat for `artifacts/account_neighbors.csv`.
 
 ---
 

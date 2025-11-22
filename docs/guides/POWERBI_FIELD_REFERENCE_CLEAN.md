@@ -77,7 +77,7 @@ Division adoption inputs (for traceability):
 
 CRE dynamics and breadth (scoped to CRE signals):
 - `spend_13w_cre`, `spend_13w_prior_cre`, `delta_13w_cre`, `delta_13w_pct_cre`.
-- `spend_12m_cre`, `spend_52w_cre`, `yoy_13w_pct_cre`.
+- `spend_12m_cre`, `spend_12m_prior_cre`, `delta_12m_cre`, `delta_12m_pct_cre`, `spend_24m_cre`, `spend_36m_cre`, `yoy_13w_pct_cre`.
 - `slope_13w_cre`, `slope_13w_prior_cre`, `acceleration_13w_cre`, `volatility_13w_cre`, `seasonality_factor_13w_cre`.
 - `days_since_last_cre_order`, `recency_score_cre`.
 - `breadth_cre_rollup_12m`, `max_cre_rollup`, `breadth_score_cre`.
@@ -85,7 +85,7 @@ CRE dynamics and breadth (scoped to CRE signals):
 ### List-Builder Dynamics and Mix (Company-Wide)
 
 Core dynamics:
-- `spend_13w`, `spend_13w_prior`, `delta_13w`, `delta_13w_pct`, `spend_12m`, `spend_52w`, `yoy_13w_pct`.
+- `spend_13w`, `spend_13w_prior`, `delta_13w`, `delta_13w_pct`, `spend_12m`, `spend_12m_prior`, `delta_12m`, `delta_12m_pct`, `spend_24m`, `spend_24m_prior`, `delta_24m`, `delta_24m_pct`, `spend_36m`, `spend_36m_prior`, `delta_36m`, `delta_36m_pct`, `yoy_13w_pct`.
 - `days_since_last_order`, `active_weeks_13w`, `purchase_streak_months`, `median_interpurchase_days`.
 - `slope_13w`, `slope_13w_prior`, `acceleration_13w`, `volatility_13w`, `seasonality_factor_13w`.
 
@@ -144,14 +144,14 @@ The similarity engine combines four normalized blocks before computing cosine ne
 
 | Block | Inputs | Transform Highlights |
 |-------|--------|----------------------|
-| Numeric | All float columns from `icp_scored_accounts` except IDs/timestamps/factors already used elsewhere. This includes the GP windows (`GP_Since_2023_Total`, `GP_T4Q_Total`, `GP_LastQ_Total`, `GP_PrevQ_Total`), QoQ deltas, `ICP_score_hardware`, `ICP_score_cre`, adoption components, HW/CRE share metrics, whitespace scores, training ratios, CRE_Training, printer rollups (GP/Qty), cadence/recency/momentum scores, percentile helpers, and cross-division levers (`cross_division_balance_score`, `hw_to_sw_cross_sell_score`, etc.). | `log1p` applied to GP windows and total software license revenue. `logit` applied to share/score fields (`hw_share_12m`, `sw_share_12m`, `recency_score`, `magnitude_score`, `cadence_score`, `breadth_score_hw`). All numeric features are winsorized at 1% and converted to robust z-scores. |
+| Numeric | Curated signals: ICP components (HW/CRE/CPE adoption/relationship/vertical scores), momentum components, 12/24/36M spend and deltas (global + HW/CRE/CPE), 13W deltas/YoY, breadth/recency/whitespace/cross-division balance, adoption GP/assets, relationship GP, profit totals (`GP_Since_2023_Total`, `GP_T4Q_Total`, `GP_LastQ_Total`, `GP_QoQ_Growth`). Falls back to all numeric columns if a curated field is missing. | `log1p` on heavy-tailed spend/GP fields; `logit` on bounded shares/ratios (`hw_share_12m`, `sw_share_12m`, `sw_dominance_score`, `cross_division_balance_score`, `hw_to_sw_cross_sell_score`, `sw_to_hw_cross_sell_score`, `breadth_score_hw`, `breadth_score_cre`, `top_subdivision_share_12m`). Winsorize at 1% then robust z-score. |
 | Categorical | `industry`, `segment` (activity), `territory` (AM), `top_subdivision_12m`. | One-hot encoded and L2-normalized. |
-| Text | `industry_reasoning` enrichment notes. | Embedded via `features/text_embed.py` (currently OpenAI/miniLM). |
+| Text | Concatenated `Industry_Reasoning`, `pov_tags_all`, `account_name` (configurable). | Embedded via `features/text_embed.py` (MiniLM/transformer). |
 | ALS | Account vectors built from Azure SQL profit rollup + assets (`_profit_rollup_raw`, `_assets_raw`), mixing rollup and goal level factors. | Implicit ALS with BM25 weighting, configurable factors/weights. |
 
 Default block weights (`[similarity]` in `config.toml`):
-- `w_numeric = 0.50`
-- `w_categorical = 0.15`
+- `w_numeric = 0.45`
+- `w_categorical = 0.20`
 - `w_text = 0.25`
 - `w_als = 0.10`
 

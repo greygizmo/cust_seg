@@ -1,0 +1,72 @@
+table account_neighbors
+	lineageTag: 1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d
+
+	column account_id
+		dataType: string
+		summarizeBy: none
+		sourceColumn: account_id
+
+	column neighbor_account_id
+		dataType: string
+		summarizeBy: none
+		sourceColumn: neighbor_account_id
+
+	column neighbor_rank
+		dataType: int64
+		summarizeBy: sum
+		sourceColumn: neighbor_rank
+
+	column sim_overall
+		dataType: double
+		summarizeBy: sum
+		sourceColumn: sim_overall
+
+	column sim_numeric
+		dataType: double
+		summarizeBy: sum
+		sourceColumn: sim_numeric
+
+	column sim_categorical
+		dataType: double
+		summarizeBy: sum
+		sourceColumn: sim_categorical
+
+	column sim_text
+		dataType: double
+		summarizeBy: sum
+		sourceColumn: sim_text
+
+	column sim_als
+		dataType: double
+		summarizeBy: sum
+		sourceColumn: sim_als
+
+	column neighbor_account_name
+		dataType: string
+		summarizeBy: none
+		sourceColumn: neighbor_account_name
+
+	column neighbor_industry
+		dataType: string
+		summarizeBy: none
+		sourceColumn: neighbor_industry
+
+	column neighbor_segment
+		dataType: string
+		summarizeBy: none
+		sourceColumn: neighbor_segment
+
+	column neighbor_territory
+		dataType: string
+		summarizeBy: none
+		sourceColumn: neighbor_territory
+
+	partition account_neighbors = m
+		mode: import
+		source =
+			let
+				ServerName = "sql-goeng-prod.database.windows.net",
+				DatabaseName = "db-goeng-icp-prod",
+				Source = Sql.Database(ServerName, DatabaseName, [Query="SELECT * FROM dbo.account_neighbors"])
+			in
+				Source

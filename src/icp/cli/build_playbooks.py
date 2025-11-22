@@ -67,6 +67,35 @@ def build_playbooks(scored_path: Path, neighbors_path: Path, out_path: Path) -> 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     artifact.to_csv(out_path, index=False)
     print(f"[INFO] Wrote playbooks artifact: {out_path}")
+
+    # Database Persistence for Playbooks
+    try:
+        import os
+        import icp.data_access as da
+        from sqlalchemy import text
+        
+        icp_db = os.getenv("ICP_AZSQL_DB", "").strip()
+        if icp_db:
+            print(f"[INFO] Writing playbooks to {icp_db}.dbo.account_playbooks")
+            engine = da.get_engine(database=icp_db)
+            
+            playbooks_db = artifact.copy()
+            
+            with engine.connect() as conn:
+                conn.execute(text("DROP TABLE IF EXISTS dbo.account_playbooks"))
+                conn.commit()
+
+            playbooks_db.to_sql(
+                "account_playbooks",
+                engine,
+                schema="dbo",
+                if_exists="replace",
+                index=False,
+                chunksize=5000,
+            )
+            print("[INFO] Wrote playbooks to dbo.account_playbooks")
+    except Exception as e:
+        print(f"[WARN] Failed to write playbooks to database: {e}")
     return out_path
 
 

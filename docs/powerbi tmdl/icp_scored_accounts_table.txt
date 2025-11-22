@@ -1245,11 +1245,111 @@ createOrReplace
 
 			annotation PBI_FormatHint = {"isGeneralNumber":true}
 
-		column spend_52w
+		column spend_12m_prior
 			dataType: double
 			lineageTag: 1203a79e-1369-4770-9f98-c84b2e588b01
 			summarizeBy: sum
-			sourceColumn: spend_52w
+			sourceColumn: spend_12m_prior
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column delta_12m
+			dataType: double
+			lineageTag: 7ea53d0f-6ccb-4fa2-988d-cf100f5af52a
+			summarizeBy: sum
+			sourceColumn: delta_12m
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column delta_12m_pct
+			dataType: double
+			lineageTag: f6be16e5-ad82-4721-a4a1-b96ae663025f
+			summarizeBy: sum
+			sourceColumn: delta_12m_pct
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column spend_24m
+			dataType: double
+			lineageTag: bc0c3013-3a36-4bdc-be24-719ea504cb2c
+			summarizeBy: sum
+			sourceColumn: spend_24m
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column spend_24m_prior
+			dataType: double
+			lineageTag: 1203a79e-1369-4770-9f98-c84b2e588b01
+			summarizeBy: sum
+			sourceColumn: spend_24m_prior
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column delta_24m
+			dataType: double
+			lineageTag: 7ea53d0f-6ccb-4fa2-988d-cf100f5af52a
+			summarizeBy: sum
+			sourceColumn: delta_24m
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column delta_24m_pct
+			dataType: double
+			lineageTag: f6be16e5-ad82-4721-a4a1-b96ae663025f
+			summarizeBy: sum
+			sourceColumn: delta_24m_pct
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column spend_36m
+			dataType: double
+			lineageTag: bc0c3013-3a36-4bdc-be24-719ea504cb2c
+			summarizeBy: sum
+			sourceColumn: spend_36m
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column spend_36m_prior
+			dataType: double
+			lineageTag: 1203a79e-1369-4770-9f98-c84b2e588b01
+			summarizeBy: sum
+			sourceColumn: spend_36m_prior
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column delta_36m
+			dataType: double
+			lineageTag: 7ea53d0f-6ccb-4fa2-988d-cf100f5af52a
+			summarizeBy: sum
+			sourceColumn: delta_36m
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column delta_36m_pct
+			dataType: double
+			lineageTag: f6be16e5-ad82-4721-a4a1-b96ae663025f
+			summarizeBy: sum
+			sourceColumn: delta_36m_pct
 
 			annotation SummarizationSetBy = Automatic
 
@@ -1652,141 +1752,241 @@ createOrReplace
 
 			annotation SummarizationSetBy = Automatic
 
-		column spend_13w_printers
+		column spend_13w_hw
 			dataType: double
 			lineageTag: 7988e98a-2bf8-4c8f-88f6-8020b97389b2
 			summarizeBy: sum
-			sourceColumn: spend_13w_printers
+			sourceColumn: spend_13w_hw
 
 			annotation SummarizationSetBy = Automatic
 
 			annotation PBI_FormatHint = {"isGeneralNumber":true}
 
-		column spend_13w_prior_printers
+		column spend_13w_prior_hw
 			dataType: double
 			lineageTag: 314fadff-c811-4dff-b2b7-34ee8351b051
 			summarizeBy: sum
-			sourceColumn: spend_13w_prior_printers
+			sourceColumn: spend_13w_prior_hw
 
 			annotation SummarizationSetBy = Automatic
 
 			annotation PBI_FormatHint = {"isGeneralNumber":true}
 
-		column delta_13w_printers
+		column delta_13w_hw
 			dataType: double
 			lineageTag: ce141010-d6fb-4a7b-8edd-66ec86cfdd1f
 			summarizeBy: sum
-			sourceColumn: delta_13w_printers
+			sourceColumn: delta_13w_hw
 
 			annotation SummarizationSetBy = Automatic
 
 			annotation PBI_FormatHint = {"isGeneralNumber":true}
 
-		column delta_13w_pct_printers
+		column delta_13w_pct_hw
 			dataType: double
 			lineageTag: 01bdd870-c5fd-411f-aa88-80a79abd3b4e
 			summarizeBy: sum
-			sourceColumn: delta_13w_pct_printers
+			sourceColumn: delta_13w_pct_hw
 
 			annotation SummarizationSetBy = Automatic
 
 			annotation PBI_FormatHint = {"isGeneralNumber":true}
 
-		column spend_12m_printers
+		column spend_12m_hw
 			dataType: double
 			lineageTag: e45dc3cf-ef7d-4866-9743-f1d0b7cd1402
 			summarizeBy: sum
-			sourceColumn: spend_12m_printers
+			sourceColumn: spend_12m_hw
 
 			annotation SummarizationSetBy = Automatic
 
 			annotation PBI_FormatHint = {"isGeneralNumber":true}
 
-		column spend_52w_printers
+		column spend_12m_prior_hw
 			dataType: double
 			lineageTag: e000b05a-2b2d-45a1-995b-9089f42fd87e
 			summarizeBy: sum
-			sourceColumn: spend_52w_printers
+			sourceColumn: spend_12m_prior_hw
 
 			annotation SummarizationSetBy = Automatic
 
 			annotation PBI_FormatHint = {"isGeneralNumber":true}
 
-		column yoy_13w_pct_printers
+		column delta_12m_hw
+			dataType: double
+			lineageTag: 7ea53d0f-6ccb-4fa2-988d-cf100f5af52a
+			summarizeBy: sum
+			sourceColumn: delta_12m_hw
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column delta_12m_pct_hw
+			dataType: double
+			lineageTag: f6be16e5-ad82-4721-a4a1-b96ae663025f
+			summarizeBy: sum
+			sourceColumn: delta_12m_pct_hw
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column spend_24m_hw
+			dataType: double
+			lineageTag: bc0c3013-3a36-4bdc-be24-719ea504cb2c
+			summarizeBy: sum
+			sourceColumn: spend_24m_hw
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column spend_24m_prior_hw
+			dataType: double
+			lineageTag: 1203a79e-1369-4770-9f98-c84b2e588b01
+			summarizeBy: sum
+			sourceColumn: spend_24m_prior_hw
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column delta_24m_hw
+			dataType: double
+			lineageTag: 7ea53d0f-6ccb-4fa2-988d-cf100f5af52a
+			summarizeBy: sum
+			sourceColumn: delta_24m_hw
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column delta_24m_pct_hw
+			dataType: double
+			lineageTag: f6be16e5-ad82-4721-a4a1-b96ae663025f
+			summarizeBy: sum
+			sourceColumn: delta_24m_pct_hw
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column spend_36m_hw
+			dataType: double
+			lineageTag: bc0c3013-3a36-4bdc-be24-719ea504cb2c
+			summarizeBy: sum
+			sourceColumn: spend_36m_hw
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column spend_36m_prior_hw
+			dataType: double
+			lineageTag: 1203a79e-1369-4770-9f98-c84b2e588b01
+			summarizeBy: sum
+			sourceColumn: spend_36m_prior_hw
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column delta_36m_hw
+			dataType: double
+			lineageTag: 7ea53d0f-6ccb-4fa2-988d-cf100f5af52a
+			summarizeBy: sum
+			sourceColumn: delta_36m_hw
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column delta_36m_pct_hw
+			dataType: double
+			lineageTag: f6be16e5-ad82-4721-a4a1-b96ae663025f
+			summarizeBy: sum
+			sourceColumn: delta_36m_pct_hw
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column yoy_13w_pct_hw
 			dataType: double
 			lineageTag: 5a952622-7912-4f57-bf84-40b72dea2393
 			summarizeBy: sum
-			sourceColumn: yoy_13w_pct_printers
+			sourceColumn: yoy_13w_pct_hw
 
 			annotation SummarizationSetBy = Automatic
 
 			annotation PBI_FormatHint = {"isGeneralNumber":true}
 
-		column slope_13w_printers
+		column slope_13w_hw
 			dataType: double
 			lineageTag: 41910c0f-54e3-4161-ba52-54d49ce47a8b
 			summarizeBy: sum
-			sourceColumn: slope_13w_printers
+			sourceColumn: slope_13w_hw
 
 			annotation SummarizationSetBy = Automatic
 
 			annotation PBI_FormatHint = {"isGeneralNumber":true}
 
-		column slope_13w_prior_printers
+		column slope_13w_prior_hw
 			dataType: double
 			lineageTag: e6bebcee-9164-415f-997e-8d7c4f5eac55
 			summarizeBy: sum
-			sourceColumn: slope_13w_prior_printers
+			sourceColumn: slope_13w_prior_hw
 
 			annotation SummarizationSetBy = Automatic
 
 			annotation PBI_FormatHint = {"isGeneralNumber":true}
 
-		column acceleration_13w_printers
+		column acceleration_13w_hw
 			dataType: double
 			lineageTag: 2adbd9c6-870a-46b7-bda8-bc8c22e302e4
 			summarizeBy: sum
-			sourceColumn: acceleration_13w_printers
+			sourceColumn: acceleration_13w_hw
 
 			annotation SummarizationSetBy = Automatic
 
 			annotation PBI_FormatHint = {"isGeneralNumber":true}
 
-		column volatility_13w_printers
+		column volatility_13w_hw
 			dataType: double
 			lineageTag: 416e5510-9a6b-46c0-81f8-0b62d968f316
 			summarizeBy: sum
-			sourceColumn: volatility_13w_printers
+			sourceColumn: volatility_13w_hw
 
 			annotation SummarizationSetBy = Automatic
 
 			annotation PBI_FormatHint = {"isGeneralNumber":true}
 
-		column seasonality_factor_13w_printers
+		column seasonality_factor_13w_hw
 			dataType: double
 			lineageTag: a2402ad0-2b5e-425b-ba94-30b5d574eb97
 			summarizeBy: sum
-			sourceColumn: seasonality_factor_13w_printers
+			sourceColumn: seasonality_factor_13w_hw
 
 			annotation SummarizationSetBy = Automatic
 
 			annotation PBI_FormatHint = {"isGeneralNumber":true}
 
-		column days_since_last_order_printers
+		column days_since_last_hw_order
 			dataType: int64
 			formatString: 0
 			lineageTag: d1c5b697-f85c-4e76-9e8e-81a8f44c27a9
 			summarizeBy: sum
-			sourceColumn: days_since_last_order_printers
+			sourceColumn: days_since_last_hw_order
 
 			annotation SummarizationSetBy = Automatic
 
-		column active_weeks_13w_printers
+		column active_weeks_13w_hw
 			dataType: int64
 			formatString: 0
 			lineageTag: 6e93f789-dca8-4524-b5a8-601a7b6f7ff0
 			summarizeBy: sum
-			sourceColumn: active_weeks_13w_printers
+			sourceColumn: active_weeks_13w_hw
 
 			annotation SummarizationSetBy = Automatic
 
@@ -1850,51 +2050,201 @@ createOrReplace
 
 			annotation PBI_FormatHint = {"isGeneralNumber":true}
 
-		column spend_12m_printers_pctl
-			dataType: string
+		column spend_24m_pctl
+			dataType: double
 			lineageTag: 8716397d-c3e0-49a9-870d-2ae4eb9caae0
-			summarizeBy: none
-			sourceColumn: spend_12m_printers_pctl
+			summarizeBy: sum
+			sourceColumn: spend_24m_pctl
 
 			annotation SummarizationSetBy = Automatic
 
-		column spend_13w_printers_pctl
-			dataType: string
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column spend_36m_pctl
+			dataType: double
 			lineageTag: de8b4bb3-263b-4253-93e7-6224c082ff6c
-			summarizeBy: none
-			sourceColumn: spend_13w_printers_pctl
+			summarizeBy: sum
+			sourceColumn: spend_36m_pctl
 
 			annotation SummarizationSetBy = Automatic
 
-		column delta_13w_pct_printers_pctl
-			dataType: string
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column spend_12m_hw_pctl
+			dataType: double
 			lineageTag: 7d18a45f-87f2-47f3-a76f-4071895f07ea
-			summarizeBy: none
-			sourceColumn: delta_13w_pct_printers_pctl
+			summarizeBy: sum
+			sourceColumn: spend_12m_hw_pctl
 
 			annotation SummarizationSetBy = Automatic
 
-		column yoy_13w_pct_printers_pctl
-			dataType: string
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column spend_13w_hw_pctl
+			dataType: double
 			lineageTag: ab613365-d215-462a-ad0d-a40a9de0688e
-			summarizeBy: none
-			sourceColumn: yoy_13w_pct_printers_pctl
+			summarizeBy: sum
+			sourceColumn: spend_13w_hw_pctl
 
 			annotation SummarizationSetBy = Automatic
 
-		column slope_13w_printers_pctl
-			dataType: string
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column delta_13w_pct_hw_pctl
+			dataType: double
 			lineageTag: 3c656ec0-5e45-48f1-b343-2eee000b1925
-			summarizeBy: none
-			sourceColumn: slope_13w_printers_pctl
+			summarizeBy: sum
+			sourceColumn: delta_13w_pct_hw_pctl
 
 			annotation SummarizationSetBy = Automatic
 
-		column acceleration_13w_printers_pctl
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column yoy_13w_pct_hw_pctl
 			dataType: double
 			lineageTag: befd0f06-9796-4be9-b44e-ad3bc24c16cd
 			summarizeBy: sum
-			sourceColumn: acceleration_13w_printers_pctl
+			sourceColumn: yoy_13w_pct_hw_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column slope_13w_hw_pctl
+			dataType: double
+			lineageTag: 8716397d-c3e0-49a9-870d-2ae4eb9caae0
+			summarizeBy: sum
+			sourceColumn: slope_13w_hw_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column acceleration_13w_hw_pctl
+			dataType: double
+			lineageTag: de8b4bb3-263b-4253-93e7-6224c082ff6c
+			summarizeBy: sum
+			sourceColumn: acceleration_13w_hw_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column spend_12m_cre_pctl
+			dataType: double
+			lineageTag: 7d18a45f-87f2-47f3-a76f-4071895f07ea
+			summarizeBy: sum
+			sourceColumn: spend_12m_cre_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column spend_13w_cre_pctl
+			dataType: double
+			lineageTag: ab613365-d215-462a-ad0d-a40a9de0688e
+			summarizeBy: sum
+			sourceColumn: spend_13w_cre_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column delta_13w_pct_cre_pctl
+			dataType: double
+			lineageTag: 3c656ec0-5e45-48f1-b343-2eee000b1925
+			summarizeBy: sum
+			sourceColumn: delta_13w_pct_cre_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column yoy_13w_pct_cre_pctl
+			dataType: double
+			lineageTag: befd0f06-9796-4be9-b44e-ad3bc24c16cd
+			summarizeBy: sum
+			sourceColumn: yoy_13w_pct_cre_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column slope_13w_cre_pctl
+			dataType: double
+			lineageTag: 8716397d-c3e0-49a9-870d-2ae4eb9caae0
+			summarizeBy: sum
+			sourceColumn: slope_13w_cre_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column acceleration_13w_cre_pctl
+			dataType: double
+			lineageTag: de8b4bb3-263b-4253-93e7-6224c082ff6c
+			summarizeBy: sum
+			sourceColumn: acceleration_13w_cre_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column spend_12m_cpe_pctl
+			dataType: double
+			lineageTag: 7d18a45f-87f2-47f3-a76f-4071895f07ea
+			summarizeBy: sum
+			sourceColumn: spend_12m_cpe_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column spend_13w_cpe_pctl
+			dataType: double
+			lineageTag: ab613365-d215-462a-ad0d-a40a9de0688e
+			summarizeBy: sum
+			sourceColumn: spend_13w_cpe_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column delta_13w_pct_cpe_pctl
+			dataType: double
+			lineageTag: 3c656ec0-5e45-48f1-b343-2eee000b1925
+			summarizeBy: sum
+			sourceColumn: delta_13w_pct_cpe_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column yoy_13w_pct_cpe_pctl
+			dataType: double
+			lineageTag: befd0f06-9796-4be9-b44e-ad3bc24c16cd
+			summarizeBy: sum
+			sourceColumn: yoy_13w_pct_cpe_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column slope_13w_cpe_pctl
+			dataType: double
+			lineageTag: 8716397d-c3e0-49a9-870d-2ae4eb9caae0
+			summarizeBy: sum
+			sourceColumn: slope_13w_cpe_pctl
+
+			annotation SummarizationSetBy = Automatic
+
+			annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+		column acceleration_13w_cpe_pctl
+			dataType: double
+			lineageTag: de8b4bb3-263b-4253-93e7-6224c082ff6c
+			summarizeBy: sum
+			sourceColumn: acceleration_13w_cpe_pctl
 
 			annotation SummarizationSetBy = Automatic
 
@@ -2006,26 +2356,277 @@ createOrReplace
 			summarizeBy: none
 			sourceColumn: Email Link Account Primary
 
+
+
 			annotation SummarizationSetBy = Automatic
 
 		partition 'icp_scored_accounts v1.5' = m
 			mode: import
 			source =
 					let
-					    Source = Csv.Document(File.Contents("D:\OneDrive - Goengineer Inc\Documents\Manufacturing-TREID-LAP\Data Analytics\Reports\Customer Segementation\data\processed\icp_scored_accounts.csv"),[Delimiter=",", Columns=165, Encoding=1252, QuoteStyle=QuoteStyle.Csv]),
-					    #"Promoted Headers1" = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
-					    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers1",{{"Customer ID", type number}, {"Company Name", type text}, {"activity_segment", type text}, {"am_sales_rep", type text}, {"AM_Territory", type text}, {"edu_assets", type text}, {"RP_Primary_Name", type text}, {"RP_Primary_Email", type text}, {"RP_Primary_Phone", type text}, {"Primary_Contact_Name", type text}, {"Primary_Contact_Email", type text}, {"Primary_Contact_Phone", type text}, {"Name", type text}, {"email", type text}, {"phone", type text}, {"ShippingAddr1", type text}, {"ShippingAddr2", type text}, {"ShippingCity", type text}, {"ShippingState", type text}, {"ShippingZip", type text}, {"ShippingCountry", type text}, {"Industry", type text}, {"Industry Sub List", type text}, {"Industry_Reasoning", type text}, {"Hardware_score", type number}, {"Software_score", type number}, {"GP_PrevQ_Total", type number}, {"GP_QoQ_Growth", type number}, {"GP_T4Q_Total", type number}, {"GP_Since_2023_Total", type number}, {"Qty_Printers", Int64.Type}, {"GP_Printers", type number}, {"Qty_Printers_AM_Software", Int64.Type}, {"GP_Printers_AM_Software", Int64.Type}, {"Qty_Printers_AM_Support", Int64.Type}, {"GP_Printers_AM_Support", Int64.Type}, {"Qty_Printers_Consumables", Int64.Type}, {"GP_Printers_Consumables", type number}, {"Qty_Printers_FDM", Int64.Type}, {"GP_Printers_FDM", type number}, {"Qty_Printers_FormLabs", Int64.Type}, {"GP_Printers_FormLabs", type number}, {"Qty_Printers_Metals", Int64.Type}, {"GP_Printers_Metals", type number}, {"Qty_Printers_P3", Int64.Type}, {"GP_Printers_P3", type number}, {"Qty_Printers_Polyjet", Int64.Type}, {"GP_Printers_Polyjet", type number}, {"Qty_Printers_Post_Processing", Int64.Type}, {"GP_Printers_Post_Processing", type number}, {"Qty_Printers_SAF", Int64.Type}, {"GP_Printers_SAF", type number}, {"Qty_Printers_SLA", Int64.Type}, {"GP_Printers_SLA", type number}, {"Qty_Printers_Spare_Parts_Repair_Parts_Time_and_Materials", Int64.Type}, {"GP_Printers_Spare_Parts_Repair_Parts_Time_and_Materials", type number}, {"Qty_Printer Accessories", Int64.Type}, {"GP_Printer Accessories", type number}, {"Qty_Scanners", Int64.Type}, {"GP_Scanners", Int64.Type}, {"Qty_Geomagic", Int64.Type}, {"GP_Geomagic", Int64.Type}, {"Seats_CAD", Int64.Type}, {"GP_CAD", type number}, {"Seats_CPE", Int64.Type}, {"GP_CPE", type number}, {"Seats_Specialty Software", Int64.Type}, {"GP_Specialty Software", type number}, {"scaling_flag", Int64.Type}, {"Total Software License Revenue", type number}, {"active_assets_total", Int64.Type}, {"seats_sum_total", Int64.Type}, {"Portfolio_Breadth", Int64.Type}, {"EarliestPurchaseDate", type datetime}, {"LatestPurchaseDate", type datetime}, {"LatestExpirationDate", type datetime}, {"Days_Since_First_Purchase", Int64.Type}, {"Days_Since_Last_Purchase", Int64.Type}, {"Days_Since_Last_Expiration", Int64.Type}, {"spend_13w", type number}, {"spend_13w_prior", type number}, {"delta_13w", type number}, {"delta_13w_pct", type number}, {"spend_12m", type number}, {"spend_52w", type number}, {"yoy_13w_pct", type number}, {"days_since_last_order", Int64.Type}, {"active_weeks_13w", Int64.Type}, {"purchase_streak_months", Int64.Type}, {"median_interpurchase_days", Int64.Type}, {"slope_13w", type number}, {"slope_13w_prior", type number}, {"acceleration_13w", type number}, {"volatility_13w", type number}, {"seasonality_factor_13w", type number}, {"trend_score", type number}, {"recency_score", type number}, {"magnitude_score", type number}, {"cadence_score", type number}, {"momentum_score", type number}, {"w_trend", type number}, {"w_recency", type number}, {"w_magnitude", type number}, {"w_cadence", type number}, {"hw_spend_12m", type number}, {"sw_spend_12m", type number}, {"hw_share_12m", type number}, {"sw_share_12m", type number}, {"breadth_hw_subdiv_12m", type number}, {"max_hw_subdiv", type number}, {"breadth_score_hw", type number}, {"recency_score_hw", type number}, {"hardware_adoption_score", type number}, {"consumables_to_hw_ratio", type number}, {"top_subdivision_12m", type text}, {"days_since_last_hw_order", Int64.Type}, {"top_subdivision_share_12m", type number}, {"discount_pct", type number}, {"month_conc_hhi_12m", type number}, {"sw_dominance_score", type number}, {"sw_to_hw_whitespace_score", type number}, {"as_of_date", type date}, {"run_timestamp_utc", type datetime}, {"spend_13w_printers", type number}, {"spend_13w_prior_printers", type number}, {"delta_13w_printers", type number}, {"delta_13w_pct_printers", type number}, {"spend_12m_printers", type number}, {"spend_52w_printers", type number}, {"yoy_13w_pct_printers", type number}, {"slope_13w_printers", type number}, {"slope_13w_prior_printers", type number}, {"acceleration_13w_printers", type number}, {"volatility_13w_printers", type number}, {"seasonality_factor_13w_printers", type number}, {"days_since_last_order_printers", Int64.Type}, {"active_weeks_13w_printers", Int64.Type}, {"spend_12m_pctl", type number}, {"spend_13w_pctl", type number}, {"delta_13w_pct_pctl", type number}, {"yoy_13w_pct_pctl", type number}, {"slope_13w_pctl", type number}, {"acceleration_13w_pctl", type number}, {"acceleration_13w_printers_pctl", type number}, {"hw_spend_12m_pctl", type number}, {"sw_spend_12m_pctl", type number}, {"hw_share_12m_pctl", type number}, {"sw_share_12m_pctl", type number}, {"hardware_adoption_score_pctl", type number}, {"month_conc_hhi_12m_pctl", type number}, {"sw_dominance_score_pctl", type number}, {"sw_to_hw_whitespace_score_pctl", type number}}),
-					    #"Added Custom" = Table.AddColumn(#"Changed Type", "NS_url", each "https://473193.app.netsuite.com/app/common/entity/custjob.nl?id=" & Number.ToText([Customer ID], "0")),
-					    #"Added Custom1" = Table.AddColumn(#"Added Custom", "Email Link AM Primary", each if [RP_Primary_Email] = null or Text.PositionOf([RP_Primary_Email], "@") = -1
-					  then null
-					  else "mailto:" & [RP_Primary_Email]),
-					    #"Added Custom2" = Table.AddColumn(#"Added Custom1", "Email Link Account Primary", each if [Primary_Contact_Email] = null or Text.PositionOf([Primary_Contact_Email], "@") = -1
-					  then null
-					  else "mailto:" & [Primary_Contact_Email])
+					    // TODO: Update Server and Database names to match your environment
+					    ServerName = "sql-goeng-prod.database.windows.net",
+					    DatabaseName = "db-goeng-icp-prod",
+					    Source = Sql.Database(ServerName, DatabaseName, [Query="SELECT * FROM dbo.customer_icp"]),
+					    // PromotedHeaders = Table.PromoteHeaders(Source, [PromoteAllScalars=true]), // Not needed for SQL source
+					    AllCols = Table.ColumnNames(Source),
+					    TypeMap = {
+					        {"Customer ID", Int64.Type},
+					        {"Company Name", type text},
+					        {"activity_segment", type text},
+					        {"am_sales_rep", type text},
+					        {"AM_Territory", type text},
+					        {"edu_assets", type text},
+					        {"RP_Primary_Name", type text},
+					        {"RP_Primary_Email", type text},
+					        {"RP_Primary_Phone", type text},
+					        {"Primary_Contact_Name", type text},
+					        {"Primary_Contact_Email", type text},
+					        {"Primary_Contact_Phone", type text},
+					        {"Name", type text},
+					        {"email", type text},
+					        {"phone", type text},
+					        {"ShippingAddr1", type text},
+					        {"ShippingAddr2", type text},
+					        {"ShippingCity", type text},
+					        {"ShippingState", type text},
+					        {"ShippingZip", type text},
+					        {"ShippingCountry", type text},
+					        {"ICP_score_hardware", type number},
+					        {"ICP_grade_hardware", type text},
+					        {"ICP_score_cre", type number},
+					        {"ICP_grade_cre", type text},
+					        {"Industry", type text},
+					        {"Industry Sub List", type text},
+					        {"Industry_Reasoning", type text},
+					        {"Hardware_score", type number},
+					        {"Software_score", type number},
+					        {"GP_PrevQ_Total", type number},
+					        {"GP_QoQ_Growth", type number},
+					        {"GP_T4Q_Total", type number},
+					        {"GP_Since_2023_Total", type number},
+					        {"Qty_Printers", Int64.Type},
+					        {"GP_Printers", type number},
+					        {"Qty_Printers_AM_Software", Int64.Type},
+					        {"GP_Printers_AM_Software", type number},
+					        {"Qty_Printers_AM_Support", Int64.Type},
+					        {"GP_Printers_AM_Support", type number},
+					        {"Qty_Printers_Consumables", Int64.Type},
+					        {"GP_Printers_Consumables", type number},
+					        {"Qty_Printers_FDM", Int64.Type},
+					        {"GP_Printers_FDM", type number},
+					        {"Qty_Printers_FormLabs", Int64.Type},
+					        {"GP_Printers_FormLabs", type number},
+					        {"Qty_Printers_Metals", Int64.Type},
+					        {"GP_Printers_Metals", type number},
+					        {"Qty_Printers_P3", Int64.Type},
+					        {"GP_Printers_P3", type number},
+					        {"Qty_Printers_Polyjet", Int64.Type},
+					        {"GP_Printers_Polyjet", type number},
+					        {"Qty_Printers_Post_Processing", Int64.Type},
+					        {"GP_Printers_Post_Processing", type number},
+					        {"Qty_Printers_SAF", Int64.Type},
+					        {"GP_Printers_SAF", type number},
+					        {"Qty_Printers_SLA", Int64.Type},
+					        {"GP_Printers_SLA", type number},
+					        {"Qty_Printers_Spare_Parts_Repair_Parts_Time_and_Materials", Int64.Type},
+					        {"GP_Printers_Spare_Parts_Repair_Parts_Time_and_Materials", type number},
+					        {"Qty_Printer Accessories", Int64.Type},
+					        {"GP_Printer Accessories", type number},
+					        {"Qty_Scanners", Int64.Type},
+					        {"GP_Scanners", type number},
+					        {"Qty_Geomagic", Int64.Type},
+					        {"GP_Geomagic", type number},
+					        {"Seats_CAD", Int64.Type},
+					        {"GP_CAD", type number},
+					        {"Seats_CPE", Int64.Type},
+					        {"GP_CPE", type number},
+					        {"Seats_Specialty Software", Int64.Type},
+					        {"GP_Specialty Software", type number},
+					        {"GP_Training/Services_Success_Plan", type number},
+					        {"GP_Training/Services_Training", type number},
+					        {"cre_adoption_assets", type number},
+					        {"cre_adoption_profit", type number},
+					        {"cre_relationship_profit", type number},
+					        {"scaling_flag", Int64.Type},
+					        {"Total Software License Revenue", type number},
+					        {"active_assets_total", Int64.Type},
+					        {"seats_sum_total", Int64.Type},
+					        {"Portfolio_Breadth", Int64.Type},
+					        {"EarliestPurchaseDate", type datetime},
+					        {"LatestPurchaseDate", type datetime},
+					        {"LatestExpirationDate", type datetime},
+					        {"Days_Since_First_Purchase", Int64.Type},
+					        {"Days_Since_Last_Purchase", Int64.Type},
+					        {"Days_Since_Last_Expiration", Int64.Type},
+					        {"spend_13w", type number},
+					        {"spend_13w_prior", type number},
+					        {"delta_13w", type number},
+					        {"delta_13w_pct", type number},
+					        {"spend_12m", type number},
+					        {"spend_12m_prior", type number},
+					        {"delta_12m", type number},
+					        {"delta_12m_pct", type number},
+					        {"spend_24m", type number},
+					        {"spend_24m_prior", type number},
+					        {"delta_24m", type number},
+					        {"delta_24m_pct", type number},
+					        {"spend_36m", type number},
+					        {"spend_36m_prior", type number},
+					        {"delta_36m", type number},
+					        {"delta_36m_pct", type number},
+					        {"yoy_13w_pct", type number},
+					        {"days_since_last_order", Int64.Type},
+					        {"active_weeks_13w", Int64.Type},
+					        {"purchase_streak_months", Int64.Type},
+					        {"median_interpurchase_days", Int64.Type},
+					        {"slope_13w", type number},
+					        {"slope_13w_prior", type number},
+					        {"acceleration_13w", type number},
+					        {"volatility_13w", type number},
+					        {"seasonality_factor_13w", type number},
+					        {"trend_score", type number},
+					        {"recency_score", type number},
+					        {"magnitude_score", type number},
+					        {"cadence_score", type number},
+					        {"momentum_score", type number},
+					        {"w_trend", type number},
+					        {"w_recency", type number},
+					        {"w_magnitude", type number},
+					        {"w_cadence", type number},
+					        {"hw_spend_12m", type number},
+					        {"hw_spend_12m_prior", type number},
+					        {"delta_12m_hw", type number},
+					        {"delta_12m_pct_hw", type number},
+					        {"spend_24m_hw", type number},
+					        {"spend_24m_prior_hw", type number},
+					        {"delta_24m_hw", type number},
+					        {"delta_24m_pct_hw", type number},
+					        {"spend_36m_hw", type number},
+					        {"spend_36m_prior_hw", type number},
+					        {"delta_36m_hw", type number},
+					        {"delta_36m_pct_hw", type number},
+					        {"spend_13w_hw", type number},
+					        {"spend_13w_prior_hw", type number},
+					        {"delta_13w_hw", type number},
+					        {"delta_13w_pct_hw", type number},
+					        {"yoy_13w_pct_hw", type number},
+					        {"slope_13w_hw", type number},
+					        {"slope_13w_prior_hw", type number},
+					        {"acceleration_13w_hw", type number},
+					        {"volatility_13w_hw", type number},
+					        {"seasonality_factor_13w_hw", type number},
+					        {"days_since_last_hw_order", Int64.Type},
+					        {"active_weeks_13w_hw", Int64.Type},
+					        {"spend_13w_cre", type number},
+					        {"spend_13w_prior_cre", type number},
+					        {"delta_13w_cre", type number},
+					        {"delta_13w_pct_cre", type number},
+					        {"spend_12m_cre", type number},
+					        {"spend_12m_prior_cre", type number},
+					        {"delta_12m_cre", type number},
+					        {"delta_12m_pct_cre", type number},
+					        {"spend_24m_cre", type number},
+					        {"spend_24m_prior_cre", type number},
+					        {"delta_24m_cre", type number},
+					        {"delta_24m_pct_cre", type number},
+					        {"spend_36m_cre", type number},
+					        {"spend_36m_prior_cre", type number},
+					        {"delta_36m_cre", type number},
+					        {"delta_36m_pct_cre", type number},
+					        {"yoy_13w_pct_cre", type number},
+					        {"slope_13w_cre", type number},
+					        {"slope_13w_prior_cre", type number},
+					        {"acceleration_13w_cre", type number},
+					        {"volatility_13w_cre", type number},
+					        {"seasonality_factor_13w_cre", type number},
+					        {"days_since_last_cre_order", Int64.Type},
+					        {"active_weeks_13w_cre", Int64.Type},
+					        {"spend_13w_cpe", type number},
+					        {"spend_13w_prior_cpe", type number},
+					        {"delta_13w_cpe", type number},
+					        {"delta_13w_pct_cpe", type number},
+					        {"spend_12m_cpe", type number},
+					        {"spend_12m_prior_cpe", type number},
+					        {"delta_12m_cpe", type number},
+					        {"delta_12m_pct_cpe", type number},
+					        {"spend_24m_cpe", type number},
+					        {"spend_24m_prior_cpe", type number},
+					        {"delta_24m_cpe", type number},
+					        {"delta_24m_pct_cpe", type number},
+					        {"spend_36m_cpe", type number},
+					        {"spend_36m_prior_cpe", type number},
+					        {"delta_36m_cpe", type number},
+					        {"delta_36m_pct_cpe", type number},
+					        {"yoy_13w_pct_cpe", type number},
+					        {"slope_13w_cpe", type number},
+					        {"slope_13w_prior_cpe", type number},
+					        {"acceleration_13w_cpe", type number},
+					        {"volatility_13w_cpe", type number},
+					        {"seasonality_factor_13w_cpe", type number},
+					        {"days_since_last_cpe_order", Int64.Type},
+					        {"active_weeks_13w_cpe", Int64.Type},
+					        {"hw_spend_12m", type number},
+					        {"sw_spend_12m", type number},
+					        {"hw_share_12m", type number},
+					        {"sw_share_12m", type number},
+					        {"breadth_hw_subdiv_12m", type number},
+					        {"max_hw_subdiv", type number},
+					        {"breadth_score_hw", type number},
+					        {"recency_score_hw", type number},
+					        {"hardware_adoption_score", type number},
+					        {"consumables_to_hw_ratio", type number},
+					        {"top_subdivision_12m", type text},
+					        {"top_subdivision_share_12m", type number},
+					        {"discount_pct", type number},
+					        {"month_conc_hhi_12m", type number},
+					        {"sw_dominance_score", type number},
+					        {"sw_to_hw_whitespace_score", type number},
+					        {"as_of_date", type date},
+					        {"run_timestamp_utc", type datetime},
+					        {"spend_12m_pctl", type number},
+					        {"spend_13w_pctl", type number},
+					        {"delta_13w_pct_pctl", type number},
+					        {"spend_24m_pctl", type number},
+					        {"spend_36m_pctl", type number},
+					        {"yoy_13w_pct_pctl", type number},
+					        {"slope_13w_pctl", type number},
+					        {"acceleration_13w_pctl", type number},
+					        {"spend_12m_hw_pctl", type number},
+					        {"spend_13w_hw_pctl", type number},
+					        {"delta_13w_pct_hw_pctl", type number},
+					        {"yoy_13w_pct_hw_pctl", type number},
+					        {"slope_13w_hw_pctl", type number},
+					        {"acceleration_13w_hw_pctl", type number},
+					        {"spend_12m_cre_pctl", type number},
+					        {"spend_13w_cre_pctl", type number},
+					        {"delta_13w_pct_cre_pctl", type number},
+					        {"yoy_13w_pct_cre_pctl", type number},
+					        {"slope_13w_cre_pctl", type number},
+					        {"acceleration_13w_cre_pctl", type number},
+					        {"spend_12m_cpe_pctl", type number},
+					        {"spend_13w_cpe_pctl", type number},
+					        {"delta_13w_pct_cpe_pctl", type number},
+					        {"yoy_13w_pct_cpe_pctl", type number},
+					        {"slope_13w_cpe_pctl", type number},
+					        {"acceleration_13w_cpe_pctl", type number},
+					        {"hw_spend_12m_pctl", type number},
+					        {"sw_spend_12m_pctl", type number},
+					        {"hw_share_12m_pctl", type number},
+					        {"sw_share_12m_pctl", type number},
+					        {"hardware_adoption_score_pctl", type number},
+					        {"month_conc_hhi_12m_pctl", type number},
+					        {"sw_dominance_score_pctl", type number},
+					        {"sw_to_hw_whitespace_score_pctl", type number}
+					    },
+					    TypesToApply = List.Select(TypeMap, each List.Contains(AllCols, _{0})),
+					    ChangedType = Table.TransformColumnTypes(Source, TypesToApply, "en-US"),
+					    AddedNSUrl = Table.AddColumn(ChangedType, "NS_url", each "https://473193.app.netsuite.com/app/common/entity/custjob.nl?id=" & Number.ToText([Customer ID], "0")),
+					    AddedEmailAM = Table.AddColumn(AddedNSUrl, "Email Link AM Primary", each if [RP_Primary_Email] = null or Text.PositionOf([RP_Primary_Email], "@") = -1 then null else "mailto:" & [RP_Primary_Email]),
+					    AddedEmailAcct = Table.AddColumn(AddedEmailAM, "Email Link Account Primary", each if [Primary_Contact_Email] = null or Text.PositionOf([Primary_Contact_Email], "@") = -1 then null else "mailto:" & [Primary_Contact_Email])
 					in
-					    #"Added Custom2"
+					    AddedEmailAcct
 
 		annotation PBI_ResultType = Table
 
 		annotation PBI_NavigationStepName = Navigation
-

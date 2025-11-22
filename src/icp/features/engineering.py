@@ -42,7 +42,17 @@ FEATURE_COLUMN_ORDER = [
     "delta_13w",
     "delta_13w_pct",
     "spend_12m",
-    "spend_52w",
+    "spend_12m_prior",
+    "delta_12m",
+    "delta_12m_pct",
+    "spend_24m",
+    "spend_24m_prior",
+    "delta_24m",
+    "delta_24m_pct",
+    "spend_36m",
+    "spend_36m_prior",
+    "delta_36m",
+    "delta_36m_pct",
     "yoy_13w_pct",
     "days_since_last_order",
     "active_weeks_13w",
@@ -64,8 +74,24 @@ FEATURE_COLUMN_ORDER = [
     "w_cadence",
     "hw_spend_12m",
     "sw_spend_12m",
+    "spend_12m_hw",
+    "spend_24m_hw",
+    "spend_36m_hw",
+    "spend_12m_cre",
+    "spend_24m_cre",
+    "spend_36m_cre",
+    "spend_12m_cpe",
+    "spend_24m_cpe",
+    "spend_36m_cpe",
     "hw_share_12m",
     "sw_share_12m",
+    "breadth_cre_rollup_12m",
+    "max_cre_rollup",
+    "breadth_score_cre",
+    "days_since_last_cre_order",
+    "recency_score_cre",
+    "days_since_last_cpe_order",
+    "recency_score_cpe",
     "breadth_hw_subdiv_12m",
     "max_hw_subdiv",
     "breadth_score_hw",
@@ -164,6 +190,9 @@ def engineer_features(
     df["cre_adoption_assets"] = 0.0
     df["cre_adoption_profit"] = 0.0
     df["cre_relationship_profit"] = 0.0
+    df["cpe_adoption_assets"] = 0.0
+    df["cpe_adoption_profit"] = 0.0
+    df["cpe_relationship_profit"] = 0.0
     df["printer_count"] = 0.0
 
     # Build adoption_assets from assets table with weights
@@ -211,8 +240,14 @@ def engineer_features(
         df = df.merge(adoption_assets, on=COL_CUSTOMER_ID, how="left")
         df = df.merge(printer_counts, on=COL_CUSTOMER_ID, how="left")
 
-        # CRE (software) adoption assets from CAD/CPE goals
-        cre_goals = {_normalize_goal_name("CAD"), _normalize_goal_name("CPE")}
+        # CRE (software) adoption assets from CAD/CPE/Draftsight/Misc/Training goals
+        cre_goals = {
+            _normalize_goal_name("CAD"),
+            _normalize_goal_name("CPE"),
+            _normalize_goal_name("Draftsight"),
+            _normalize_goal_name("Miscellaneous"),
+            _normalize_goal_name("Training"),
+        }
         a_cre = a[a["Goal"].isin(cre_goals)].copy()
         if not a_cre.empty:
             def _cre_measure(row) -> float:
@@ -255,6 +290,32 @@ def engineer_features(
             df = df.drop(columns=drop_cols)
         df["cre_adoption_assets"] = df.get("cre_adoption_assets", 0).fillna(0.0)
 
+        # CPE adoption assets from CPE goal
+        cpe_goal = {_normalize_goal_name("CPE")}
+        a_cpe = a[a["Goal"].isin(cpe_goal)].copy()
+        if not a_cpe.empty:
+            def _cpe_measure(row) -> float:
+                seats_sum = row.get("seats_sum", 0) or 0
+                active_assets = row.get("active_assets", 0) or 0
+                base = seats_sum if seats_sum and seats_sum > 0 else active_assets
+                if not base:
+                    base = row.get("asset_count", 0) or 0
+                return float(base)
+
+            a_cpe.loc[:, "cpe_weighted"] = a_cpe.apply(_cpe_measure, axis=1)
+            cpe_assets = (
+                a_cpe.groupby(COL_CUSTOMER_ID)["cpe_weighted"].sum().rename("cpe_adoption_assets")
+            )
+            df = df.merge(cpe_assets, on=COL_CUSTOMER_ID, how="left")
+        if 'cpe_adoption_assets_y' in df.columns:
+            if 'cpe_adoption_assets' in df.columns:
+                df['cpe_adoption_assets'] = df['cpe_adoption_assets_y'].combine_first(df['cpe_adoption_assets'])
+            else:
+                df['cpe_adoption_assets'] = df['cpe_adoption_assets_y']
+            drop_cols = [c for c in ['cpe_adoption_assets_x','cpe_adoption_assets_y'] if c in df.columns]
+            df = df.drop(columns=drop_cols)
+        df["cpe_adoption_assets"] = df.get("cpe_adoption_assets", 0).fillna(0.0)
+
     # Build adoption_profit from profit_rollup: focus goals + 3DP Training rollup
     if isinstance(profit_roll, pd.DataFrame) and not profit_roll.empty:
         pr = profit_roll.copy()
@@ -276,8 +337,14 @@ def engineer_features(
         )
         df = df.merge(adoption_profit, on=COL_CUSTOMER_ID, how="left")
 
-        # CRE adoption profit from CAD and Specialty Software goals
-        mask_cre = pr["Goal"].isin({_normalize_goal_name("CAD"), _normalize_goal_name("Specialty Software")})
+        # CRE adoption profit from CAD, Specialty Software, Draftsight, Miscellaneous, Training goals
+        mask_cre = pr["Goal"].isin({
+            _normalize_goal_name("CAD"),
+            _normalize_goal_name("Specialty Software"),
+            _normalize_goal_name("Draftsight"),
+            _normalize_goal_name("Miscellaneous"),
+            _normalize_goal_name("Training"),
+        })
         cre_profit = (
             pr[mask_cre]
             .drop_duplicates(subset=[COL_CUSTOMER_ID, "item_rollup"])
@@ -304,36 +371,57 @@ def engineer_features(
             df = df.drop(columns=drop_cols)
         df["cre_adoption_profit"] = df.get("cre_adoption_profit", 0).fillna(0.0)
 
-    # Relationship: software goals CAD, CPE, Specialty Software from goal-level pivot already merged
-    sw_cols = [c for c in df.columns if c in ("CAD", "CPE", "Specialty Software")]
-    if sw_cols:
-        # Note: If these columns come from pivot, they might be overcounted if source was overcounted.
-        # But pivot usually comes from get_profit_since_2023_by_goal which sums by Goal.
-        # If we sum columns CAD+CPE+Specialty, and an item is in CAD and CPE, we double count.
-        # Ideally we should recalculate relationship_profit from rollup to be safe.
-        pass 
+        # CPE adoption profit from CPE goal
+        mask_cpe = pr["Goal"] == _normalize_goal_name("CPE")
+        cpe_profit = (
+            pr[mask_cpe]
+            .drop_duplicates(subset=[COL_CUSTOMER_ID, "item_rollup"])
+            .groupby(COL_CUSTOMER_ID)["Profit_Since_2023"]
+            .sum()
+            .rename("cpe_adoption_profit")
+        )
+        if not cpe_profit.empty:
+            df = df.merge(cpe_profit, on=COL_CUSTOMER_ID, how="left")
+        if 'cpe_adoption_profit_y' in df.columns:
+            if 'cpe_adoption_profit' in df.columns:
+                df['cpe_adoption_profit'] = df['cpe_adoption_profit_y'].combine_first(df['cpe_adoption_profit'])
+            else:
+                df['cpe_adoption_profit'] = df['cpe_adoption_profit_y']
+            drop_cols = [c for c in ['cpe_adoption_profit_x','cpe_adoption_profit_y'] if c in df.columns]
+            df = df.drop(columns=drop_cols)
+        df["cpe_adoption_profit"] = df.get("cpe_adoption_profit", 0).fillna(0.0)
 
-    # Recalculate relationship_profit from rollup to ensure no double counting
+    # Relationship signals recalculated explicitly per division (cross-division fit)
     if isinstance(profit_roll, pd.DataFrame) and not profit_roll.empty:
         pr_rel = profit_roll.copy()
         if COL_CUSTOMER_ID in pr_rel.columns:
             pr_rel[COL_CUSTOMER_ID] = canonicalize_customer_id(pr_rel[COL_CUSTOMER_ID])
         pr_rel['Goal'] = pr_rel['Goal'].map(_normalize_goal_name)
-        sw_mask = pr_rel["Goal"].isin({
+
+        # Hardware relationship: fit to CRE + CPE (CAD, Specialty Software, Draftsight, Misc, CPE)
+        hw_mask = pr_rel["Goal"].isin({
             _normalize_goal_name("CAD"),
-            _normalize_goal_name("CPE"),
             _normalize_goal_name("Specialty Software"),
+            _normalize_goal_name("Draftsight"),
+            _normalize_goal_name("Miscellaneous"),
+            _normalize_goal_name("CPE"),
         })
-        rel = (
-            pr_rel[sw_mask]
-            .drop_duplicates(subset=[COL_CUSTOMER_ID, "item_rollup"])
-            .groupby(COL_CUSTOMER_ID)["Profit_Since_2023"].sum().rename("relationship_profit")
+        rel_hw = (
+            pr_rel[hw_mask]
+            .groupby(COL_CUSTOMER_ID)["Profit_Since_2023"]
+            .sum()
+            .rename("relationship_profit")
         )
-        # Merge and override existing if present
-        if "relationship_profit" in df.columns:
-             df = df.drop(columns=["relationship_profit"])
-        df = df.merge(rel, on=COL_CUSTOMER_ID, how="left")
-        df["relationship_profit"] = df.get("relationship_profit", 0).fillna(0.0)
+        df = df.merge(rel_hw, on=COL_CUSTOMER_ID, how="left")
+        if "relationship_profit" not in df.columns:
+            df["relationship_profit"] = 0.0
+        df["relationship_profit"] = pd.to_numeric(df["relationship_profit"], errors="coerce").fillna(0.0)
+
+        # Fallback: if rollup-derived relationship profit is zero, reuse CRE/CPE GP columns
+        rel_gp_cols = [c for c in ["GP_CAD", "GP_Specialty Software", "GP_Draftsight", "GP_Miscellaneous", "GP_CPE"] if c in df.columns]
+        if rel_gp_cols:
+            rel_gp_alt = df[rel_gp_cols].apply(pd.to_numeric, errors="coerce").fillna(0.0).sum(axis=1)
+            df["relationship_profit"] = df["relationship_profit"].where(df["relationship_profit"] > 0, rel_gp_alt)
 
     # CRE relationship: blend cross-division signals
     if isinstance(profit_roll, pd.DataFrame) and not profit_roll.empty:
@@ -380,6 +468,55 @@ def engineer_features(
             return pd.to_numeric(df[name], errors="coerce").fillna(0)
         return pd.Series(0.0, index=df.index, dtype=float)
 
+    # Pre-compute key GP/seat signals for relationship blends if not already present
+    rel_roll = _get_attached_frame(_base_df, "_profit_rollup_raw")
+    if isinstance(rel_roll, pd.DataFrame) and not rel_roll.empty:
+        pr_tmp = rel_roll.copy()
+        if COL_CUSTOMER_ID in pr_tmp.columns:
+            pr_tmp[COL_CUSTOMER_ID] = canonicalize_customer_id(pr_tmp[COL_CUSTOMER_ID])
+        pr_tmp["Goal"] = pr_tmp["Goal"].map(_normalize_goal_name)
+        pr_tmp["item_rollup"] = pr_tmp.get("item_rollup", "").astype(str)
+
+        goal_map = {
+            _normalize_goal_name("Printers"): "GP_Printers",
+            _normalize_goal_name("CPE"): "GP_CPE",
+            _normalize_goal_name("Specialty Software"): "GP_Specialty Software",
+            _normalize_goal_name("CAD"): "GP_CAD",
+        }
+        for goal, col in goal_map.items():
+            series = pr_tmp.loc[pr_tmp["Goal"] == goal].groupby(COL_CUSTOMER_ID)["Profit_Since_2023"].sum()
+            if col not in df.columns:
+                df[col] = df[COL_CUSTOMER_ID].map(series).fillna(0.0)
+
+        # Training/Services subset
+        allowed_train = {"success plan", "training"}
+        mask_train = pr_tmp["Goal"] == _normalize_goal_name("Training/Services")
+        if mask_train.any():
+            tr = pr_tmp[mask_train].copy()
+            tr["rollup_norm"] = tr["item_rollup"].str.strip().str.lower()
+            for roll, col in {
+                "success plan": "GP_Training/Services_Success_Plan",
+                "training": "GP_Training/Services_Training",
+            }.items():
+                series = tr.loc[tr["rollup_norm"] == roll].groupby(COL_CUSTOMER_ID)["Profit_Since_2023"].sum()
+                if col not in df.columns:
+                    df[col] = df[COL_CUSTOMER_ID].map(series).fillna(0.0)
+
+    assets_tmp = _get_attached_frame(_base_df, "_assets_raw")
+    if isinstance(assets_tmp, pd.DataFrame) and not assets_tmp.empty:
+        a_tmp = assets_tmp.copy()
+        if COL_CUSTOMER_ID in a_tmp.columns:
+            a_tmp[COL_CUSTOMER_ID] = canonicalize_customer_id(a_tmp[COL_CUSTOMER_ID])
+        a_tmp["Goal"] = a_tmp["Goal"].map(_normalize_goal_name)
+        a_tmp["item_rollup"] = a_tmp.get("item_rollup", "").astype(str)
+        seats_cpe_series = (
+            a_tmp.loc[a_tmp["Goal"] == _normalize_goal_name("CPE")]
+            .groupby(COL_CUSTOMER_ID)["seats_sum"]
+            .sum()
+        )
+        if "Seats_CPE" not in df.columns:
+            df["Seats_CPE"] = df[COL_CUSTOMER_ID].map(seats_cpe_series).fillna(0.0)
+
     # Training subset GP (sum of two stable columns)
     # Note: These columns come from loader assembly which might use Goal pivot.
     # If we want to be safe, we should use the _tmp_cre_specialty_train_gp we just calculated for the GP part.
@@ -392,38 +529,29 @@ def engineer_features(
     t2 = _series("GP_Training/Services_Training")
     printer_count_series = _series("printer_count")
     gp_printers_series = _series("GP_Printers")
+    gp_printer_accessories_series = _series("GP_Printer Accessories")
     seats_cpe = _series("Seats_CPE")
     gp_cpe = _series("GP_CPE")
+    gp_cad = _series("GP_CAD")
     specialty_gp = _series("GP_Specialty Software")
+    gp_misc = _series("GP_Miscellaneous")
+    gp_draftsight = _series("GP_Draftsight")
     specialty_profit = _series("Specialty Software")
 
-    rel_train = _pctl(t1 + t2)
-    # Hardware printers: printer_count + GP_Printers
-    rel_hw = 0.5 * _pctl(printer_count_series) + 0.5 * _pctl(gp_printers_series)
-    # CPE: seats + GP
-    rel_cpe = 0.5 * _pctl(seats_cpe) + 0.5 * _pctl(gp_cpe)
+    # Cross-division relationship scoring per division
+    # Hardware relationship already set above as relationship_profit (uses CRE+CPE GP)
 
-    # Blend weights (emphasize cross-division signals as requested)
-    # Do not double-count Specialty Software (already in adoption); use equal blend of Training, Hardware, CPE
-    rel_combined = 0.333333 * rel_train + 0.333333 * rel_hw + 0.333334 * rel_cpe
+    # CRE relationship: Hardware + CPE GP
+    rel_hw_for_cre = _pctl(gp_printers_series + gp_printer_accessories_series)
+    rel_cpe_for_cre = _pctl(gp_cpe)
+    cre_rel_blend = 0.5 * rel_hw_for_cre + 0.5 * rel_cpe_for_cre
+    df["cre_relationship_profit"] = pd.to_numeric(cre_rel_blend, errors="coerce").fillna(0.0)
 
-    cre_signal_mask = (
-        (t1 + t2 > 0)
-        | (seats_cpe > 0)
-        | (gp_cpe > 0)
-        | (specialty_gp > 0)
-        | (specialty_profit > 0)
-        | (printer_count_series > 0)
-        | (gp_printers_series > 0)
-    )
-    if not cre_signal_mask.any():
-        df["cre_relationship_profit"] = 0.0
-    else:
-        # Scale blended signal to a 0-1 percentile so that
-        # small fixtures (including single-row tests) receive a score of 1.0
-        # when they are the strongest CRE relationship examples.
-        rel_scaled = _pctl(rel_combined.where(cre_signal_mask, 0.0))
-        df["cre_relationship_profit"] = pd.to_numeric(rel_scaled, errors="coerce").fillna(0.0)
+    # CPE relationship: Hardware + CRE GP (CAD/Specialty/Draftsight/Misc)
+    rel_hw_for_cpe = _pctl(gp_printers_series + gp_printer_accessories_series)
+    rel_cre_for_cpe = _pctl(gp_cad + specialty_gp + gp_misc + gp_draftsight)
+    cpe_rel_blend = 0.5 * rel_hw_for_cpe + 0.5 * rel_cre_for_cpe
+    df["cpe_relationship_profit"] = pd.to_numeric(cpe_rel_blend, errors="coerce").fillna(0.0)
 
     # Flag for scaling
     df["scaling_flag"] = (df["printer_count"] >= 4).astype(int)
@@ -448,6 +576,9 @@ def engineer_features(
         'printer': 'Printers',
         'scanners': 'Scanners',
         'geomagic': 'Geomagic',
+        'miscellaneous': 'Miscellaneous',
+        'draftsight': 'Draftsight',
+        'services': 'Services',
         'training/services': 'Training',
         'cad': 'CAD',
         'cpe': 'CPE',
@@ -524,7 +655,7 @@ def engineer_features(
         pr2['Goal'] = pr2['Goal'].map(_normalize_goal_name)
         # Restrict Training/Services to CRE-allowed rollups only
         pr2['item_rollup'] = pr2['item_rollup'].astype(str)
-        allowed_train = {"success plan", "training"}
+        allowed_train = {"success plan", "training", "service", "services", "training/services"}
         is_train = pr2['Goal'] == _normalize_goal_name('Training/Services')
         pr2 = pr2[~is_train | pr2['item_rollup'].str.strip().str.lower().isin(allowed_train)]
 
@@ -532,7 +663,10 @@ def engineer_features(
         if not gp_goal.empty:
             gp_goal.columns = [f"GP_{goal_label_map.get(c, c.title())}" for c in gp_goal.columns]
             gp_goal = gp_goal.reset_index()
-            df = df.merge(gp_goal, on=COL_CUSTOMER_ID, how='left')
+            overlap = [c for c in gp_goal.columns if c != COL_CUSTOMER_ID and c in df.columns]
+            gp_goal = gp_goal.drop(columns=overlap) if overlap else gp_goal
+            if len(gp_goal.columns) > 1:
+                df = df.merge(gp_goal, on=COL_CUSTOMER_ID, how='left')
         grp = pr2.groupby([COL_CUSTOMER_ID,'Goal','item_rollup'])['Profit_Since_2023'].sum().reset_index()
         for (g, r), sub in grp.groupby(['Goal','item_rollup']):
             label = f"GP_{goal_label_map.get(g, g.title())}_{safe_label(r)}"
@@ -657,65 +791,63 @@ def enrich_with_list_builder_features(
     # Initialize features_df with unique account_ids from input accounts
     features_df = pd.DataFrame({"account_id": df_accounts["account_id"].unique()})
 
+    month_windows = tuple(sorted({months_ltm, 24, 36}))
+
     # --- 1. Global Spend Dynamics ---
     try:
         dyn_global = compute_spend_dynamics(
-            tx, 
-            weeks_short=weeks_short, 
-            months_ltm=months_ltm
+            tx,
+            as_of=as_of_ts,
+            weeks_short=weeks_short,
+            months_ltm=months_ltm,
+            month_windows=month_windows,
         )
         features_df = features_df.merge(dyn_global, on="account_id", how="left")
     except Exception as e:
         print(f"[WARN] Global spend dynamics unavailable: {e}")
 
-    # --- 2. Printer Only Dynamics ---
-    try:
-        # Define Printer Subset
-        if "division" in tx.columns:
-            div = tx["division"].astype(str).str.strip().str.lower()
-            is_printer = div.isin(["printers", "printer"])
-            tx_printers = tx[is_printer].copy()
-        else:
-            tx_printers = tx.iloc[0:0]
+    # Normalize division labels for downstream filtering
+    div = tx.get("division", pd.Series(index=tx.index, dtype=str)).astype(str).str.strip().str.lower()
+    sub = tx.get("sub_division", pd.Series(index=tx.index, dtype=str)).astype(str).str.strip().str.lower()
+    super_div = tx.get("super_division", pd.Series(index=tx.index, dtype=str)).astype(str).str.strip().str.lower()
+    start_12m = as_of_ts - pd.DateOffset(months=months_ltm)
 
-        if not tx_printers.empty:
-            dyn_printers = compute_spend_dynamics(
-                tx_printers,
+    # --- 2. Hardware Dynamics (super_division = Hardware) ---
+    try:
+        tx_hw = tx[super_div == "hardware"].copy()
+        if not tx_hw.empty:
+            dyn_hw = compute_spend_dynamics(
+                tx_hw,
+                as_of=as_of_ts,
                 weeks_short=weeks_short,
-                months_ltm=months_ltm
+                months_ltm=months_ltm,
+                month_windows=month_windows,
             )
-            # Rename columns with suffix
-            printer_rename = {c: f"{c}_printers" for c in dyn_printers.columns if c != "account_id"}
-            dyn_printers = dyn_printers.rename(columns=printer_rename)
+            hw_rename = {c: f"{c}_hw" for c in dyn_hw.columns if c != "account_id"}
+            dyn_hw = dyn_hw.rename(columns=hw_rename)
             features_df = features_df.merge(
-                dyn_printers[[c for c in dyn_printers.columns if c == "account_id" or c in printer_rename.values()]],
+                dyn_hw[[c for c in dyn_hw.columns if c == "account_id" or c in hw_rename.values()]],
                 on="account_id",
                 how="left",
             )
     except Exception as e:
-        print(f"[WARN] Printer dynamics unavailable: {e}")
+        print(f"[WARN] Hardware dynamics unavailable: {e}")
 
-    # --- 3. CRE Only Dynamics ---
+    # --- 3. CRE Dynamics (CAD + Specialty Software + CRE Training) ---
     try:
-        # Define CRE Subset
-        if "division" in tx.columns:
-            div = tx["division"].astype(str).str.strip().str.lower()
-            sub = tx.get("sub_division", pd.Series(index=tx.index, dtype=str)).astype(str).str.strip().str.lower()
-            
-            allowed_cre_goals = {"cad", "specialty software"}
-            allowed_cre_train = {"success plan", "training"}
-            is_cre = div.isin(allowed_cre_goals) | ((div == "training/services") & (sub.isin(allowed_cre_train)))
-            tx_cre = tx[is_cre].copy()
-        else:
-            tx_cre = tx.iloc[0:0]
+        allowed_cre_goals = {"cad", "specialty software"}
+        allowed_cre_train = {"success plan", "training"}
+        is_cre = div.isin(allowed_cre_goals) | ((div == "training/services") & (sub.isin(allowed_cre_train)))
+        tx_cre = tx[is_cre].copy()
 
         if not tx_cre.empty:
             dyn_cre = compute_spend_dynamics(
                 tx_cre,
+                as_of=as_of_ts,
                 weeks_short=weeks_short,
-                months_ltm=months_ltm
+                months_ltm=months_ltm,
+                month_windows=month_windows,
             )
-            # Rename columns with suffix
             cre_rename = {c: f"{c}_cre" for c in dyn_cre.columns if c != "account_id"}
             dyn_cre = dyn_cre.rename(columns=cre_rename)
             features_df = features_df.merge(
@@ -725,11 +857,10 @@ def enrich_with_list_builder_features(
             )
 
             # CRE breadth and recency
-            start_12m = as_of_ts - pd.DateOffset(months=months_ltm)
             tx_cre_12m = tx_cre.loc[(pd.to_datetime(tx_cre["date"]) > start_12m) & (pd.to_datetime(tx_cre["date"]) <= as_of_ts)].copy()
             if not tx_cre_12m.empty:
                 breadth_cre = (
-                    tx_cre_12m.groupby(["account_id", "sub_division"]) ["net_revenue"].sum() > 0
+                    tx_cre_12m.groupby(["account_id", "sub_division"])["net_revenue"].sum() > 0
                 ).reset_index()
                 breadth_counts = breadth_cre.groupby("account_id")["sub_division"].nunique().rename("breadth_cre_rollup_12m")
                 products_cre_rollup = (
@@ -744,64 +875,80 @@ def enrich_with_list_builder_features(
                     0.0,
                 )
                 features_df = features_df.merge(cre_breadth_df, on="account_id", how="left")
-            
-            if not tx_cre.empty:
-                last_cre = (
-                    tx_cre.groupby("account_id")["date"].max().rename("last_cre_date")
-                )
-                last_cre = pd.to_datetime(last_cre)
-                rec_df = last_cre.to_frame().reset_index()
-                rec_df["days_since_last_cre_order"] = (as_of_ts - rec_df["last_cre_date"]).dt.days
-                rec_df["recency_score_cre"] = 1.0 / (1.0 + (rec_df["days_since_last_cre_order"] / 30.0))
-                rec_df.loc[rec_df["last_cre_date"].isna(), "recency_score_cre"] = 0.0
-                features_df = features_df.merge(
-                    rec_df[["account_id", "days_since_last_cre_order", "recency_score_cre"]],
-                    on="account_id",
-                    how="left",
-                )
+
+            last_cre = (
+                tx_cre.groupby("account_id")["date"].max().rename("last_cre_date")
+            )
+            last_cre = pd.to_datetime(last_cre)
+            rec_df = last_cre.to_frame().reset_index()
+            rec_df["days_since_last_cre_order"] = (as_of_ts - rec_df["last_cre_date"]).dt.days
+            rec_df["recency_score_cre"] = 1.0 / (1.0 + (rec_df["days_since_last_cre_order"] / 30.0))
+            rec_df.loc[rec_df["last_cre_date"].isna(), "recency_score_cre"] = 0.0
+            features_df = features_df.merge(
+                rec_df[["account_id", "days_since_last_cre_order", "recency_score_cre"]],
+                on="account_id",
+                how="left",
+            )
 
     except Exception as e:
         print(f"[WARN] CRE dynamics/breadth/recency unavailable: {e}")
 
+    # --- 4. CPE Dynamics (Goal = CPE) ---
+    try:
+        is_cpe = div == "cpe"
+        tx_cpe = tx[is_cpe].copy()
+        if not tx_cpe.empty:
+            dyn_cpe = compute_spend_dynamics(
+                tx_cpe,
+                as_of=as_of_ts,
+                weeks_short=weeks_short,
+                months_ltm=months_ltm,
+                month_windows=month_windows,
+            )
+            cpe_rename = {c: f"{c}_cpe" for c in dyn_cpe.columns if c != "account_id"}
+            dyn_cpe = dyn_cpe.rename(columns=cpe_rename)
+            features_df = features_df.merge(
+                dyn_cpe[[c for c in dyn_cpe.columns if c == "account_id" or c in cpe_rename.values()]],
+                on="account_id",
+                how="left",
+            )
+
+            last_cpe = (
+                tx_cpe.groupby("account_id")["date"].max().rename("last_cpe_date")
+            )
+            last_cpe = pd.to_datetime(last_cpe)
+            rec_cpe = last_cpe.to_frame().reset_index()
+            rec_cpe["days_since_last_cpe_order"] = (as_of_ts - rec_cpe["last_cpe_date"]).dt.days
+            rec_cpe["recency_score_cpe"] = 1.0 / (1.0 + (rec_cpe["days_since_last_cpe_order"] / 30.0))
+            rec_cpe.loc[rec_cpe["last_cpe_date"].isna(), "recency_score_cpe"] = 0.0
+            features_df = features_df.merge(
+                rec_cpe[["account_id", "days_since_last_cpe_order", "recency_score_cpe"]],
+                on="account_id",
+                how="left",
+            )
+    except Exception as e:
+        print(f"[WARN] CPE dynamics/recency unavailable: {e}")
+
     # --- Additional List Builder Features for POV Tags ---
     try:
-        # Ensure we have the base subsets
-        if "division" in tx.columns:
-            # Re-derive subsets if needed (or rely on previous blocks if variables were scoped out)
-            # Safest to re-derive to avoid scope issues
-            div = tx["division"].astype(str).str.strip().str.lower()
-            sub = tx.get("sub_division", pd.Series(index=tx.index, dtype=str)).astype(str).str.strip().str.lower()
-            
-            is_printer = div.isin(["printers", "printer"])
-            tx_printers_lb = tx[is_printer].copy()
-            
-            allowed_cre_goals = {"cad", "specialty software"}
-            allowed_cre_train = {"success plan", "training"}
-            is_cre = div.isin(allowed_cre_goals) | ((div == "training/services") & (sub.isin(allowed_cre_train)))
-            tx_cre_lb = tx[is_cre].copy()
-        else:
-            tx_printers_lb = tx.iloc[0:0]
-            tx_cre_lb = tx.iloc[0:0]
-
         # 1. Hardware Breadth & Recency
-        start_12m = as_of_ts - pd.DateOffset(months=months_ltm)
-        tx_hw_12m = tx_printers_lb.loc[(pd.to_datetime(tx_printers_lb["date"]) > start_12m) & (pd.to_datetime(tx_printers_lb["date"]) <= as_of_ts)].copy()
-        
+        tx_hw_12m = tx_hw.loc[(pd.to_datetime(tx_hw["date"]) > start_12m) & (pd.to_datetime(tx_hw["date"]) <= as_of_ts)].copy() if 'tx_hw' in locals() else tx.iloc[0:0]
+
         hw_breadth_df = pd.DataFrame({"account_id": features_df["account_id"].unique()})
         if not tx_hw_12m.empty:
             breadth_hw = (
                 tx_hw_12m.groupby(["account_id", "sub_division"])["net_revenue"].sum() > 0
             ).reset_index()
             breadth_counts_hw = breadth_hw.groupby("account_id")["sub_division"].nunique().rename("breadth_hw_subdiv_12m")
-            
+
             # Max possible HW subdivisions (observed in data)
-            products_hw_rollup = tx_printers_lb["sub_division"].dropna().astype(str).str.strip().unique().tolist()
+            products_hw_rollup = tx_hw["sub_division"].dropna().astype(str).str.strip().unique().tolist() if not tx_hw.empty else []
             max_hw_rollup = int(len(set(products_hw_rollup))) if products_hw_rollup else 1
-            
+
             hw_metrics = breadth_counts_hw.to_frame().reset_index()
             hw_metrics["breadth_score_hw"] = hw_metrics["breadth_hw_subdiv_12m"] / max_hw_rollup
             hw_breadth_df = hw_breadth_df.merge(hw_metrics, on="account_id", how="left")
-        
+
         if "breadth_hw_subdiv_12m" not in hw_breadth_df.columns:
             hw_breadth_df["breadth_hw_subdiv_12m"] = 0
         else:
@@ -811,57 +958,54 @@ def enrich_with_list_builder_features(
             hw_breadth_df["breadth_score_hw"] = 0.0
         else:
             hw_breadth_df["breadth_score_hw"] = hw_breadth_df["breadth_score_hw"].fillna(0.0)
-            
+
         features_df = features_df.merge(hw_breadth_df, on="account_id", how="left")
 
-        if not tx_printers_lb.empty:
-            last_hw = tx_printers_lb.groupby("account_id")["date"].max().rename("last_hw_date")
+        if 'tx_hw' in locals() and not tx_hw.empty:
+            last_hw = tx_hw.groupby("account_id")["date"].max().rename("last_hw_date")
             last_hw = pd.to_datetime(last_hw)
             hw_rec_df = last_hw.to_frame().reset_index()
             hw_rec_df["days_since_last_hw_order"] = (as_of_ts - hw_rec_df["last_hw_date"]).dt.days
             features_df = features_df.merge(hw_rec_df[["account_id", "days_since_last_hw_order"]], on="account_id", how="left")
-        
+
         if "days_since_last_hw_order" not in features_df.columns:
             features_df["days_since_last_hw_order"] = 9999
 
         # 2. SW Dominance & Shares
-        # Use spend_12m_cre and spend_12m_printers if available, else re-calc
-        if "spend_12m_cre" in features_df.columns:
-            sw_spend = features_df["spend_12m_cre"].fillna(0.0)
-        else:
-            sw_spend = 0.0
-            
-        if "spend_12m_printers" in features_df.columns:
-            hw_spend = features_df["spend_12m_printers"].fillna(0.0)
-        else:
-            hw_spend = 0.0
+        sw_spend = (
+            features_df.get("spend_12m_cre", 0).fillna(0.0)
+            + features_df.get("spend_12m_cpe", 0).fillna(0.0)
+        )
+        hw_spend = features_df.get("spend_12m_hw", 0).fillna(0.0)
         total_spend = sw_spend + hw_spend
-        
+
         features_df["sw_dominance_score"] = np.where(total_spend > 0, sw_spend / total_spend, 0.0)
         features_df["hw_share_12m"] = np.where(total_spend > 0, hw_spend / total_spend, 0.0)
-        features_df["sw_share_12m"] = features_df["sw_dominance_score"]
+        features_df["sw_share_12m"] = np.where(total_spend > 0, sw_spend / total_spend, 0.0)
 
         # 3. Concentration (HHI) & Top Subdivision Share
         # Calculate on global tx 12m
+        hhi = pd.DataFrame(columns=["account_id", "month_conc_hhi_12m"])
+        top_share = pd.DataFrame(columns=["account_id", "top_subdivision_share_12m"])
         tx_12m = tx.loc[(pd.to_datetime(tx["date"]) > start_12m) & (pd.to_datetime(tx["date"]) <= as_of_ts)].copy()
         if not tx_12m.empty:
             # Monthly HHI
             tx_12m["month"] = pd.to_datetime(tx_12m["date"]).dt.to_period("M")
             monthly_spend = tx_12m.groupby(["account_id", "month"])["net_revenue"].sum().reset_index()
-            # Normalize by total 12m spend per account
-            account_total = monthly_spend.groupby("account_id")["net_revenue"].transform("sum")
+            # Normalize by total 12m spend per account (avoid div-by-zero)
+            account_total = monthly_spend.groupby("account_id")["net_revenue"].transform("sum").replace(0, np.nan)
             monthly_spend["share"] = monthly_spend["net_revenue"] / account_total
-            monthly_spend["share_sq"] = monthly_spend["share"] ** 2
+            monthly_spend["share_sq"] = monthly_spend["share"].fillna(0) ** 2
             hhi = monthly_spend.groupby("account_id")["share_sq"].sum().rename("month_conc_hhi_12m")
-            
+
             # Top Subdivision Share
             sub_spend = tx_12m.groupby(["account_id", "sub_division"])["net_revenue"].sum().reset_index()
-            sub_account_total = sub_spend.groupby("account_id")["net_revenue"].transform("sum")
+            sub_account_total = sub_spend.groupby("account_id")["net_revenue"].transform("sum").replace(0, np.nan)
             sub_spend["share"] = sub_spend["net_revenue"] / sub_account_total
             top_share = sub_spend.groupby("account_id")["share"].max().rename("top_subdivision_share_12m")
-            
-            features_df = features_df.merge(hhi, on="account_id", how="left")
-            features_df = features_df.merge(top_share, on="account_id", how="left")
+
+        features_df = features_df.merge(hhi, on="account_id", how="left")
+        features_df = features_df.merge(top_share, on="account_id", how="left")
 
         if "month_conc_hhi_12m" not in features_df.columns:
             features_df["month_conc_hhi_12m"] = 0.0
@@ -879,8 +1023,8 @@ def enrich_with_list_builder_features(
     except Exception as e:
         print(f"[WARN] Error calculating additional list builder features: {e}")
         # Ensure columns exist to prevent crash
-        for col in ["sw_dominance_score", "hw_share_12m", "sw_share_12m", "breadth_score_hw", 
-                    "breadth_hw_subdiv_12m", "days_since_last_hw_order", "month_conc_hhi_12m", 
+        for col in ["sw_dominance_score", "hw_share_12m", "sw_share_12m", "breadth_score_hw",
+                    "breadth_hw_subdiv_12m", "days_since_last_hw_order", "month_conc_hhi_12m",
                     "top_subdivision_share_12m", "discount_pct"]:
             if col not in features_df.columns:
                 features_df[col] = 0.0 if col != "days_since_last_hw_order" else 9999
@@ -912,10 +1056,11 @@ def enrich_with_list_builder_features(
             return pd.Series(np.nan, index=s.index)
 
     rank_cols = [
-        "spend_12m","spend_13w","delta_13w_pct","yoy_13w_pct","slope_13w","acceleration_13w",
-        "spend_12m_printers","spend_13w_printers","delta_13w_pct_printers","yoy_13w_pct_printers","slope_13w_printers","acceleration_13w_printers",
+        "spend_12m","spend_24m","spend_36m","spend_13w","delta_13w_pct","yoy_13w_pct","slope_13w","acceleration_13w",
+        "spend_12m_hw","spend_13w_hw","delta_13w_pct_hw","yoy_13w_pct_hw","slope_13w_hw","acceleration_13w_hw",
         "spend_12m_cre","spend_13w_cre","delta_13w_pct_cre","yoy_13w_pct_cre","slope_13w_cre","acceleration_13w_cre",
-        "breadth_score_cre","recency_score_cre",
+        "spend_12m_cpe","spend_13w_cpe","delta_13w_pct_cpe","yoy_13w_pct_cpe","slope_13w_cpe","acceleration_13w_cpe",
+        "breadth_score_cre","recency_score_cre","recency_score_cpe",
     ]
     for rc in rank_cols:
         if rc in features_df.columns:
@@ -925,8 +1070,14 @@ def enrich_with_list_builder_features(
     # Ensure required columns for POV tags and other downstream logic are available
     # This covers columns that should have come from compute_spend_dynamics
     missing_cols = [
-        "days_since_last_order", "median_interpurchase_days", "active_weeks_13w", "purchase_streak_months",
-        "spend_13w", "spend_13w_prior", "delta_13w", "delta_13w_pct", "spend_12m", "spend_52w", "yoy_13w_pct",
+        "days_since_last_order", "days_since_last_hw_order", "days_since_last_cre_order", "days_since_last_cpe_order",
+        "median_interpurchase_days", "active_weeks_13w", "purchase_streak_months",
+        "spend_13w", "spend_13w_prior", "delta_13w", "delta_13w_pct",
+        "spend_12m", "spend_12m_prior", "delta_12m", "delta_12m_pct",
+        "spend_24m", "spend_24m_prior", "delta_24m", "delta_24m_pct",
+        "spend_36m", "spend_36m_prior", "delta_36m", "delta_36m_pct",
+        "spend_12m_hw", "spend_12m_cre", "spend_12m_cpe",
+        "yoy_13w_pct",
         "slope_13w", "slope_13w_prior", "acceleration_13w", "volatility_13w", "seasonality_factor_13w",
         "trend_score", "recency_score", "magnitude_score", "cadence_score"
     ]

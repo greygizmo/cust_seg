@@ -28,7 +28,7 @@ End-to-end pipeline to score GoEngineer Digital Manufacturing accounts from Azur
 
 ## Configuration
 Edit `config.toml`:
-- `[similarity]` - `k_neighbors` (default 15), `use_text`, `use_als`, block weights, and memory controls `max_dense_accounts`, `row_block_size`
+- `[similarity]` - `k_neighbors` (default 25), block weights (numeric/categorical/text/ALS), curated numeric/text columns, and memory controls `max_dense_accounts`, `row_block_size`
 - `[als]` - `alpha`, `reg`, `iterations`, `use_bm25`, and composite strength weights
 
 Environment variables:

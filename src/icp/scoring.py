@@ -118,6 +118,8 @@ def _compute_adoption_scores(df: pd.DataFrame, config: DivisionConfig) -> pd.Ser
         assets_series = pd.to_numeric(df[config.adoption.asset_column], errors="coerce").fillna(0)
     elif config.adoption.asset_goals:
         assets_series = _sum_columns(df, config.adoption.asset_goals)
+    elif config.adoption.fallback_printer_columns:
+        assets_series = _sum_columns(df, config.adoption.fallback_printer_columns)
 
     profit_series = None
     if config.adoption.profit_column and config.adoption.profit_column in df.columns:

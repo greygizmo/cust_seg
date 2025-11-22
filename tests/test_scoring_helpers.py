@@ -70,6 +70,25 @@ def test_compute_adoption_scores_from_columns_and_fallbacks():
     fallback_scores = _compute_adoption_scores(df_fallback, config)
     assert fallback_scores.tolist() == pytest.approx([0.5, 1.0])
 
+    # Fallback printer columns should be honored when goal/asset columns are missing
+    df_printer_fallback = pd.DataFrame({
+        'Big Box Count': [5, 0],
+        'Small Box Count': [0, 10],
+    })
+    # Mock config to include these columns and clear higher-priority goals
+    new_adoption = replace(
+        config.adoption,
+        fallback_printer_columns=['Big Box Count', 'Small Box Count'],
+        asset_goals=[],
+        profit_goals=[]
+    )
+    config_mock = replace(config, adoption=new_adoption)
+    
+    printer_scores = _compute_adoption_scores(df_printer_fallback, config_mock)
+    # With profit=0 (R=0.5), scores are 0.6*P + 0.4*0.5.
+    # P=[0.5, 1.0] -> Scores=[0.5, 0.8]
+    assert printer_scores.tolist() == pytest.approx([0.5, 0.8])
+
 
 def test_compute_relationship_scores_uses_profit_and_fallbacks():
     # Use CRE because it has the fallback revenue columns used in this test

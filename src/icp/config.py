@@ -25,10 +25,14 @@ class SimilarityConfig:
     use_als: bool = True
     max_dense_accounts: int = 5000
     row_block_size: int = 512
-    w_numeric: float = 0.5
-    w_categorical: float = 0.5
-    w_text: float = 0.0
-    w_als: float = 0.1
+    w_numeric: float = 0.45
+    w_categorical: float = 0.20
+    w_text: float = 0.25
+    w_als: float = 0.10
+    numeric_include: list[str] = field(default_factory=list)
+    text_columns: list[str] = field(default_factory=list)
+    log1p_cols: list[str] = field(default_factory=list)
+    logit_cols: list[str] = field(default_factory=list)
 
 @dataclass
 class AppConfig:

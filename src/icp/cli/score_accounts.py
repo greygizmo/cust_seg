@@ -215,10 +215,21 @@ def main():
     out_cols = [c for c in desired_order if c in scored.columns]
     out_cols.extend([c for c in feature_cols if c not in out_cols])
 
-    # Include dynamically generated enrichment columns (printer-only and percentiles)
+    # Remove redundant 52w spend columns to enforce 12M standardization
+    redundant_cols = [
+        "spend_52w",
+        "spend_52w_hw",
+        "spend_52w_cre",
+        "spend_52w_cpe",
+        "spend_52w_printers",
+    ]
+    scored = scored.drop(columns=[c for c in redundant_cols if c in scored.columns], errors="ignore")
+
+    # Include dynamically generated enrichment columns (suffix-based and percentiles)
     dynamic_suffixes = (
-        "_printers",
+        "_hw",
         "_cre",
+        "_cpe",
         "_pctl",
     )
     dynamic_includes = {
@@ -230,12 +241,21 @@ def main():
         "Hardware_ICP_Score", "Hardware_ICP_Grade", "Hardware_Adoption_Score", "Hardware_Relationship_Score", "Hardware_Vertical_Score",
         "CRE_ICP_Score", "CRE_ICP_Grade", "CRE_Adoption_Score", "CRE_Relationship_Score", "CRE_Vertical_Score",
         "CPE_ICP_Score", "CPE_ICP_Grade", "CPE_Adoption_Score", "CPE_Relationship_Score", "CPE_Vertical_Score",
+        "printer_count",
+        # Super-division signals
+        "GP_Printer Accessories", "Qty_Printer Accessories",
+        "GP_Miscellaneous", "Qty_Miscellaneous",
+        "GP_Draftsight", "Qty_Draftsight",
+        "GP_Services", "Qty_Services",
+        "GP_Training",
     }
     dyn_cols = [
         c for c in scored.columns
         if (
             any(c.endswith(suf) for suf in dynamic_suffixes)
             or c in dynamic_includes
+            or c.startswith("GP_Printer Accessories_")
+            or c.startswith("Qty_Printer Accessories_")
         )
     ]
     for c in dyn_cols:
@@ -251,17 +271,36 @@ def main():
 
     # Coerce newly added feature columns to numeric where applicable and round for BI friendliness
     numeric_like = set([
-        "spend_13w","spend_13w_prior","delta_13w","delta_13w_pct","spend_12m","spend_52w","yoy_13w_pct",
+        "spend_13w","spend_13w_prior","delta_13w","delta_13w_pct",
+        "spend_12m","spend_12m_prior","delta_12m","delta_12m_pct",
+        "spend_24m","spend_24m_prior","delta_24m","delta_24m_pct",
+        "spend_36m","spend_36m_prior","delta_36m","delta_36m_pct",
+        "yoy_13w_pct",
         "days_since_last_order","active_weeks_13w","purchase_streak_months","median_interpurchase_days",
         "slope_13w","slope_13w_prior","acceleration_13w","volatility_13w","seasonality_factor_13w",
         "trend_score","recency_score","magnitude_score","cadence_score","momentum_score",
         "w_trend","w_recency","w_magnitude","w_cadence",
-        "spend_13w_cre","spend_13w_prior_cre","delta_13w_cre","delta_13w_pct_cre","spend_12m_cre","spend_52w_cre","yoy_13w_pct_cre",
-        "days_since_last_order_cre","active_weeks_13w_cre",
+        "spend_13w_hw","spend_13w_prior_hw","delta_13w_hw","delta_13w_pct_hw",
+        "spend_12m_hw","spend_12m_prior_hw","delta_12m_hw","delta_12m_pct_hw",
+        "spend_24m_hw","spend_24m_prior_hw","delta_24m_hw","delta_24m_pct_hw",
+        "spend_36m_hw","spend_36m_prior_hw","delta_36m_hw","delta_36m_pct_hw",
+        "yoy_13w_pct_hw","days_since_last_hw_order",
+        "spend_13w_cre","spend_13w_prior_cre","delta_13w_cre","delta_13w_pct_cre",
+        "spend_12m_cre","spend_12m_prior_cre","delta_12m_cre","delta_12m_pct_cre",
+        "spend_24m_cre","spend_24m_prior_cre","delta_24m_cre","delta_24m_pct_cre",
+        "spend_36m_cre","spend_36m_prior_cre","delta_36m_cre","delta_36m_pct_cre",
+        "yoy_13w_pct_cre","days_since_last_cre_order","active_weeks_13w_cre",
+        "spend_13w_cpe","spend_13w_prior_cpe","delta_13w_cpe","delta_13w_pct_cpe",
+        "spend_12m_cpe","spend_12m_prior_cpe","delta_12m_cpe","delta_12m_pct_cpe",
+        "spend_24m_cpe","spend_24m_prior_cpe","delta_24m_cpe","delta_24m_pct_cpe",
+        "spend_36m_cpe","spend_36m_prior_cpe","delta_36m_cpe","delta_36m_pct_cpe",
+        "yoy_13w_pct_cpe","days_since_last_cpe_order","active_weeks_13w_cpe",
         "slope_13w_cre","slope_13w_prior_cre","acceleration_13w_cre","volatility_13w_cre","seasonality_factor_13w_cre",
-        "breadth_cre_rollup_12m","max_cre_rollup","breadth_score_cre","days_since_last_cre_order","recency_score_cre",
+        "slope_13w_hw","slope_13w_prior_hw","acceleration_13w_hw","volatility_13w_hw","seasonality_factor_13w_hw",
+        "slope_13w_cpe","slope_13w_prior_cpe","acceleration_13w_cpe","volatility_13w_cpe","seasonality_factor_13w_cpe",
+        "breadth_cre_rollup_12m","max_cre_rollup","breadth_score_cre","recency_score_cre","recency_score_cpe",
         "hw_spend_12m","sw_spend_12m","hw_share_12m","sw_share_12m","breadth_hw_subdiv_12m","max_hw_subdiv",
-        "breadth_score_hw","days_since_last_hw_order","recency_score_hw","hardware_adoption_score",
+        "breadth_score_hw","recency_score_hw","hardware_adoption_score",
         "consumables_to_hw_ratio","top_subdivision_share_12m",
         "hw_spend_13w","hw_spend_13w_prior","hw_delta_13w","hw_delta_13w_pct",
         "sw_spend_13w","sw_spend_13w_prior","sw_delta_13w","sw_delta_13w_pct",
@@ -273,9 +312,10 @@ def main():
         "Seats_CAD","GP_CAD","Seats_CPE","GP_CPE","Seats_Specialty Software","GP_Specialty Software",
         "active_assets_total","seats_sum_total","Portfolio_Breadth","scaling_flag",
         "Days_Since_First_Purchase","Days_Since_Last_Purchase","Days_Since_Last_Expiration",
+        "cpe_adoption_assets","cpe_adoption_profit","cpe_relationship_profit",
     ])
     for c in list(scored.columns):
-        if c.endswith("_pctl") or c.endswith("_printers") or c.endswith("_cre"):
+        if c.endswith("_pctl") or c.endswith("_hw") or c.endswith("_cre") or c.endswith("_cpe"):
             numeric_like.add(c)
     for col in numeric_like:
         if col in scored.columns:
@@ -305,9 +345,10 @@ def main():
         scored["edu_assets"] = scored["edu_assets"].apply(_yes_no)
 
     # Ensure no null Customer IDs before writing to CSV
-    scored = scored.dropna(subset=[COL_CUSTOMER_ID])
+    scored = scored.loc[scored[COL_CUSTOMER_ID].notna()].copy()
     scored = scored[scored[COL_CUSTOMER_ID].astype(str).str.strip() != ""]
     scored = scored[scored[COL_CUSTOMER_ID].astype(str).str.strip().str.lower() != "nan"]
+    scored[COL_CUSTOMER_ID] = scored[COL_CUSTOMER_ID].astype(str).str.strip()
 
     scored[out_cols].to_csv(out_path, index=False, float_format="%.4f")
     print(f"Saved {out_path}")
@@ -348,6 +389,8 @@ def main():
         print(f"[WARN] Failed to write scored accounts to database: {e}")
 
     # 6. Neighbors Artifact
+    neighbors_path = None
+
     if not CLI_OPTS.get("skip_neighbors", False):
         try:
             # Load configuration
@@ -362,6 +405,109 @@ def main():
                 "use_als": app_config.similarity.use_als,
                 "max_dense_accounts": app_config.similarity.max_dense_accounts,
                 "row_block_size": app_config.similarity.row_block_size,
+                "w_numeric": app_config.similarity.w_numeric,
+                "w_categorical": app_config.similarity.w_categorical,
+                "w_text": app_config.similarity.w_text,
+                "w_als": app_config.similarity.w_als,
+                # Encourage richer text context for neighbors
+                "text_columns": app_config.similarity.text_columns
+                or ["Industry_Reasoning", "pov_tags_all", "account_name"],
+                # Curated numeric signals for neighbors (falls back to all numerics when missing)
+                "numeric_include": app_config.similarity.numeric_include
+                or [
+                    # Scores
+                    "Hardware_ICP_Score",
+                    "Hardware_Adoption_Score",
+                    "Hardware_Relationship_Score",
+                    "Hardware_Vertical_Score",
+                    "CRE_ICP_Score",
+                    "CRE_Adoption_Score",
+                    "CRE_Relationship_Score",
+                    "CRE_Vertical_Score",
+                    "CPE_ICP_Score",
+                    "CPE_Adoption_Score",
+                    "CPE_Relationship_Score",
+                    "CPE_Vertical_Score",
+                    "momentum_score",
+                    "trend_score",
+                    "recency_score",
+                    "magnitude_score",
+                    "cadence_score",
+                    # Spend trajectories (12/24/36M standard)
+                    "spend_12m",
+                    "spend_12m_hw",
+                    "spend_12m_cre",
+                    "spend_12m_cpe",
+                    "spend_24m",
+                    "spend_36m",
+                    "delta_13w_pct",
+                    "delta_13w_pct_hw",
+                    "delta_13w_pct_cre",
+                    "delta_13w_pct_cpe",
+                    "yoy_13w_pct",
+                    "yoy_13w_pct_hw",
+                    "yoy_13w_pct_cre",
+                    "yoy_13w_pct_cpe",
+                    # Breadth / mix / recency
+                    "breadth_score_hw",
+                    "breadth_score_cre",
+                    "top_subdivision_share_12m",
+                    "days_since_last_order",
+                    "days_since_last_hw_order",
+                    "days_since_last_cre_order",
+                    "days_since_last_cpe_order",
+                    # Cross-division signals
+                    "cross_division_balance_score",
+                    "hw_to_sw_cross_sell_score",
+                    "sw_to_hw_cross_sell_score",
+                    "sw_dominance_score",
+                    "hw_share_12m",
+                    "sw_share_12m",
+                    # Adoption/relationship intensity
+                    "adoption_assets",
+                    "adoption_profit",
+                    "cre_adoption_assets",
+                    "cre_adoption_profit",
+                    "cpe_adoption_assets",
+                    "cpe_adoption_profit",
+                    "relationship_profit",
+                    "cre_relationship_profit",
+                    "cpe_relationship_profit",
+                    # Profit totals
+                    "GP_Since_2023_Total",
+                    "GP_T4Q_Total",
+                    "GP_LastQ_Total",
+                    "GP_QoQ_Growth",
+                ],
+                # Stabilize heavy-tailed metrics
+                "log1p_cols": app_config.similarity.log1p_cols
+                or [
+                    "spend_12m",
+                    "spend_12m_hw",
+                    "spend_12m_cre",
+                    "spend_12m_cpe",
+                    "spend_24m",
+                    "spend_36m",
+                    "adoption_profit",
+                    "cre_adoption_profit",
+                    "cpe_adoption_profit",
+                    "GP_Since_2023_Total",
+                    "GP_T4Q_Total",
+                    "GP_LastQ_Total",
+                ],
+                # Logit-transform bounded shares/ratios
+                "logit_cols": app_config.similarity.logit_cols
+                or [
+                    "hw_share_12m",
+                    "sw_share_12m",
+                    "sw_dominance_score",
+                    "cross_division_balance_score",
+                    "hw_to_sw_cross_sell_score",
+                    "sw_to_hw_cross_sell_score",
+                    "breadth_score_hw",
+                    "breadth_score_cre",
+                    "top_subdivision_share_12m",
+                ],
             }
 
             if CLI_OPTS.get("no_als", False):
@@ -432,7 +578,36 @@ def main():
             neighbors_dir.mkdir(parents=True, exist_ok=True)
             neighbors_path = neighbors_dir / "account_neighbors.csv"
             neighbors.to_csv(neighbors_path, index=False)
+            neighbors.to_csv(neighbors_path, index=False)
             print(f"Saved neighbors artifact: {neighbors_path}")
+
+            # Database Persistence for Neighbors
+            try:
+                icp_db = os.getenv("ICP_AZSQL_DB", "").strip()
+                if icp_db:
+                    print(f"[INFO] Writing neighbors to {icp_db}.dbo.account_neighbors")
+                    engine = da.get_engine(database=icp_db)
+                    
+                    # Ensure no null IDs before writing
+                    neighbors_db = neighbors.copy()
+                    
+                    # Explicitly drop the table first
+                    from sqlalchemy import text
+                    with engine.connect() as conn:
+                        conn.execute(text("DROP TABLE IF EXISTS dbo.account_neighbors"))
+                        conn.commit()
+
+                    neighbors_db.to_sql(
+                        "account_neighbors",
+                        engine,
+                        schema="dbo",
+                        if_exists="replace",
+                        index=False,
+                        chunksize=5000,
+                    )
+                    print("[INFO] Wrote neighbors to dbo.account_neighbors")
+            except Exception as e:
+                print(f"[WARN] Failed to write neighbors to database: {e}")
         except Exception as e:
             print(f"[WARN] Could not generate neighbors artifact: {e}")
     else:
@@ -450,7 +625,7 @@ def main():
     print("Validating outputs...")
     validate_outputs(
         scored_path=str(out_path),
-        neighbors_path=str(neighbors_path) if not CLI_OPTS.get("skip_neighbors", False) else None,
+        neighbors_path=str(neighbors_path) if (neighbors_path and not CLI_OPTS.get("skip_neighbors", False)) else None,
         raise_error=CLI_OPTS.get("strict_validation", False)
     )
 

@@ -1,0 +1,34 @@
+{
+    "weights": {
+        "aerospace & defense": 1.0,
+        "automotive & transportation": 0.7,
+        "building & construction": 0.35,
+        "chemicals & related products": 0.35,
+        "consumer goods": 0.5,
+        "dental": 0.4,
+        "education & research": 0.35,
+        "energy": 0.45,
+        "heavy equip & ind. components": 0.45,
+        "high tech": 0.65,
+        "industrial machinery": 0.4,
+        "manufactured products": 0.35,
+        "medical devices & life sciences": 0.65,
+        "mold, tool & die": 0.35,
+        "packaging": 0.55,
+        "plant & process": 0.4,
+        "services": 0.35,
+        "unknown": 0.35,
+        "": 0.35,
+        "null": 0.35
+    },
+    "metadata": {
+        "generated_at": "2025-11-19T16:00:00",
+        "division": "cpe",
+        "method": "mirrored_cre_defaults",
+        "total_industries": 20,
+        "score_range": [
+            0.35,
+            1.0
+        ]
+    }
+}
